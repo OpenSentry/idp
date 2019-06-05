@@ -1,9 +1,11 @@
 package interfaces
 
 type PostIdentitiesRecoverRequest struct {
-  Id      int64
+  Id		string		`json:"id"`
 }
 
 type PostIdentitiesRecoverResponse struct {
-  Id      int64
+  Id		string		`json:"id"`
+  Email		string		`json:"email"`
+  RecoverMethod string		`json:"recover_method"`
 }

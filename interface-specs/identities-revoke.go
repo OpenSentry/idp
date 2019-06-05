@@ -1,9 +1,10 @@
 package interfaces
 
 type PostIdentitiesRevokeRequest struct {
-  Id      int64
+  Id		string		`json:"id"`
 }
 
 type PostIdentitiesRevokeResponse struct {
-  Id      int64
+  Id		string		`json:"id"`
+  Revoked	bool		`json:"revoked"`
 }
