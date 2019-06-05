@@ -42,12 +42,3 @@ CMD if [ "${APP_ENV}" = "production" ]; \
 	  go get github.com/pilu/fresh && \
 	  fresh; \
 	fi
-
-# DEVELOPMENT
-# RUN export PATH=$PATH:$GOPATH/bin
-# RUN go get github.com/gin-gonic/gin 
-# CMD ["gin run main.go"]
-
-# PRODUCTION
-# Run the executable
-# CMD ["idp"]

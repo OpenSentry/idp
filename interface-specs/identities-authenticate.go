@@ -1,9 +1,11 @@
 package interfaces
 
 type PostIdentitiesAuthenticateRequest struct {
-  Id      int64
+  Id		string		`json:"id"`
+  password	string		`json:"password"`
 }
 
 type PostIdentitiesAuthenticateResponse struct {
-  Id      int64
+  Id		string		`json:"id"`
+  Authenticated	bool		`json:"authenticated"`
 }
