@@ -10,7 +10,7 @@ First of all make sure docker is installed and ready to use.
 
 Next, run the following commands:
 ```
-$ git clone https://github.com/linuxdk/golang-idp-be.git
+$ git clone git@github.com:CharMixer/golang-idp-be.git
 $ cd golang-idp-be
 $ # This will build a docker image by getting all necessary requirements and compiling the go project.
 $ docker build -t idp .
