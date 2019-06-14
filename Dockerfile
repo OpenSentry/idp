@@ -15,19 +15,19 @@ RUN git clone -b v1.7.4 https://github.com/neo4j-drivers/seabolt.git /seabolt
 WORKDIR /seabolt/build
 
 # CMAKE_INSTALL_LIBDIR=lib is a hack where we override default lib64 to lib to workaround a defect
-# in our generated pkg-config file 
+# in our generated pkg-config file
 RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
 
 # Set the Current Working Directory inside the container
-WORKDIR $GOPATH/src/idp
+WORKDIR $GOPATH/src/golang-idp-be
 
 # Copy everything from the current directory to the PWD(Present Working Directory) inside the container
 COPY . .
 
 # Download all the dependencies
 # https://stackoverflow.com/questions/28031603/what-do-three-dots-mean-in-go-command-line-invocations
-RUN go get github.com/gin-gonic/gin 
-RUN go get github.com/neo4j/neo4j-go-driver/neo4j 
+RUN go get github.com/gin-gonic/gin
+RUN go get github.com/neo4j/neo4j-go-driver/neo4j
 
 # Install the package
 RUN go install -v ./...
@@ -36,9 +36,9 @@ RUN go install -v ./...
 EXPOSE 8080
 
 CMD if [ "${APP_ENV}" = "production" ]; \
-	then \
-	  idp; \
-	else \
-	  go get github.com/pilu/fresh && \
-	  fresh; \
-	fi
+      then \
+        golang-idp-be; \
+      else \
+        go get github.com/pilu/fresh && \
+        fresh; \
+      fi
