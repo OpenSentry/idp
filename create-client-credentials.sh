@@ -24,6 +24,7 @@ cmd=$(docker run --rm -it \
     --name identity-provider-backend \
     --grant-types client_credentials \
     --response-types token \
+    --callbacks http://127.0.0.1:8081/welcome
     --scope oauth.*,idp.*)
 
 if [ "$?" -eq 0 ]
