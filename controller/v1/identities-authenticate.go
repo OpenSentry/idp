@@ -6,7 +6,7 @@ import (
   "golang-idp-be/interfaces"
   "golang-idp-be/gateway/hydra"
   _ "os"
-  _ "fmt"
+  "fmt"
 )
 
 func PostIdentitiesAuthenticate(c *gin.Context) {
@@ -20,7 +20,11 @@ func PostIdentitiesAuthenticate(c *gin.Context) {
     return
   }
 
-  hydraLoginResponse := hydra.GetLogin(input.Challenge)
+  hydraLoginResponse, err := hydra.GetLogin(input.Challenge)
+
+  if err != nil {
+    fmt.Println(err)
+  }
 
   if hydraLoginResponse.Skip {
     hydraLoginAcceptRequest := interfaces.HydraLoginAcceptRequest{
@@ -41,7 +45,7 @@ func PostIdentitiesAuthenticate(c *gin.Context) {
 
   if input.Id == "user-1" && input.Password == "1234" {
     hydraLoginAcceptRequest := interfaces.HydraLoginAcceptRequest{
-      Subject: hydraLoginResponse.Subject,
+      Subject: input.Id,
     }
 
     hydraLoginAcceptResponse := hydra.AcceptLogin(input.Challenge, hydraLoginAcceptRequest)
