@@ -1,11 +1,15 @@
 package interfaces
 
-type HydraLoginRequestResponse struct {
+type HydraLoginResponse struct {
   Skip        bool        `json:"skip"`
   RedirectTo  string      `json:"redirect_to"`
   Subject     string      `json:"subject"`
 }
 
-type HydraLoginRequestAcceptResponse struct {
+type HydraLoginAcceptRequest struct {
+  Subject     string      `json:"subject"`
+}
+
+type HydraLoginAcceptResponse struct {
   RedirectTo  string      `json:"redirect_to"`
 }
