@@ -4,6 +4,7 @@ import (
   "github.com/gin-gonic/gin"
   "net/http"
   "golang-idp-be/interfaces"
+  "golang-idp-be/config"
   _ "os"
   _ "fmt"
   "io/ioutil"
@@ -57,7 +58,7 @@ func PostIdentitiesAuthenticate(c *gin.Context) {
     "Accept": []string{"application/json"},
   }
 
-  req, err := http.NewRequest("GET", "http://hydra:4445/oauth2/auth/requests/login", nil)
+  req, err := http.NewRequest("GET", config.Hydra.LoginRequestUrl, nil)
   req.Header = headers
 
   q := req.URL.Query()
@@ -76,7 +77,7 @@ func PostIdentitiesAuthenticate(c *gin.Context) {
       "subject": hydraLoginRequestResponse.Subject,
     })
 
-    req, err = http.NewRequest("PUT", "http://hydra:4445/oauth2/auth/requests/login/accept", bytes.NewBuffer(body))
+    req, err = http.NewRequest("PUT", config.Hydra.LoginRequestAcceptUrl, bytes.NewBuffer(body))
     req.Header = headers
 
     q := req.URL.Query()
@@ -107,7 +108,7 @@ func PostIdentitiesAuthenticate(c *gin.Context) {
       "subject": input.Id,
     })
 
-    req, err = http.NewRequest("PUT", "http://hydra:4445/oauth2/auth/requests/login/accept", bytes.NewBuffer(body))
+    req, err = http.NewRequest("PUT", config.Hydra.LoginRequestAcceptUrl, bytes.NewBuffer(body))
     req.Header = headers
 
     q := req.URL.Query()
