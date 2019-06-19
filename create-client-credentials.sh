@@ -2,6 +2,7 @@
 set -e
 
 CLIENT_ID=idp-be
+CLIENT_NAME=identity-provider-backend
 FILE=.idp-be.yml
 
 if [ -f "$FILE" ]
@@ -21,10 +22,10 @@ cmd=$(docker run --rm -it \
   clients create \
     --skip-tls-verify \
     --id $CLIENT_ID \
-    --name identity-provider-backend \
+    --name $CLIENT_NAME \
     --grant-types client_credentials \
     --response-types token \
-    --callbacks http://127.0.0.1:8081/welcome \
+    --callbacks http://127.0.0.1:8080/welcome \
     --scope oauth.*,idp.*)
 
 if [ "$?" -eq 0 ]
