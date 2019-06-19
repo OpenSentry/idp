@@ -3,6 +3,7 @@ package main
 import (
   "github.com/gin-gonic/gin"
   "golang-idp-be/server"
+  "golang-idp-be/config"
 )
 
 /*
@@ -14,6 +15,10 @@ import (
 
 
 */
+
+func init() {
+  config.InitConfigurations()
+}
 
 func main() {
 
