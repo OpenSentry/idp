@@ -16,7 +16,8 @@ func getDefaultHeaders() map[string][]string {
   }
 }
 
-func GetLogin(challenge string) interfaces.HydraLoginResponse {
+func GetLogin(challenge string) (interfaces.HydraLoginResponse, error) {
+  var hydraLoginResponse interfaces.HydraLoginResponse
 
   client := &http.Client{}
 
@@ -27,14 +28,16 @@ func GetLogin(challenge string) interfaces.HydraLoginResponse {
   query.Add("login_challenge", challenge)
   request.URL.RawQuery = query.Encode()
 
-  response, _ := client.Do(request)
+  response, err := client.Do(request)
+  if err != nil {
+    return hydraLoginResponse, err
+  }
 
   responseData, _ := ioutil.ReadAll(response.Body)
 
-  var hydraLoginResponse interfaces.HydraLoginResponse
   json.Unmarshal(responseData, &hydraLoginResponse)
 
-  return hydraLoginResponse
+  return hydraLoginResponse, nil
 }
 
 func AcceptLogin(challenge string, hydraLoginAcceptRequest interfaces.HydraLoginAcceptRequest) interfaces.HydraLoginAcceptResponse {
