@@ -10,6 +10,7 @@ func V1Routes(r *gin.RouterGroup) {
   r.POST("/identities", v1.PostIdentities)
   r.PUT( "/identities", v1.PutIdentities)
   r.POST( "/identities/authenticate", v1.PostIdentitiesAuthenticate)
+  r.POST( "/identities/logout", v1.PostIdentitiesLogout)
   r.POST( "/identities/revoke", v1.PostIdentitiesRevoke)
   r.POST( "/identities/recover", v1.PostIdentitiesRecover)
 }
