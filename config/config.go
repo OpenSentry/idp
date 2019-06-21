@@ -19,6 +19,9 @@ type HydraConfig struct {
   LoginRequestUrl           string
   LoginRequestAcceptUrl     string
   LoginRequestRejectUrl     string
+  LogoutRequestUrl           string
+  LogoutRequestAcceptUrl    string
+  LogoutRequestRejectUrl    string
 }
 
 type OAuth2ClientConfig struct {
@@ -38,6 +41,10 @@ func InitConfigurations() {
   Hydra.LoginRequestUrl       = Hydra.AdminUrl + "/oauth2/auth/requests/login"
   Hydra.LoginRequestAcceptUrl = Hydra.LoginRequestUrl + "/accept"
   Hydra.LoginRequestRejectUrl = Hydra.LoginRequestUrl + "/reject"
+  Hydra.LogoutRequestUrl       = Hydra.AdminUrl + "/oauth2/auth/requests/logout"
+  Hydra.LogoutRequestAcceptUrl = Hydra.LogoutRequestUrl + "/accept"
+  Hydra.LogoutRequestRejectUrl = Hydra.LogoutRequestUrl + "/reject"
+
 
   OAuth2Client.ClientId       = getEnv("OAUTH2_CLIENT_CLIENT_ID")
   OAuth2Client.ClientSecret   = getEnv("OAUTH2_CLIENT_ClIENT_SECRET")
