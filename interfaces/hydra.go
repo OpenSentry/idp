@@ -30,3 +30,7 @@ type HydraLogoutAcceptRequest struct {
 type HydraLogoutAcceptResponse struct {
   RedirectTo string `json:"redirect_to"`
 }
+
+type HydraUserInfoResponse struct {
+  Sub        string      `json:"sub"`
+}
