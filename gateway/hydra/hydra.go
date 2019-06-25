@@ -17,6 +17,37 @@ func getDefaultHeaders() map[string][]string {
   }
 }
 
+func getDefaultHeadersWithAuthentication(accessToken string) map[string][]string {
+  return map[string][]string{
+    "Content-Type": []string{"application/json"},
+    "Accept": []string{"application/json"},
+    "Authorization": []string{"Bearer " + accessToken},
+  }
+}
+
+func GetUserInfo(accessToken string) (interfaces.HydraUserInfoResponse, error) {
+  var hydraUserInfoResponse interfaces.HydraUserInfoResponse
+
+  client := &http.Client{}
+
+  request, _ := http.NewRequest("GET", config.Hydra.UserInfoUrl, nil)
+  request.Header = getDefaultHeadersWithAuthentication(accessToken)
+
+  response, err := client.Do(request)
+  if err != nil {
+    return hydraUserInfoResponse, err
+  }
+
+  responseData, err := ioutil.ReadAll(response.Body)
+  fmt.Println(string(responseData))
+  if err != nil {
+    return hydraUserInfoResponse, err
+  }
+  json.Unmarshal(responseData, &hydraUserInfoResponse)
+
+  return hydraUserInfoResponse, nil
+}
+
 func GetLogin(challenge string) (interfaces.HydraLoginResponse, error) {
   var hydraLoginResponse interfaces.HydraLoginResponse
 
