@@ -2,7 +2,6 @@ package config
 
 import (
   "os"
-  "strings"
 )
 
 /*
@@ -34,7 +33,6 @@ type OAuth2ClientConfig struct {
 }
 
 var Hydra HydraConfig
-var OAuth2Client OAuth2ClientConfig
 
 func InitConfigurations() {
   Hydra.Url                   = getEnvStrict("HYDRA_URL")
@@ -46,12 +44,6 @@ func InitConfigurations() {
   Hydra.LogoutRequestAcceptUrl = Hydra.LogoutRequestUrl + "/accept"
   Hydra.LogoutRequestRejectUrl = Hydra.LogoutRequestUrl + "/reject"
   Hydra.UserInfoUrl            = Hydra.Url + "/userinfo"
-
-  OAuth2Client.ClientId       = getEnv("OAUTH2_CLIENT_CLIENT_ID")
-  OAuth2Client.ClientSecret   = getEnv("OAUTH2_CLIENT_ClIENT_SECRET")
-  OAuth2Client.Scopes         = strings.Split(getEnv("OAUTH2_CLIENT_SCOPES"), ",")
-  OAuth2Client.RedirectURL    = getEnv("OAUTH2_CLIENT_REDIRECT_URL")
-  OAuth2Client.Endpoint       = getEnv("OAUTH2_CLIENT_ENDPOINT")
 }
 
 func getEnv(name string) string {
