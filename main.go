@@ -1,13 +1,16 @@
 package main
 
 import (
+  "fmt"
   "strings"
   "net/http"
+
   "golang.org/x/oauth2"
+
   "github.com/gin-gonic/gin"
+
   "golang-idp-be/config"
   "golang-idp-be/controller"
-  "fmt"
 )
 
 func init() {
@@ -33,6 +36,7 @@ func main() {
 
 func logRequest() gin.HandlerFunc {
   return func(c *gin.Context) {
+    fmt.Println("Logging all requests. Do not do this in production it will leak tokens")
     fmt.Println(c.Request)
   }
 }
