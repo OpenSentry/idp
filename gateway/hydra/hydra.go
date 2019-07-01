@@ -7,7 +7,7 @@ import (
   "bytes"
   "encoding/json"
   "io/ioutil"
-  "fmt"
+  _ "fmt"
 )
 
 func getDefaultHeaders() map[string][]string {
@@ -39,7 +39,6 @@ func GetUserInfo(accessToken string) (interfaces.HydraUserInfoResponse, error) {
   }
 
   responseData, err := ioutil.ReadAll(response.Body)
-  fmt.Println(string(responseData))
   if err != nil {
     return hydraUserInfoResponse, err
   }
@@ -66,7 +65,6 @@ func GetLogin(challenge string) (interfaces.HydraLoginResponse, error) {
   }
 
   responseData, err := ioutil.ReadAll(response.Body)
-  fmt.Println(string(responseData))
   if err != nil {
     return hydraLoginResponse, err
   }
