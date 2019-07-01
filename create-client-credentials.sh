@@ -26,7 +26,8 @@ cmd=$(docker run --rm -it \
     --grant-types client_credentials \
     --response-types token \
     --callbacks http://127.0.0.1:8080/me \
-    --scope oauth.*,idp.*)
+    --scope hydra \
+    --audience hydra)
 
 if [ "$?" -eq 0 ]
 then

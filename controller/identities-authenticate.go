@@ -1,15 +1,18 @@
 package controller
 
 import (
-  "github.com/gin-gonic/gin"
+  _ "os"
+  "fmt"
   "net/http"
+
+  "github.com/gin-gonic/gin"
+
   "golang-idp-be/interfaces"
   "golang-idp-be/gateway/hydra"
-  _ "os"
-  _ "fmt"
 )
 
 func PostIdentitiesAuthenticate(c *gin.Context) {
+  fmt.Println(fmt.Sprintf("[request-id:%s][event:PostIdentitiesAuthenticate]", c.MustGet("RequestId")))
 
   var input interfaces.PostIdentitiesAuthenticateRequest
 
@@ -36,6 +39,7 @@ func PostIdentitiesAuthenticate(c *gin.Context) {
 
     hydraLoginAcceptResponse := hydra.AcceptLogin(input.Challenge, hydraLoginAcceptRequest)
 
+    fmt.Println("IdpBe.PostIdentitiesAuthenticate, id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
     c.JSON(http.StatusOK, gin.H{
       "id": input.Id,
       "authenticated": true,
@@ -55,6 +59,7 @@ func PostIdentitiesAuthenticate(c *gin.Context) {
 
     hydraLoginAcceptResponse := hydra.AcceptLogin(input.Challenge, hydraLoginAcceptRequest)
 
+    fmt.Println("IdpBe.PostIdentitiesAuthenticate, id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
     c.JSON(http.StatusOK, gin.H{
       "id": input.Id,
       "authenticated": true,
@@ -65,8 +70,10 @@ func PostIdentitiesAuthenticate(c *gin.Context) {
   }
 
   // Deny by default
+  fmt.Println("IdpBe.PostIdentitiesAuthenticate, id:"+input.Id+" authenticated:false redirect_to:")
   c.JSON(http.StatusOK, gin.H{
     "id": input.Id,
     "authenticated": false,
   })
+  c.Abort()
 }
