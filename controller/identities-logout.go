@@ -10,6 +10,7 @@ import (
 )
 
 func PostIdentitiesLogout(c *gin.Context) {
+  fmt.Println(fmt.Sprintf("[request-id:%s][event:PostIdentitiesLogout]", c.MustGet("RequestId")))
   var input interfaces.PostIdentitiesLogoutRequest
 
   err := c.BindJSON(&input)
@@ -20,20 +21,13 @@ func PostIdentitiesLogout(c *gin.Context) {
     return
   }
 
-  hydraLogoutResponse, err := hydra.GetLogout(input.Challenge)
-  if err != nil {
-    c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-    c.Abort()
-    return
-  }
-
-  fmt.Println(hydraLogoutResponse)
-
   hydraLogoutAcceptRequest := interfaces.HydraLogoutAcceptRequest{
   }
   hydraLogoutAcceptResponse, err := hydra.AcceptLogout(input.Challenge, hydraLogoutAcceptRequest)
 
+  fmt.Println("IdpBe.PostIdentitiesLogout, redirect_to:" + hydraLogoutAcceptResponse.RedirectTo)
   c.JSON(http.StatusOK, gin.H{
     "redirect_to": hydraLogoutAcceptResponse.RedirectTo,
   })
+  c.Abort()
 }

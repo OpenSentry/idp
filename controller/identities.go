@@ -1,14 +1,17 @@
 package controller
 
 import (
-  "github.com/gin-gonic/gin"
-  _ "golang-idp-be/config"
-  "net/http"
   _ "os"
-  _ "fmt"
+  "fmt"
+  "net/http"
+
+  "github.com/gin-gonic/gin"
+
+  _ "golang-idp-be/config"
 )
 
 func GetIdentities(c *gin.Context) {
+  fmt.Println(fmt.Sprintf("[request-id:%s][event:GetIdentities]", c.MustGet("RequestId")))
 
   id, _ := c.GetQuery("id")
 
@@ -18,6 +21,7 @@ func GetIdentities(c *gin.Context) {
       "name": "Test bruger",
       "email": "test@test.dk",
     })
+    c.Abort()
     return
   }
 
@@ -25,6 +29,7 @@ func GetIdentities(c *gin.Context) {
   c.JSON(http.StatusNotFound, gin.H{
     "error": "Not found",
   })
+  c.Abort()
 }
 
 func PostIdentities(c *gin.Context) {

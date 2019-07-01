@@ -8,6 +8,7 @@ import (
   "golang.org/x/oauth2"
 
   "github.com/gin-gonic/gin"
+  "github.com/atarantini/ginrequestid"
 
   "golang-idp-be/config"
   "golang-idp-be/controller"
@@ -20,8 +21,8 @@ func init() {
 func main() {
 
   r := gin.Default()
-
-  r.Use(logRequest())
+  r.Use(ginrequestid.RequestId())
+  //r.Use(logRequest())
   r.Use(requireBearerAccessToken())
   r.GET( "/identities", controller.GetIdentities)
   r.POST("/identities", controller.PostIdentities)
@@ -61,7 +62,10 @@ func requireBearerAccessToken() gin.HandlerFunc {
       // Token invalid
       c.JSON(http.StatusForbidden, gin.H{"error": "Authorization bearer token is invalid"})
       c.Abort()
+      return;
     }
+
+    fmt.Println("wtf")
 
     // Deny by default.
     c.JSON(http.StatusForbidden, gin.H{"error": "Authorization bearer token is missing"})
