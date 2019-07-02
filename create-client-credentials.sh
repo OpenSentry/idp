@@ -11,7 +11,7 @@ then
   exit 1
 fi
 
-HYDRA_ADMIN_URL="http://hydra:4445"
+HYDRA_ADMIN_URL="https://hydra:4445"
 HYDRA_DOCKER_NETWORK="sso-examples_trusted"
 
 # Create client credentials for service

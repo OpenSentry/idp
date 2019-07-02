@@ -34,10 +34,12 @@ RUN go install -v ./...
 # This container exposes port 8080 to the outside world
 EXPOSE 8080
 
-CMD if [ "${APP_ENV}" = "production" ]; \
+CMD update-ca-certificates && if [ "${APP_ENV}" = "production" ]; \
       then \
         golang-idp-be; \
       else \
         go get github.com/pilu/fresh && \
         fresh; \
       fi
+
+ENTRYPOINT
