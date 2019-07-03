@@ -32,7 +32,8 @@ func main() {
   r.POST( "/identities/revoke", controller.PostIdentitiesRevoke)
   r.POST( "/identities/recover", controller.PostIdentitiesRecover)
 
-  r.Run() // listen and serve on 0.0.0.0:8080
+  r.RunTLS(":80", "/srv/certs/idpbe-cert.pem", "/srv/certs/idpbe-key.pem")
+  // r.Run() // listen and serve on 0.0.0.0:8080
 }
 
 func logRequest() gin.HandlerFunc {
