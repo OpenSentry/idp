@@ -31,15 +31,16 @@ RUN go get -d -v ./...
 # Install the package
 RUN go install -v ./...
 
-# This container exposes port 8080 to the outside world
-EXPOSE 8080
+# This container exposes port 443 to the docker network
+EXPOSE 443
 
-CMD update-ca-certificates && if [ "${APP_ENV}" = "production" ]; \
+ARG release_build=1
+ENV release_build=$release_build
+
+CMD update-ca-certificates && if [ "$release_build" = "1" ]; \
       then \
         golang-idp-be; \
       else \
         go get github.com/pilu/fresh && \
         fresh; \
       fi
-
-ENTRYPOINT
