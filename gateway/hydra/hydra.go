@@ -1,14 +1,49 @@
 package hydra
 
 import (
-  "golang-idp-be/config"
-  "golang-idp-be/interfaces"
   "net/http"
   "bytes"
   "encoding/json"
   "io/ioutil"
   _ "fmt"
+
+  "golang-idp-be/config"
 )
+
+type HydraLoginResponse struct {
+  Skip        bool        `json:"skip"`
+  RedirectTo  string      `json:"redirect_to"`
+  Subject     string      `json:"subject"`
+}
+
+type HydraLoginAcceptRequest struct {
+  Subject     string      `json:"subject"`
+  Remember    bool        `json:"remember,omitempty"`
+  RememberFor int       `json:"remember_for,omitempty"`
+}
+
+type HydraLoginAcceptResponse struct {
+  RedirectTo  string      `json:"redirect_to"`
+}
+
+type HydraLogoutResponse struct {
+  RequestUrl string `json:"request_url"`
+  RpInitiated bool `json:"rp_initiated"`
+  Sid string `json:"sid"`
+  Subject string `json:"subject"`
+}
+
+type HydraLogoutAcceptRequest struct {
+
+}
+
+type HydraLogoutAcceptResponse struct {
+  RedirectTo string `json:"redirect_to"`
+}
+
+type HydraUserInfoResponse struct {
+  Sub        string      `json:"sub"`
+}
 
 func getDefaultHeaders() map[string][]string {
   return map[string][]string{
@@ -25,8 +60,8 @@ func getDefaultHeadersWithAuthentication(accessToken string) map[string][]string
   }
 }
 
-func GetUserInfo(accessToken string) (interfaces.HydraUserInfoResponse, error) {
-  var hydraUserInfoResponse interfaces.HydraUserInfoResponse
+func GetUserInfo(accessToken string) (HydraUserInfoResponse, error) {
+  var hydraUserInfoResponse HydraUserInfoResponse
 
   client := &http.Client{}
 
@@ -47,8 +82,8 @@ func GetUserInfo(accessToken string) (interfaces.HydraUserInfoResponse, error) {
   return hydraUserInfoResponse, nil
 }
 
-func GetLogin(challenge string) (interfaces.HydraLoginResponse, error) {
-  var hydraLoginResponse interfaces.HydraLoginResponse
+func GetLogin(challenge string) (HydraLoginResponse, error) {
+  var hydraLoginResponse HydraLoginResponse
 
   client := &http.Client{}
 
@@ -73,8 +108,8 @@ func GetLogin(challenge string) (interfaces.HydraLoginResponse, error) {
   return hydraLoginResponse, nil
 }
 
-func AcceptLogin(challenge string, hydraLoginAcceptRequest interfaces.HydraLoginAcceptRequest) interfaces.HydraLoginAcceptResponse {
-  var hydraLoginAcceptResponse interfaces.HydraLoginAcceptResponse
+func AcceptLogin(challenge string, hydraLoginAcceptRequest HydraLoginAcceptRequest) HydraLoginAcceptResponse {
+  var hydraLoginAcceptResponse HydraLoginAcceptResponse
 
   client := &http.Client{}
 
@@ -94,8 +129,8 @@ func AcceptLogin(challenge string, hydraLoginAcceptRequest interfaces.HydraLogin
   return hydraLoginAcceptResponse
 }
 
-func GetLogout(challenge string) (interfaces.HydraLogoutResponse, error) {
-  var hydraLogoutResponse interfaces.HydraLogoutResponse
+func GetLogout(challenge string) (HydraLogoutResponse, error) {
+  var hydraLogoutResponse HydraLogoutResponse
 
   client := &http.Client{}
 
@@ -118,8 +153,8 @@ func GetLogout(challenge string) (interfaces.HydraLogoutResponse, error) {
   return hydraLogoutResponse, nil
 }
 
-func AcceptLogout(challenge string, hydraLogoutAcceptRequest interfaces.HydraLogoutAcceptRequest) (interfaces.HydraLogoutAcceptResponse, error) {
-  var hydraLogoutAcceptResponse interfaces.HydraLogoutAcceptResponse
+func AcceptLogout(challenge string, hydraLogoutAcceptRequest HydraLogoutAcceptRequest) (HydraLogoutAcceptResponse, error) {
+  var hydraLogoutAcceptResponse HydraLogoutAcceptResponse
 
   client := &http.Client{}
 
