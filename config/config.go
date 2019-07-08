@@ -4,13 +4,9 @@ import (
   "os"
 )
 
-/*
-RedirectURL:  redirect url,
-ClientID:     "GOOGLE_CLIENT_ID",
-ClientSecret: "CLIENT_SECRET",
-Scopes:       []string{"scope1", "scope2"},
-Endpoint:     oauth2 endpoint,
-*/
+type SelfConfig struct {
+  Port          string
+}
 
 type HydraConfig struct {
   Url                       string
@@ -18,7 +14,7 @@ type HydraConfig struct {
   LoginRequestUrl           string
   LoginRequestAcceptUrl     string
   LoginRequestRejectUrl     string
-  LogoutRequestUrl           string
+  LogoutRequestUrl          string
   LogoutRequestAcceptUrl    string
   LogoutRequestRejectUrl    string
   UserInfoUrl               string
@@ -33,8 +29,11 @@ type OAuth2ClientConfig struct {
 }
 
 var Hydra HydraConfig
+var Self SelfConfig
 
 func InitConfigurations() {
+  Self.Port                   = getEnvStrict("PORT")
+
   Hydra.Url                   = getEnvStrict("HYDRA_URL")
   Hydra.AdminUrl              = getEnvStrict("HYDRA_ADMIN_URL")
   Hydra.LoginRequestUrl       = Hydra.AdminUrl + "/oauth2/auth/requests/login"
