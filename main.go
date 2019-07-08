@@ -32,7 +32,7 @@ func main() {
   r.POST( "/identities/revoke", controller.PostIdentitiesRevoke)
   r.POST( "/identities/recover", controller.PostIdentitiesRecover)
 
-  r.RunTLS(":80", "/srv/certs/idpbe-cert.pem", "/srv/certs/idpbe-key.pem")
+  r.RunTLS(":" + config.Self.Port, "/srv/certs/idpbe-cert.pem", "/srv/certs/idpbe-key.pem")
   // r.Run() // listen and serve on 0.0.0.0:8080
 }
 
