@@ -6,6 +6,7 @@ import (
 
   "github.com/gin-gonic/gin"
 
+  "golang-idp-be/config"
   "golang-idp-be/gateway/hydra"
 )
 
@@ -27,9 +28,12 @@ func PostLogout(env *IdpBeEnv) gin.HandlerFunc {
       return
     }
 
+    // Create a new HTTP client to perform the request, to prevent serialization
+    hydraClient := hydra.NewHydraClient(env.HydraConfig)
+
     hydraLogoutAcceptRequest := hydra.HydraLogoutAcceptRequest{
     }
-    hydraLogoutAcceptResponse, err := hydra.AcceptLogout(input.Challenge, hydraLogoutAcceptRequest)
+    hydraLogoutAcceptResponse, err := hydra.AcceptLogout(config.Hydra.LogoutRequestAcceptUrl, hydraClient, input.Challenge, hydraLogoutAcceptRequest)
     if err != nil {
       fmt.Println("identities.PostLogout:" + err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

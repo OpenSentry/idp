@@ -17,6 +17,7 @@ import (
 
 
   "golang-idp-be/config"
+  _ "golang-idp-be/gateway/hydra"
   "golang-idp-be/identities"
 )
 
@@ -36,20 +37,23 @@ func main() {
     return
   }
 
-  // Setup hydra config. Used for Authorization code flow. (should this go into idpbe?)
+  // Setup the hydra client idpbe is going to use (oauth2 client credentials)
+  // NOTE: We store the hydraConfig also as we are going to need it to let idpbe app start the Oauth2 Authorization code flow.
   hydraConfig := &clientcredentials.Config{
     ClientID:     config.IdpBe.ClientId,
     ClientSecret: config.IdpBe.ClientSecret,
-    TokenURL:     config.Hydra.TokenUrl,
+    TokenURL:     provider.Endpoint().TokenURL,
     Scopes:       config.IdpBe.RequiredScopes,
     EndpointParams: url.Values{"audience": {"hydra"}},
     AuthStyle: 2, // https://godoc.org/golang.org/x/oauth2#AuthStyle
   }
+  //hydraClient := hydra.NewHydraClient(hydraConfig)
 
   // Setup app state variables. Can be used in handler functions by doing closures see exchangeAuthorizationCodeCallback
   env := &identities.IdpBeEnv{
     Provider: provider,
     HydraConfig: hydraConfig,
+    //HydraClient: hydraClient, // Will this serialize the request handling?
   }
 
   r := gin.Default()
@@ -65,13 +69,13 @@ func main() {
   // All requests need to be authenticated.
   r.Use(authenticationRequired())
 
-  r.GET( "/identities", authorizationRequired("idpbe.identities.read"), identities.GetCollection(env))
-  r.POST("/identities", authorizationRequired("idpbe.identities.write"), identities.PostCollection(env))
-  r.PUT( "/identities", authorizationRequired("idpbe.identities.write"), identities.PutCollection(env))
-  r.POST( "/identities/authenticate", authorizationRequired("idpbe.authenticate"), identities.PostAuthenticate(env))
-  r.POST( "/identities/logout", authorizationRequired("idpbe.logout"), identities.PostLogout(env))
-  r.POST( "/identities/revoke", authorizationRequired("idpbe.revoke"), identities.PostRevoke(env))
-  r.POST( "/identities/recover", authorizationRequired("idpbe.recover"), identities.PostRecover(env))
+  r.GET("/identities", authorizationRequired("idpbe.identities.get"), identities.GetCollection(env))
+  r.POST("/identities", authorizationRequired("idpbe.identities.post"), identities.PostCollection(env))
+  r.PUT("/identities", authorizationRequired("idpbe.identities.update"), identities.PutCollection(env))
+  r.POST("/identities/authenticate", authorizationRequired("idpbe.authenticate"), identities.PostAuthenticate(env))
+  r.POST("/identities/logout", authorizationRequired("idpbe.logout"), identities.PostLogout(env))
+  r.POST("/identities/revoke", authorizationRequired("idpbe.revoke"), identities.PostRevoke(env))
+  r.POST("/identities/recover", authorizationRequired("idpbe.recover"), identities.PostRecover(env))
 
   r.RunTLS(":80", "/srv/certs/idpbe-cert.pem", "/srv/certs/idpbe-key.pem")
 }
@@ -130,7 +134,7 @@ func authorizationRequired(requiredScopes ...string) gin.HandlerFunc {
 
     foundRequiredScopes := true
     if foundRequiredScopes {
-      debugLog(app, "authorizationRequired", "Valid scopes", requestId)
+      debugLog(app, "authorizationRequired", "Valid scopes. WE DID NOT CHECK IT - TODO!", requestId)
       c.Next() // Authentication successful, continue.
       return;
     }
