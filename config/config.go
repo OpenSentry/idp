@@ -52,7 +52,7 @@ func InitConfigurations() {
 
   IdpBe.ClientId              = getEnvStrict("IDP_BACKEND_OAUTH2_CLIENT_ID")
   IdpBe.ClientSecret          = getEnvStrict("IDP_BACKEND_OAUTH2_CLIENT_SECRET")
-  IdpBe.RequiredScopes        = []string{"openid"}
+  IdpBe.RequiredScopes        = []string{"hydra"}
 }
 
 func getEnv(name string) string {

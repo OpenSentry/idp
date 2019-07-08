@@ -12,6 +12,7 @@ import (
   "github.com/gin-gonic/gin"
 
   _ "golang-idp-be/config"
+  "golang-idp-be/gateway/hydra"
 )
 
 type GetIdentitiesRequest struct {
@@ -53,6 +54,7 @@ type PutIdentitiesResponse struct {
 type IdpBeEnv struct {
   Provider *oidc.Provider
   HydraConfig *clientcredentials.Config
+  HydraClient *hydra.HydraClient
 }
 
 func GetCollection(env *IdpBeEnv) gin.HandlerFunc {

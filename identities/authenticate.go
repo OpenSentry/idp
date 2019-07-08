@@ -6,6 +6,7 @@ import (
 
   "github.com/gin-gonic/gin"
 
+  "golang-idp-be/config"
   "golang-idp-be/gateway/hydra"
 )
 
@@ -32,7 +33,10 @@ func PostAuthenticate(env *IdpBeEnv) gin.HandlerFunc {
       return
     }
 
-    hydraLoginResponse, err := hydra.GetLogin(input.Challenge)
+    // Create a new HTTP client to perform the request, to prevent serialization
+    hydraClient := hydra.NewHydraClient(env.HydraConfig)
+
+    hydraLoginResponse, err := hydra.GetLogin(config.Hydra.LoginRequestUrl, hydraClient, input.Challenge)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
@@ -46,7 +50,7 @@ func PostAuthenticate(env *IdpBeEnv) gin.HandlerFunc {
         RememberFor: 30,
       }
 
-      hydraLoginAcceptResponse := hydra.AcceptLogin(input.Challenge, hydraLoginAcceptRequest)
+      hydraLoginAcceptResponse := hydra.AcceptLogin(config.Hydra.LoginRequestAcceptUrl, hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
       fmt.Println("IdpBe.PostIdentitiesAuthenticate, id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
       c.JSON(http.StatusOK, gin.H{
@@ -65,7 +69,7 @@ func PostAuthenticate(env *IdpBeEnv) gin.HandlerFunc {
         RememberFor: 30,
       }
 
-      hydraLoginAcceptResponse := hydra.AcceptLogin(input.Challenge, hydraLoginAcceptRequest)
+      hydraLoginAcceptResponse := hydra.AcceptLogin(config.Hydra.LoginRequestAcceptUrl, hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
       fmt.Println("IdpBe.PostIdentitiesAuthenticate, id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
       c.JSON(http.StatusOK, gin.H{

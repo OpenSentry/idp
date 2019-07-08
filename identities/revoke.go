@@ -5,6 +5,9 @@ import (
   "fmt"
 
   "github.com/gin-gonic/gin"
+
+  _ "golang-idp-be/config"
+  _ "golang-idp-be/gateway/hydra"
 )
 
 type RevokeRequest struct {
