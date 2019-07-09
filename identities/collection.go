@@ -6,13 +6,13 @@ import (
 
   _ "golang.org/x/net/context"
   _ "golang.org/x/oauth2"
-  "golang.org/x/oauth2/clientcredentials"
+  _ "golang.org/x/oauth2/clientcredentials"
 
-  oidc "github.com/coreos/go-oidc"
   "github.com/gin-gonic/gin"
 
   _ "golang-idp-be/config"
-  "golang-idp-be/gateway/hydra"
+  _ "golang-idp-be/gateway/hydra"
+  "golang-idp-be/gateway/idpbe"
 )
 
 type GetIdentitiesRequest struct {
@@ -51,24 +51,27 @@ type PutIdentitiesResponse struct {
   Email         string          `json:"email"`
 }
 
-type IdpBeEnv struct {
-  Provider *oidc.Provider
-  HydraConfig *clientcredentials.Config
-  HydraClient *hydra.HydraClient
-}
 
-func GetCollection(env *IdpBeEnv) gin.HandlerFunc {
+func GetCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.GetCollection]", c.MustGet("RequestId")))
 
     id, _ := c.GetQuery("id")
-    if id == "user-1" {
-      c.JSON(http.StatusOK, gin.H{
-        "id": id,
-        "name": "Test bruger",
-        "email": "test@test.dk",
+    if id == "" {
+      c.JSON(http.StatusNotFound, gin.H{
+        "error": "Not found",
       })
       c.Abort()
+      return;
+    }
+
+    n := env.Database[id]
+    if id == n.Id {
+      c.JSON(http.StatusOK, gin.H{
+        "id": n.Id,
+        "name": n.Name,
+        "email": n.Email,
+      })
       return
     }
 
@@ -81,7 +84,7 @@ func GetCollection(env *IdpBeEnv) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PostCollection(env *IdpBeEnv) gin.HandlerFunc {
+func PostCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PostCollection]", c.MustGet("RequestId")))
 
@@ -100,7 +103,7 @@ func PostCollection(env *IdpBeEnv) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PutCollection(env *IdpBeEnv) gin.HandlerFunc {
+func PutCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PutCollection]", c.MustGet("RequestId")))
 

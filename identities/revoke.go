@@ -7,6 +7,7 @@ import (
   "github.com/gin-gonic/gin"
 
   _ "golang-idp-be/config"
+  "golang-idp-be/gateway/idpbe"
   _ "golang-idp-be/gateway/hydra"
 )
 
@@ -19,7 +20,7 @@ type RevokeResponse struct {
   Revoked	bool		`json:"revoked"`
 }
 
-func PostRevoke(env *IdpBeEnv) gin.HandlerFunc {
+func PostRevoke(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PostRevoke]", c.MustGet("RequestId")))
     var input RevokeRequest
