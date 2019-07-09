@@ -17,7 +17,7 @@ import (
 
 
   "golang-idp-be/config"
-  _ "golang-idp-be/gateway/hydra"
+  "golang-idp-be/gateway/idpbe"
   "golang-idp-be/identities"
 )
 
@@ -49,22 +49,38 @@ func main() {
   }
   //hydraClient := hydra.NewHydraClient(hydraConfig)
 
+  dbIdentities := map[string]*idpbe.Identity{
+    "user-1": &idpbe.Identity{
+        Id: "user-1",
+        Name: "Test",
+        Email: "user-1@domain.com",
+        Password: "1234",
+    },
+    "wraix": &idpbe.Identity{
+      Id: "wraix",
+      Name: "wraix",
+      Email: "wraix@domain.com",
+      Password: "5678",
+    },
+  }
+
   // Setup app state variables. Can be used in handler functions by doing closures see exchangeAuthorizationCodeCallback
-  env := &identities.IdpBeEnv{
+  env := &idpbe.IdpBeEnv{
     Provider: provider,
     HydraConfig: hydraConfig,
     //HydraClient: hydraClient, // Will this serialize the request handling?
+    Database: dbIdentities,
   }
 
   r := gin.Default()
   r.Use(ginrequestid.RequestId())
 
-  // Questions that need answering before granting access to a protected resource:
+  // ## QTNA - Questions that need answering before granting access to a protected resource
   // 1. Is the user or client authenticated? Answered by the process of obtaining an access token.
-  // 2. Is the access token expired? Answered by token.Valid(), https://godoc.org/golang.org/x/oauth2#Token.Valid
-  // 3. Is the access token granted the required scopes? FIXME: Use introspection or JWT to decide
-  // 4. Is the user or client giving the grants in the access token authorized to operate the scopes granted? FIXME: Ask cpbe to determine or use JWT
-  // 5. Is the access token revoked? Use idpbe.IsAccessTokenRevoked to decide.
+  // 2. Is the access token expired?
+  // 3. Is the access token granted the required scopes?
+  // 4. Is the user or client giving the grants in the access token authorized to operate the scopes granted?
+  // 5. Is the access token revoked?
 
   // All requests need to be authenticated.
   r.Use(authenticationRequired())
@@ -77,7 +93,7 @@ func main() {
   r.POST("/identities/revoke", authorizationRequired("idpbe.revoke"), identities.PostRevoke(env))
   r.POST("/identities/recover", authorizationRequired("idpbe.recover"), identities.PostRecover(env))
 
-  r.RunTLS(":80", "/srv/certs/idpbe-cert.pem", "/srv/certs/idpbe-key.pem")
+  r.RunTLS(":" + config.Self.Port, "/srv/certs/idpbe-cert.pem", "/srv/certs/idpbe-key.pem")
 }
 
 func authenticationRequired() gin.HandlerFunc {
@@ -95,7 +111,13 @@ func authenticationRequired() gin.HandlerFunc {
         TokenType: split[0],
       }
 
+      // See #2 of QTNA
+      // https://godoc.org/golang.org/x/oauth2#Token.Valid
       if token.Valid() == true {
+
+        // See #5 of QTNA
+        // FIXME: Call token revoked list to check if token is revoked.
+
         debugLog(app, "authenticationRequired", "Valid access token", requestId)
         c.Set(accessTokenKey, token)
         c.Next() // Authentication successful, continue.
@@ -128,20 +150,28 @@ func authorizationRequired(requiredScopes ...string) gin.HandlerFunc {
       c.Abort()
       return
     }
-
-    // Sanity check: Claims
+    debugLog(app, "authorizationRequired", "Dumping access_token. DO NOT DO THIS IN PRODUCTION!", requestId)
     fmt.Println(accessToken)
+
+    // FIXME: Implement QTNA #3 and #4
+
+    // See #3 of QTNA
+    debugLog(app, "authorizationRequired", "Missing implementation of QTNA #3 - Is the access token granted the required scopes?", requestId)
+    // See #4 of QTNA
+    debugLog(app, "authorizationRequired", "Missing implementation of QTNA #4 - Is the user or client giving the grants in the access token authorized to operate the scopes granted?", requestId)
+
+    strRequiredScopes := strings.Join(requiredScopes, ",")
 
     foundRequiredScopes := true
     if foundRequiredScopes {
-      debugLog(app, "authorizationRequired", "Valid scopes. WE DID NOT CHECK IT - TODO!", requestId)
+      debugLog(app, "authorizationRequired", "Valid scopes: " + strRequiredScopes, requestId)
       c.Next() // Authentication successful, continue.
       return;
     }
 
     // Deny by default
-    debugLog(app, "authorizationRequired", "Missing required scopes: ", requestId)
-    c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing required scopes: "})
+    debugLog(app, "authorizationRequired", "Invalid scopes: " + strRequiredScopes + " Hint: Some required scopes are missing, invalid or not granted", requestId)
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid scopes. Hint: Some required scopes are missing, invalid or not granted"})
     c.Abort()
   }
   return gin.HandlerFunc(fn)

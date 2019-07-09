@@ -46,6 +46,23 @@ type HydraUserInfoResponse struct {
   Sub        string      `json:"sub"`
 }
 
+type HydraIntrospectRequest struct {
+  Token string `json:"token"`
+  Scope string `json:"scope"`
+}
+
+type HydraIntrospectResponse struct {
+  Active string `json:"active"`
+  Aud string `json:"aud"`
+  ClientId string `json:"client_id"`
+  Exp string `json:"exp"`
+  Iat string `json:"iat"`
+  Iss string `json:"iss"`
+  Scope string `json:"scope"`
+  Sub string `json:"sub"`
+  TokenType string `json:"token_type"`
+}
+
 type HydraClient struct {
   *http.Client
 }
@@ -54,6 +71,30 @@ func NewHydraClient(config *clientcredentials.Config) *HydraClient {
   ctx := context.Background()
   client := config.Client(ctx)
   return &HydraClient{client}
+}
+
+func IntrospectToken(url string, client *HydraClient, introspectRequest HydraIntrospectRequest) (HydraIntrospectResponse, error) {
+  var introspectResponse HydraIntrospectResponse
+
+  body, _ := json.Marshal(introspectRequest)
+
+  request, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+  if err != nil {
+    return introspectResponse, err
+  }
+
+  response, err := client.Do(request)
+  if err != nil {
+    return introspectResponse, err
+  }
+
+  responseData, err := ioutil.ReadAll(response.Body)
+  if err != nil {
+    return introspectResponse, err
+  }
+  json.Unmarshal(responseData, &introspectResponse)
+
+  return introspectResponse, nil
 }
 
 // config.Hydra.UserInfoUrl

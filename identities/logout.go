@@ -7,6 +7,7 @@ import (
   "github.com/gin-gonic/gin"
 
   "golang-idp-be/config"
+  "golang-idp-be/gateway/idpbe"
   "golang-idp-be/gateway/hydra"
 )
 
@@ -17,7 +18,7 @@ type LogoutRequest struct {
 type LogoutResponse struct {
 }
 
-func PostLogout(env *IdpBeEnv) gin.HandlerFunc {
+func PostLogout(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PostLogout]", c.MustGet("RequestId")))
     var input LogoutRequest
