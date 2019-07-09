@@ -1,37 +1,107 @@
 package hydra
 
 import (
-  "golang-idp-be/config"
-  "golang-idp-be/interfaces"
   "net/http"
   "bytes"
   "encoding/json"
   "io/ioutil"
   _ "fmt"
+
+  "golang.org/x/net/context"
+  "golang.org/x/oauth2/clientcredentials"
 )
 
-func getDefaultHeaders() map[string][]string {
-  return map[string][]string{
-    "Content-Type": []string{"application/json"},
-    "Accept": []string{"application/json"},
-  }
+type HydraLoginResponse struct {
+  Skip        bool        `json:"skip"`
+  RedirectTo  string      `json:"redirect_to"`
+  Subject     string      `json:"subject"`
 }
 
-func getDefaultHeadersWithAuthentication(accessToken string) map[string][]string {
-  return map[string][]string{
-    "Content-Type": []string{"application/json"},
-    "Accept": []string{"application/json"},
-    "Authorization": []string{"Bearer " + accessToken},
-  }
+type HydraLoginAcceptRequest struct {
+  Subject     string      `json:"subject"`
+  Remember    bool        `json:"remember,omitempty"`
+  RememberFor int       `json:"remember_for,omitempty"`
 }
 
-func GetUserInfo(accessToken string) (interfaces.HydraUserInfoResponse, error) {
-  var hydraUserInfoResponse interfaces.HydraUserInfoResponse
+type HydraLoginAcceptResponse struct {
+  RedirectTo  string      `json:"redirect_to"`
+}
 
-  client := &http.Client{}
+type HydraLogoutResponse struct {
+  RequestUrl string `json:"request_url"`
+  RpInitiated bool `json:"rp_initiated"`
+  Sid string `json:"sid"`
+  Subject string `json:"subject"`
+}
 
-  request, _ := http.NewRequest("GET", config.Hydra.UserInfoUrl, nil)
-  request.Header = getDefaultHeadersWithAuthentication(accessToken)
+type HydraLogoutAcceptRequest struct {
+
+}
+
+type HydraLogoutAcceptResponse struct {
+  RedirectTo string `json:"redirect_to"`
+}
+
+type HydraUserInfoResponse struct {
+  Sub        string      `json:"sub"`
+}
+
+type HydraIntrospectRequest struct {
+  Token string `json:"token"`
+  Scope string `json:"scope"`
+}
+
+type HydraIntrospectResponse struct {
+  Active string `json:"active"`
+  Aud string `json:"aud"`
+  ClientId string `json:"client_id"`
+  Exp string `json:"exp"`
+  Iat string `json:"iat"`
+  Iss string `json:"iss"`
+  Scope string `json:"scope"`
+  Sub string `json:"sub"`
+  TokenType string `json:"token_type"`
+}
+
+type HydraClient struct {
+  *http.Client
+}
+
+func NewHydraClient(config *clientcredentials.Config) *HydraClient {
+  ctx := context.Background()
+  client := config.Client(ctx)
+  return &HydraClient{client}
+}
+
+func IntrospectToken(url string, client *HydraClient, introspectRequest HydraIntrospectRequest) (HydraIntrospectResponse, error) {
+  var introspectResponse HydraIntrospectResponse
+
+  body, _ := json.Marshal(introspectRequest)
+
+  request, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+  if err != nil {
+    return introspectResponse, err
+  }
+
+  response, err := client.Do(request)
+  if err != nil {
+    return introspectResponse, err
+  }
+
+  responseData, err := ioutil.ReadAll(response.Body)
+  if err != nil {
+    return introspectResponse, err
+  }
+  json.Unmarshal(responseData, &introspectResponse)
+
+  return introspectResponse, nil
+}
+
+// config.Hydra.UserInfoUrl
+func GetUserInfo(url string, client *HydraClient) (HydraUserInfoResponse, error) {
+  var hydraUserInfoResponse HydraUserInfoResponse
+
+  request, _ := http.NewRequest("GET", url, nil)
 
   response, err := client.Do(request)
   if err != nil {
@@ -47,13 +117,11 @@ func GetUserInfo(accessToken string) (interfaces.HydraUserInfoResponse, error) {
   return hydraUserInfoResponse, nil
 }
 
-func GetLogin(challenge string) (interfaces.HydraLoginResponse, error) {
-  var hydraLoginResponse interfaces.HydraLoginResponse
+// config.Hydra.LoginRequestUrl
+func GetLogin(url string, client *HydraClient, challenge string) (HydraLoginResponse, error) {
+  var hydraLoginResponse HydraLoginResponse
 
-  client := &http.Client{}
-
-  request, _ := http.NewRequest("GET", config.Hydra.LoginRequestUrl, nil)
-  request.Header = getDefaultHeaders()
+  request, _ := http.NewRequest("GET", url, nil)
 
   query := request.URL.Query()
   query.Add("login_challenge", challenge)
@@ -73,15 +141,13 @@ func GetLogin(challenge string) (interfaces.HydraLoginResponse, error) {
   return hydraLoginResponse, nil
 }
 
-func AcceptLogin(challenge string, hydraLoginAcceptRequest interfaces.HydraLoginAcceptRequest) interfaces.HydraLoginAcceptResponse {
-  var hydraLoginAcceptResponse interfaces.HydraLoginAcceptResponse
-
-  client := &http.Client{}
+// config.Hydra.LoginRequestAcceptUrl
+func AcceptLogin(url string, client *HydraClient, challenge string, hydraLoginAcceptRequest HydraLoginAcceptRequest) HydraLoginAcceptResponse {
+  var hydraLoginAcceptResponse HydraLoginAcceptResponse
 
   body, _ := json.Marshal(hydraLoginAcceptRequest)
 
-  request, _ := http.NewRequest("PUT", config.Hydra.LoginRequestAcceptUrl, bytes.NewBuffer(body))
-  request.Header = getDefaultHeaders()
+  request, _ := http.NewRequest("PUT", url, bytes.NewBuffer(body))
 
   query := request.URL.Query()
   query.Add("login_challenge", challenge)
@@ -94,13 +160,11 @@ func AcceptLogin(challenge string, hydraLoginAcceptRequest interfaces.HydraLogin
   return hydraLoginAcceptResponse
 }
 
-func GetLogout(challenge string) (interfaces.HydraLogoutResponse, error) {
-  var hydraLogoutResponse interfaces.HydraLogoutResponse
+// config.Hydra.LogoutRequestUrl
+func GetLogout(url string, client *HydraClient, challenge string) (HydraLogoutResponse, error) {
+  var hydraLogoutResponse HydraLogoutResponse
 
-  client := &http.Client{}
-
-  request, _ := http.NewRequest("GET", config.Hydra.LogoutRequestUrl, nil)
-  request.Header = getDefaultHeaders()
+  request, _ := http.NewRequest("GET", url, nil)
 
   query := request.URL.Query()
   query.Add("logout_challenge", challenge)
@@ -118,15 +182,13 @@ func GetLogout(challenge string) (interfaces.HydraLogoutResponse, error) {
   return hydraLogoutResponse, nil
 }
 
-func AcceptLogout(challenge string, hydraLogoutAcceptRequest interfaces.HydraLogoutAcceptRequest) (interfaces.HydraLogoutAcceptResponse, error) {
-  var hydraLogoutAcceptResponse interfaces.HydraLogoutAcceptResponse
-
-  client := &http.Client{}
+// config.Hydra.LogoutRequestAcceptUrl
+func AcceptLogout(url string, client *HydraClient, challenge string, hydraLogoutAcceptRequest HydraLogoutAcceptRequest) (HydraLogoutAcceptResponse, error) {
+  var hydraLogoutAcceptResponse HydraLogoutAcceptResponse
 
   body, _ := json.Marshal(hydraLogoutAcceptRequest)
 
-  request, _ := http.NewRequest("PUT", config.Hydra.LogoutRequestAcceptUrl, bytes.NewBuffer(body))
-  request.Header = getDefaultHeaders()
+  request, _ := http.NewRequest("PUT", url, bytes.NewBuffer(body))
 
   query := request.URL.Query()
   query.Add("logout_challenge", challenge)
