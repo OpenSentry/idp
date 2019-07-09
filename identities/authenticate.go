@@ -7,6 +7,7 @@ import (
   "github.com/gin-gonic/gin"
 
   "golang-idp-be/config"
+  "golang-idp-be/gateway/idpbe"
   "golang-idp-be/gateway/hydra"
 )
 
@@ -21,7 +22,7 @@ type AuthenticateResponse struct {
   Authenticated   bool              `json:"authenticated"`
 }
 
-func PostAuthenticate(env *IdpBeEnv) gin.HandlerFunc {
+func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PostAuthenticate]", c.MustGet("RequestId")))
 
@@ -62,23 +63,30 @@ func PostAuthenticate(env *IdpBeEnv) gin.HandlerFunc {
       return
     }
 
-    if input.Id == "user-1" && input.Password == "1234" {
-      hydraLoginAcceptRequest := hydra.HydraLoginAcceptRequest{
-        Subject: input.Id,
-        Remember: true,
-        RememberFor: 30,
+    dbIdentity := env.Database[input.Id]
+    if dbIdentity != nil {
+
+      // FIXME: Implement password algorithm in storage and hash check.
+      fmt.Println("IdpBe.PostIdentitiesAuthenticate, Password check is stupid and for testing use a real pw hash")
+      if dbIdentity.Id == input.Id && dbIdentity.Password == input.Password {
+        hydraLoginAcceptRequest := hydra.HydraLoginAcceptRequest{
+          Subject: dbIdentity.Id,
+          Remember: true,
+          RememberFor: 30,
+        }
+
+        hydraLoginAcceptResponse := hydra.AcceptLogin(config.Hydra.LoginRequestAcceptUrl, hydraClient, input.Challenge, hydraLoginAcceptRequest)
+
+        fmt.Println("IdpBe.PostIdentitiesAuthenticate, id:"+dbIdentity.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
+        c.JSON(http.StatusOK, gin.H{
+          "id": dbIdentity.Id,
+          "authenticated": true,
+          "redirect_to": hydraLoginAcceptResponse.RedirectTo,
+        })
+        c.Abort()
+        return
       }
 
-      hydraLoginAcceptResponse := hydra.AcceptLogin(config.Hydra.LoginRequestAcceptUrl, hydraClient, input.Challenge, hydraLoginAcceptRequest)
-
-      fmt.Println("IdpBe.PostIdentitiesAuthenticate, id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
-      c.JSON(http.StatusOK, gin.H{
-        "id": input.Id,
-        "authenticated": true,
-        "redirect_to": hydraLoginAcceptResponse.RedirectTo,
-      })
-      c.Abort()
-      return
     }
 
     // Deny by default

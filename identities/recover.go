@@ -7,6 +7,7 @@ import (
   "github.com/gin-gonic/gin"
 
   _ "golang-idp-be/config"
+  "golang-idp-be/gateway/idpbe"
   _ "golang-idp-be/gateway/hydra"
 )
 
@@ -20,7 +21,7 @@ type RecoverResponse struct {
   RecoverMethod   string          `json:"recover_method"`
 }
 
-func PostRecover(env *IdpBeEnv) gin.HandlerFunc {
+func PostRecover(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PostRecover]", c.MustGet("RequestId")))
     var input RecoverRequest
