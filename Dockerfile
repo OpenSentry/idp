@@ -34,7 +34,7 @@ RUN go install -v ./...
 # This container exposes port 443 to the docker network
 EXPOSE 443
 
-USER 1000
+#USER 1000
 
 ARG release_build=1
 ENV release_build=$release_build
