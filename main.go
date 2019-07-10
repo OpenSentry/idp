@@ -59,7 +59,7 @@ func main() {
     EndpointParams: url.Values{"audience": {"hydra"}},
     AuthStyle: 2, // https://godoc.org/golang.org/x/oauth2#AuthStyle
   }
-  
+
   // Setup app state variables. Can be used in handler functions by doing closures see exchangeAuthorizationCodeCallback
   env := &idpbe.IdpBeEnv{
     Provider: provider,
