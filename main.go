@@ -15,6 +15,7 @@ import (
   "github.com/gin-gonic/gin"
   "github.com/atarantini/ginrequestid"
 
+  "github.com/neo4j/neo4j-go-driver/neo4j"
 
   "golang-idp-be/config"
   "golang-idp-be/gateway/idpbe"
@@ -30,6 +31,17 @@ func init() {
 }
 
 func main() {
+
+  // https://medium.com/neo4j/neo4j-go-driver-is-out-fbb4ba5b3a30
+  // Each driver instance is thread-safe and holds a pool of connections that can be re-used over time. If you don’t have a good reason to do otherwise, a typical application should have a single driver instance throughout its lifetime.
+  driver, err := neo4j.NewDriver(config.IdpBe.Neo4jUri, neo4j.BasicAuth(config.IdpBe.Neo4jUserName, config.IdpBe.Neo4jPassword, ""), func(config *neo4j.Config) {
+    config.Log = neo4j.ConsoleLogger(neo4j.DEBUG)
+  });
+  if err != nil {
+    debugLog(app, "main", "[database:Neo4j] " + err.Error(), "")
+    return
+  }
+  defer driver.Close()
 
   provider, err := oidc.NewProvider(context.Background(), config.Hydra.Url + "/")
   if err != nil {
@@ -47,29 +59,12 @@ func main() {
     EndpointParams: url.Values{"audience": {"hydra"}},
     AuthStyle: 2, // https://godoc.org/golang.org/x/oauth2#AuthStyle
   }
-  //hydraClient := hydra.NewHydraClient(hydraConfig)
-
-  dbIdentities := map[string]*idpbe.Identity{
-    "user-1": &idpbe.Identity{
-        Id: "user-1",
-        Name: "Test",
-        Email: "user-1@domain.com",
-        Password: "1234",
-    },
-    "wraix": &idpbe.Identity{
-      Id: "wraix",
-      Name: "wraix",
-      Email: "wraix@domain.com",
-      Password: "5678",
-    },
-  }
-
+  
   // Setup app state variables. Can be used in handler functions by doing closures see exchangeAuthorizationCodeCallback
   env := &idpbe.IdpBeEnv{
     Provider: provider,
     HydraConfig: hydraConfig,
-    //HydraClient: hydraClient, // Will this serialize the request handling?
-    Database: dbIdentities,
+    Driver: driver,
   }
 
   r := gin.Default()

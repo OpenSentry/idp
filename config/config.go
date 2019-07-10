@@ -27,6 +27,10 @@ type IdpBeConfig struct {
   ClientId string
   ClientSecret string
   RequiredScopes []string
+
+  Neo4jUri string
+  Neo4jUserName string
+  Neo4jPassword string
 }
 
 var Hydra HydraConfig
@@ -53,6 +57,9 @@ func InitConfigurations() {
   IdpBe.ClientId              = getEnvStrict("IDP_BACKEND_OAUTH2_CLIENT_ID")
   IdpBe.ClientSecret          = getEnvStrict("IDP_BACKEND_OAUTH2_CLIENT_SECRET")
   IdpBe.RequiredScopes        = []string{"hydra"}
+  IdpBe.Neo4jUri              = getEnvStrict("NEO4J_URI")
+  IdpBe.Neo4jUserName         = getEnvStrict("NEO4J_USERNAME")
+  IdpBe.Neo4jPassword         = getEnvStrict("NEO4J_PASSWORD")
 }
 
 func getEnv(name string) string {

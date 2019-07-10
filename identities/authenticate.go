@@ -1,7 +1,6 @@
 package identities
 
 import (
-  "fmt"
   "net/http"
 
   "github.com/gin-gonic/gin"
@@ -22,15 +21,28 @@ type AuthenticateResponse struct {
   Authenticated   bool              `json:"authenticated"`
 }
 
+const appAuthenticate = "idpbe/authenticate"
+
 func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PostAuthenticate]", c.MustGet("RequestId")))
+    requestId := c.MustGet("RequestId").(string)
+    debugLog(appAuthenticate, "PostAuthenticate", "", requestId)
 
     var input AuthenticateRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
+      return
+    }
+
+    // Only challenge is required in the request, but no need to ask DB for empty id.
+    if input.Id == "" {
+      debugLog(appAuthenticate, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
+      c.JSON(http.StatusOK, gin.H{
+        "id": input.Id,
+        "authenticated": false,
+      })
       return
     }
 
@@ -41,7 +53,7 @@ func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
-      return;
+      return
     }
 
     if hydraLoginResponse.Skip {
@@ -53,7 +65,7 @@ func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
 
       hydraLoginAcceptResponse := hydra.AcceptLogin(config.Hydra.LoginRequestAcceptUrl, hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
-      fmt.Println("IdpBe.PostIdentitiesAuthenticate, id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
+      debugLog(appAuthenticate, "PostAuthenticate", "id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo, requestId)
       c.JSON(http.StatusOK, gin.H{
         "id": input.Id,
         "authenticated": true,
@@ -63,23 +75,35 @@ func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
       return
     }
 
-    dbIdentity := env.Database[input.Id]
-    if dbIdentity != nil {
+    identities, err := idpbe.FetchIdentitiesForSub(env.Driver, input.Id)
+    if err != nil {
+      debugLog(appAuthenticate, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
+      c.JSON(http.StatusOK, gin.H{
+        "id": input.Id,
+        "authenticated": false,
+      })
+      c.Abort()
+      return;
+    }
 
-      // FIXME: Implement password algorithm in storage and hash check.
-      fmt.Println("IdpBe.PostIdentitiesAuthenticate, Password check is stupid and for testing use a real pw hash")
-      if dbIdentity.Id == input.Id && dbIdentity.Password == input.Password {
+    if identities != nil {
+
+      // FIXME: Fail of identities contains more than one. Hint: Missing a unique constraint in the db schema?
+      identity := identities[0];
+
+      valid, _ := idpbe.ValidatePassword(identity.Password, input.Password)
+      if valid == true {
         hydraLoginAcceptRequest := hydra.HydraLoginAcceptRequest{
-          Subject: dbIdentity.Id,
+          Subject: identity.Id,
           Remember: true,
           RememberFor: 30,
         }
 
         hydraLoginAcceptResponse := hydra.AcceptLogin(config.Hydra.LoginRequestAcceptUrl, hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
-        fmt.Println("IdpBe.PostIdentitiesAuthenticate, id:"+dbIdentity.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
+        debugLog(appAuthenticate, "PostAuthenticate", "id:"+identity.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo, requestId)
         c.JSON(http.StatusOK, gin.H{
-          "id": dbIdentity.Id,
+          "id": identity.Id,
           "authenticated": true,
           "redirect_to": hydraLoginAcceptResponse.RedirectTo,
         })
@@ -87,10 +111,12 @@ func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
         return
       }
 
+    } else {
+      debugLog(appAuthenticate, "PostAuthenticate", "No identities found", requestId)
     }
 
     // Deny by default
-    fmt.Println("IdpBe.PostIdentitiesAuthenticate, id:"+input.Id+" authenticated:false redirect_to:")
+    debugLog(appAuthenticate, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
     c.JSON(http.StatusOK, gin.H{
       "id": input.Id,
       "authenticated": false,
