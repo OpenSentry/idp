@@ -39,11 +39,10 @@ EXPOSE 443
 ARG release_build=1
 ENV release_build=$release_build
 
-CMD if [ "$release_build" = "1" ]; \
+CMD update-ca-certificates && if [ "$release_build" = "1" ]; \
       then \
         golang-idp-be; \
       else \
-        update-ca-certificates && \
         go get github.com/pilu/fresh && \
         fresh; \
       fi
