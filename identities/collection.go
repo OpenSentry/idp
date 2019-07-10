@@ -111,8 +111,33 @@ func PostCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
       return
     }
 
+    hashedPassword, err := idpbe.CreatePassword(input.Password)
+    if err != nil {
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    newIdentity := idpbe.Identity{
+      Id: input.Id,
+      Name: input.Name,
+      Email: input.Email,
+      Password: hashedPassword,
+    }
+    identityList, err := idpbe.CreateIdentities(env.Driver, newIdentity)
+    if err != nil {
+      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    n := identityList[0]
+
     c.JSON(http.StatusOK, gin.H{
-      "message": "pong",
+      "id": n.Id,
+      "name": n.Name,
+      "email": n.Email,
+      "password": n.Password,
     })
   }
   return gin.HandlerFunc(fn)
