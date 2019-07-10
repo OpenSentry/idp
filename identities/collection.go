@@ -23,34 +23,44 @@ type GetIdentitiesResponse struct {
   Id            string          `json:"id"`
   Name          string          `json:"name"`
   Email         string          `json:"email"`
+  Password      string          `json:"password"`
 }
 
 type PostIdentitiesRequest struct {
   Id            string          `json:"id"`
-  Password      string          `json:"password"`
   Name          string          `json:"name"`
   Email         string          `json:"email"`
+  Password      string          `json:"password"`
 }
 
 type PostIdentitiesResponse struct {
   Id            string          `json:"id"`
   Name          string          `json:"name"`
   Email         string          `json:"email"`
+  Password      string          `json:"password"`
 }
 
 type PutIdentitiesRequest struct {
   Id            string          `json:"id"`
-  Password      string          `json:"password"`
   Name          string          `json:"name"`
   Email         string          `json:"email"`
+  Password      string          `json:"password"`
 }
 
 type PutIdentitiesResponse struct {
   Id            string          `json:"id"`
   Name          string          `json:"name"`
   Email         string          `json:"email"`
+  Password      string          `json:"password"`
 }
 
+func debugLog(app string, event string, msg string, requestId string) {
+  if requestId == "" {
+    fmt.Println(fmt.Sprintf("[app:%s][event:%s] %s", app, event, msg))
+    return;
+  }
+  fmt.Println(fmt.Sprintf("[app:%s][request-id:%s][event:%s] %s", app, requestId, event, msg))
+}
 
 func GetCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   fn := func(c *gin.Context) {
@@ -65,14 +75,19 @@ func GetCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
       return;
     }
 
-    n := env.Database[id]
-    if id == n.Id {
-      c.JSON(http.StatusOK, gin.H{
-        "id": n.Id,
-        "name": n.Name,
-        "email": n.Email,
-      })
-      return
+    identityList, err := idpbe.FetchIdentitiesForSub(env.Driver, id)
+    if err == nil {
+      //n := env.Database[id]
+      n := identityList[0]
+      if id == n.Id {
+        c.JSON(http.StatusOK, gin.H{
+          "id": n.Id,
+          "name": n.Name,
+          "email": n.Email,
+          "password": n.Password,
+        })
+        return
+      }
     }
 
     // Deny by default
