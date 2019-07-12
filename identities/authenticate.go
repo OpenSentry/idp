@@ -6,6 +6,7 @@ import (
   "github.com/gin-gonic/gin"
 
   "golang-idp-be/config"
+  "golang-idp-be/environment"
   "golang-idp-be/gateway/idpbe"
   "golang-idp-be/gateway/hydra"
 )
@@ -21,12 +22,10 @@ type AuthenticateResponse struct {
   Authenticated   bool              `json:"authenticated"`
 }
 
-const appAuthenticate = "idpbe/authenticate"
-
-func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
+func PostAuthenticate(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     requestId := c.MustGet("RequestId").(string)
-    debugLog(appAuthenticate, "PostAuthenticate", "", requestId)
+    environment.DebugLog(route.LogId, "PostAuthenticate", "", requestId)
 
     var input AuthenticateRequest
     err := c.BindJSON(&input)
@@ -38,7 +37,7 @@ func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
 
     // Only challenge is required in the request, but no need to ask DB for empty id.
     if input.Id == "" {
-      debugLog(appAuthenticate, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
+      environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
       c.JSON(http.StatusOK, gin.H{
         "id": input.Id,
         "authenticated": false,
@@ -65,7 +64,7 @@ func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
 
       hydraLoginAcceptResponse := hydra.AcceptLogin(config.Hydra.LoginRequestAcceptUrl, hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
-      debugLog(appAuthenticate, "PostAuthenticate", "id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo, requestId)
+      environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo, requestId)
       c.JSON(http.StatusOK, gin.H{
         "id": input.Id,
         "authenticated": true,
@@ -77,7 +76,7 @@ func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
 
     identities, err := idpbe.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
-      debugLog(appAuthenticate, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
+      environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
       c.JSON(http.StatusOK, gin.H{
         "id": input.Id,
         "authenticated": false,
@@ -101,7 +100,7 @@ func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
 
         hydraLoginAcceptResponse := hydra.AcceptLogin(config.Hydra.LoginRequestAcceptUrl, hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
-        debugLog(appAuthenticate, "PostAuthenticate", "id:"+identity.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo, requestId)
+        environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+identity.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo, requestId)
         c.JSON(http.StatusOK, gin.H{
           "id": identity.Id,
           "authenticated": true,
@@ -112,11 +111,11 @@ func PostAuthenticate(env *idpbe.IdpBeEnv) gin.HandlerFunc {
       }
 
     } else {
-      debugLog(appAuthenticate, "PostAuthenticate", "No identities found", requestId)
+      environment.DebugLog(route.LogId, "PostAuthenticate", "No identities found", requestId)
     }
 
     // Deny by default
-    debugLog(appAuthenticate, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
+    environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
     c.JSON(http.StatusOK, gin.H{
       "id": input.Id,
       "authenticated": false,
