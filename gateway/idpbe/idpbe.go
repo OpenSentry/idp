@@ -2,11 +2,10 @@ package idpbe
 
 import (
   "fmt"
-  "golang.org/x/oauth2/clientcredentials"
+
   "golang.org/x/crypto/bcrypt"
 
   "github.com/neo4j/neo4j-go-driver/neo4j"
-  oidc "github.com/coreos/go-oidc"
 )
 
 type Identity struct {
@@ -14,12 +13,6 @@ type Identity struct {
   Name          string          `json:"name"`
   Email         string          `json:"email"`
   Password      string          `json:"password"`
-}
-
-type IdpBeEnv struct {
-  Provider *oidc.Provider
-  HydraConfig *clientcredentials.Config
-  Driver   neo4j.Driver
 }
 
 func ValidatePassword(storedPassword string, password string) (bool, error) {

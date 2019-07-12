@@ -1,7 +1,6 @@
 package main
 
 import (
-  "fmt"
   "strings"
   "net/http"
   "net/url"
@@ -18,13 +17,11 @@ import (
   "github.com/neo4j/neo4j-go-driver/neo4j"
 
   "golang-idp-be/config"
-  "golang-idp-be/gateway/idpbe"
+  "golang-idp-be/environment"
   "golang-idp-be/identities"
 )
 
 const app = "idpbe"
-const accessTokenKey = "access_token"
-const requestIdKey = "RequestId"
 
 func init() {
   config.InitConfigurations()
@@ -38,14 +35,14 @@ func main() {
     config.Log = neo4j.ConsoleLogger(neo4j.DEBUG)
   });
   if err != nil {
-    debugLog(app, "main", "[database:Neo4j] " + err.Error(), "")
+    environment.DebugLog(app, "main", "[database:Neo4j] " + err.Error(), "")
     return
   }
   defer driver.Close()
 
   provider, err := oidc.NewProvider(context.Background(), config.Hydra.Url + "/")
   if err != nil {
-    fmt.Println(err)
+    environment.DebugLog(app, "main", "[provider:hydra] " + err.Error(), "")
     return
   }
 
@@ -61,10 +58,34 @@ func main() {
   }
 
   // Setup app state variables. Can be used in handler functions by doing closures see exchangeAuthorizationCodeCallback
-  env := &idpbe.IdpBeEnv{
+  env := &environment.State{
     Provider: provider,
     HydraConfig: hydraConfig,
     Driver: driver,
+  }
+
+  // Setup routes to use, this defines log for debug log
+  routes := map[string]environment.Route{
+    "/identities": environment.Route{
+       URL: "/identities",
+       LogId: "idpbe://identities",
+    },
+    "/identities/authenticate": environment.Route{
+      URL: "/identities/authenticate",
+      LogId: "idpfe://identities/authenticate",
+    },
+    "/identities/logout": environment.Route{
+      URL: "/identities/logout",
+      LogId: "idpfe://identities/logout",
+    },
+    "/identities/revoke": environment.Route{
+      URL: "/identities/revoke",
+      LogId: "idpfe://identities/revoke",
+    },
+    "/identities/recover": environment.Route{
+      URL: "/identities/recover",
+      LogId: "idpfe://identities/recover",
+    },
   }
 
   r := gin.Default()
@@ -80,27 +101,27 @@ func main() {
   // All requests need to be authenticated.
   r.Use(authenticationRequired())
 
-  r.GET("/identities", authorizationRequired("idpbe.identities.get"), identities.GetCollection(env))
-  r.POST("/identities", authorizationRequired("idpbe.identities.post"), identities.PostCollection(env))
-  r.PUT("/identities", authorizationRequired("idpbe.identities.update"), identities.PutCollection(env))
-  r.POST("/identities/authenticate", authorizationRequired("idpbe.authenticate"), identities.PostAuthenticate(env))
-  r.POST("/identities/logout", authorizationRequired("idpbe.logout"), identities.PostLogout(env))
-  r.POST("/identities/revoke", authorizationRequired("idpbe.revoke"), identities.PostRevoke(env))
-  r.POST("/identities/recover", authorizationRequired("idpbe.recover"), identities.PostRecover(env))
+  r.GET(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpbe.identities.get"), identities.GetCollection(env, routes["/identities"]))
+  r.POST(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpbe.identities.post"), identities.PostCollection(env, routes["/identities"]))
+  r.PUT(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpbe.identities.put"), identities.PutCollection(env, routes["/identities"]))
+  r.POST(routes["/identities/authenticate"].URL, authorizationRequired(routes["/identities/authenticate"], "idpbe.authenticate"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
+  r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpbe.logout"), identities.PostLogout(env, routes["/identities/logout"]))
+  r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpbe.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
+  r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpbe.recover"), identities.PostRevoke(env, routes["/identities/recover"]))
 
   r.RunTLS(":" + config.Self.Port, "/srv/certs/idpbe-cert.pem", "/srv/certs/idpbe-key.pem")
 }
 
 func authenticationRequired() gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    var requestId string = c.MustGet(requestIdKey).(string)
-    debugLog(app, "authenticationRequired", "Checking Authorization: Bearer <token> in request", requestId)
+    var requestId string = c.MustGet(environment.RequestIdKey).(string)
+    environment.DebugLog(app, "authenticationRequired", "Checking Authorization: Bearer <token> in request", requestId)
 
     var token *oauth2.Token
     auth := c.Request.Header.Get("Authorization")
     split := strings.SplitN(auth, " ", 2)
     if len(split) == 2 || strings.EqualFold(split[0], "bearer") {
-      debugLog(app, "authenticationRequired", "Authorization: Bearer <token> found for request.", requestId)
+      environment.DebugLog(app, "authenticationRequired", "Authorization: Bearer <token> found for request.", requestId)
       token = &oauth2.Token{
         AccessToken: split[1],
         TokenType: split[0],
@@ -113,69 +134,59 @@ func authenticationRequired() gin.HandlerFunc {
         // See #5 of QTNA
         // FIXME: Call token revoked list to check if token is revoked.
 
-        debugLog(app, "authenticationRequired", "Valid access token", requestId)
-        c.Set(accessTokenKey, token)
+        environment.DebugLog(app, "authenticationRequired", "Valid access token", requestId)
+        c.Set(environment.AccessTokenKey, token)
         c.Next() // Authentication successful, continue.
         return;
       }
 
       // Deny by default
-      debugLog(app, "authenticationRequired", "Invalid Access token", requestId)
+      environment.DebugLog(app, "authenticationRequired", "Invalid Access token", requestId)
       c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid access token."})
       c.Abort()
       return
     }
 
     // Deny by default
-    debugLog(app, "authenticationRequired", "Missing access token", requestId)
+    environment.DebugLog(app, "authenticationRequired", "Missing access token", requestId)
     c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization: Bearer <token> not found in request."})
     c.Abort()
   }
   return gin.HandlerFunc(fn)
 }
 
-func authorizationRequired(requiredScopes ...string) gin.HandlerFunc {
+func authorizationRequired(route environment.Route, requiredScopes ...string) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    var requestId string = c.MustGet(requestIdKey).(string)
-    debugLog(app, "authorizationRequired", "Checking Authorization: Bearer <token> in request", requestId)
+    var requestId string = c.MustGet(environment.RequestIdKey).(string)
+    environment.DebugLog(app, "authorizationRequired", "Checking Authorization: Bearer <token> in request", requestId)
 
-    accessToken, accessTokenExists := c.Get(accessTokenKey)
+    _ /*accessToken*/, accessTokenExists := c.Get(environment.AccessTokenKey)
     if accessTokenExists == false {
       c.JSON(http.StatusUnauthorized, gin.H{"error": "No access token found. Hint: Is bearer token missing?"})
       c.Abort()
       return
     }
-    debugLog(app, "authorizationRequired", "Dumping access_token. DO NOT DO THIS IN PRODUCTION!", requestId)
-    fmt.Println(accessToken)
 
     // FIXME: Implement QTNA #3 and #4
 
     // See #3 of QTNA
-    debugLog(app, "authorizationRequired", "Missing implementation of QTNA #3 - Is the access token granted the required scopes?", requestId)
+    environment.DebugLog(app, "authorizationRequired", "Missing implementation of QTNA #3 - Is the access token granted the required scopes?", requestId)
     // See #4 of QTNA
-    debugLog(app, "authorizationRequired", "Missing implementation of QTNA #4 - Is the user or client giving the grants in the access token authorized to operate the scopes granted?", requestId)
+    environment.DebugLog(app, "authorizationRequired", "Missing implementation of QTNA #4 - Is the user or client giving the grants in the access token authorized to operate the scopes granted?", requestId)
 
     strRequiredScopes := strings.Join(requiredScopes, ",")
 
     foundRequiredScopes := true
     if foundRequiredScopes {
-      debugLog(app, "authorizationRequired", "Valid scopes: " + strRequiredScopes, requestId)
+      environment.DebugLog(app, "authorizationRequired", "Valid scopes: " + strRequiredScopes, requestId)
       c.Next() // Authentication successful, continue.
       return;
     }
 
     // Deny by default
-    debugLog(app, "authorizationRequired", "Invalid scopes: " + strRequiredScopes + " Hint: Some required scopes are missing, invalid or not granted", requestId)
+    environment.DebugLog(app, "authorizationRequired", "Invalid scopes: " + strRequiredScopes + " Hint: Some required scopes are missing, invalid or not granted", requestId)
     c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid scopes. Hint: Some required scopes are missing, invalid or not granted"})
     c.Abort()
   }
   return gin.HandlerFunc(fn)
-}
-
-func debugLog(app string, event string, msg string, requestId string) {
-  if requestId == "" {
-    fmt.Println(fmt.Sprintf("[app:%s][event:%s] %s", app, event, msg))
-    return;
-  }
-  fmt.Println(fmt.Sprintf("[app:%s][request-id:%s][event:%s] %s", app, requestId, event, msg))
 }

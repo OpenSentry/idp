@@ -2,12 +2,12 @@ package identities
 
 import (
   "net/http"
-  "fmt"
 
   "github.com/gin-gonic/gin"
 
   "golang-idp-be/config"
-  "golang-idp-be/gateway/idpbe"
+  "golang-idp-be/environment"
+  //"golang-idp-be/gateway/idpbe"
   "golang-idp-be/gateway/hydra"
 )
 
@@ -18,9 +18,11 @@ type LogoutRequest struct {
 type LogoutResponse struct {
 }
 
-func PostLogout(env *idpbe.IdpBeEnv) gin.HandlerFunc {
+func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PostLogout]", c.MustGet("RequestId")))
+    requestId := c.MustGet("RequestId").(string)
+    environment.DebugLog(route.LogId, "PostLogout", "", requestId)
+
     var input LogoutRequest
     err := c.BindJSON(&input)
     if err != nil {
@@ -36,13 +38,13 @@ func PostLogout(env *idpbe.IdpBeEnv) gin.HandlerFunc {
     }
     hydraLogoutAcceptResponse, err := hydra.AcceptLogout(config.Hydra.LogoutRequestAcceptUrl, hydraClient, input.Challenge, hydraLogoutAcceptRequest)
     if err != nil {
-      fmt.Println("identities.PostLogout:" + err.Error())
+      environment.DebugLog(route.LogId, "PostLogout", err.Error(), requestId)
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
       c.Abort()
       return
     }
 
-    fmt.Println("identities.PostLogout, redirect_to:" + hydraLogoutAcceptResponse.RedirectTo)
+    environment.DebugLog(route.LogId, "PostLogout", "redirect_to: " + hydraLogoutAcceptResponse.RedirectTo, requestId)
     c.JSON(http.StatusOK, gin.H{
       "redirect_to": hydraLogoutAcceptResponse.RedirectTo,
     })
