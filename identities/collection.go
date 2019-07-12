@@ -1,15 +1,11 @@
 package identities
 
 import (
-  "fmt"
   "net/http"
-
-  _ "golang.org/x/net/context"
-  _ "golang.org/x/oauth2"
-  _ "golang.org/x/oauth2/clientcredentials"
 
   "github.com/gin-gonic/gin"
 
+  "golang-idp-be/environment"
   _ "golang-idp-be/config"
   _ "golang-idp-be/gateway/hydra"
   "golang-idp-be/gateway/idpbe"
@@ -54,17 +50,10 @@ type PutIdentitiesResponse struct {
   Password      string          `json:"password"`
 }
 
-func debugLog(app string, event string, msg string, requestId string) {
-  if requestId == "" {
-    fmt.Println(fmt.Sprintf("[app:%s][event:%s] %s", app, event, msg))
-    return;
-  }
-  fmt.Println(fmt.Sprintf("[app:%s][request-id:%s][event:%s] %s", app, requestId, event, msg))
-}
-
-func GetCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
+func GetCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.GetCollection]", c.MustGet("RequestId")))
+    requestId := c.MustGet(environment.RequestIdKey).(string)
+    environment.DebugLog(route.LogId, "GetCollection", "", requestId)
 
     id, _ := c.GetQuery("id")
     if id == "" {
@@ -99,9 +88,10 @@ func GetCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PostCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
+func PostCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PostCollection]", c.MustGet("RequestId")))
+    requestId := c.MustGet(environment.RequestIdKey).(string)
+    environment.DebugLog(route.LogId, "PostCollection", "", requestId)
 
     var input PostIdentitiesRequest
     err := c.BindJSON(&input)
@@ -143,9 +133,10 @@ func PostCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PutCollection(env *idpbe.IdpBeEnv) gin.HandlerFunc {
+func PutCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PutCollection]", c.MustGet("RequestId")))
+    requestId := c.MustGet(environment.RequestIdKey).(string)
+    environment.DebugLog(route.LogId, "PutCollection", "", requestId)
 
     var input PutIdentitiesRequest
     err := c.BindJSON(&input)

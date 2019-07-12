@@ -2,13 +2,13 @@ package identities
 
 import (
   "net/http"
-  "fmt"
 
   "github.com/gin-gonic/gin"
 
-  _ "golang-idp-be/config"
-  "golang-idp-be/gateway/idpbe"
-  _ "golang-idp-be/gateway/hydra"
+  //"golang-idp-be/config"
+  "golang-idp-be/environment"
+  //"golang-idp-be/gateway/idpbe"
+  //"golang-idp-be/gateway/hydra"
 )
 
 type RecoverRequest struct {
@@ -21,9 +21,11 @@ type RecoverResponse struct {
   RecoverMethod   string          `json:"recover_method"`
 }
 
-func PostRecover(env *idpbe.IdpBeEnv) gin.HandlerFunc {
+func PostRecover(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    fmt.Println(fmt.Sprintf("[request-id:%s][event:identities.PostRecover]", c.MustGet("RequestId")))
+    requestId := c.MustGet("RequestId").(string)
+    environment.DebugLog(route.LogId, "PostRecover", "", requestId)
+
     var input RecoverRequest
     err := c.BindJSON(&input)
     if err != nil {
