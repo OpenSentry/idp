@@ -5,7 +5,8 @@ import (
   "bytes"
   "encoding/json"
   "io/ioutil"
-  _ "fmt"
+  "errors"
+  "fmt"
 
   "golang.org/x/net/context"
   "golang.org/x/oauth2/clientcredentials"
@@ -136,6 +137,13 @@ func GetLogin(url string, client *HydraClient, challenge string) (HydraLoginResp
   if err != nil {
     return hydraLoginResponse, err
   }
+
+  fmt.Println(string(responseData));
+
+  if response.StatusCode != 200 {
+    return hydraLoginResponse, errors.New("Failed to retrive request from login_challenge, " + string(responseData))
+  }
+
   json.Unmarshal(responseData, &hydraLoginResponse)
 
   return hydraLoginResponse, nil

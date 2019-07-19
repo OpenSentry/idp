@@ -22,6 +22,8 @@ type AuthenticateResponse struct {
   Authenticated   bool              `json:"authenticated"`
 }
 
+const HydraSessionTimeout = 120 // 2m
+
 func PostAuthenticate(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     requestId := c.MustGet("RequestId").(string)
@@ -32,16 +34,6 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
-      return
-    }
-
-    // Only challenge is required in the request, but no need to ask DB for empty id.
-    if input.Id == "" {
-      environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
-      c.JSON(http.StatusOK, gin.H{
-        "id": input.Id,
-        "authenticated": false,
-      })
       return
     }
 
@@ -59,7 +51,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       hydraLoginAcceptRequest := hydra.HydraLoginAcceptRequest{
         Subject: hydraLoginResponse.Subject,
         Remember: true,
-        RememberFor: 30,
+        RememberFor: HydraSessionTimeout, // This means auto logout in hydra after 30 seconds!
       }
 
       hydraLoginAcceptResponse := hydra.AcceptLogin(config.Hydra.LoginRequestAcceptUrl, hydraClient, input.Challenge, hydraLoginAcceptRequest)
@@ -69,6 +61,17 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
         "id": input.Id,
         "authenticated": true,
         "redirect_to": hydraLoginAcceptResponse.RedirectTo,
+      })
+      c.Abort()
+      return
+    }
+
+    // Only challenge is required in the request, but no need to ask DB for empty id.
+    if input.Id == "" {
+      environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
+      c.JSON(http.StatusOK, gin.H{
+        "id": input.Id,
+        "authenticated": false,
       })
       c.Abort()
       return
@@ -95,7 +98,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
         hydraLoginAcceptRequest := hydra.HydraLoginAcceptRequest{
           Subject: identity.Id,
           Remember: true,
-          RememberFor: 30,
+          RememberFor: HydraSessionTimeout, // This means auto logout in hydra after 30 seconds!
         }
 
         hydraLoginAcceptResponse := hydra.AcceptLogin(config.Hydra.LoginRequestAcceptUrl, hydraClient, input.Challenge, hydraLoginAcceptRequest)

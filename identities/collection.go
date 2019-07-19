@@ -11,43 +11,42 @@ import (
   "golang-idp-be/gateway/idpbe"
 )
 
+type IdentitiesResponse struct {
+  Id            string          `json:"id" binding:"required"`
+  Password      string          `json:"password" binding:"required"`
+  Name          string          `json:"name"`
+  Email         string          `json:"email"`
+}
+
+type IdentitiesRequest struct {
+  Id            string          `json:"id" binding:"required"`
+  Name          string          `json:"name"`
+  Email         string          `json:"email"`
+  Password      string          `json:"password"`
+}
+
 type GetIdentitiesRequest struct {
-  Id            string          `json:"id"`
+  *IdentitiesRequest
 }
 
 type GetIdentitiesResponse struct {
-  Id            string          `json:"id"`
-  Name          string          `json:"name"`
-  Email         string          `json:"email"`
-  Password      string          `json:"password"`
+  *IdentitiesResponse
 }
 
 type PostIdentitiesRequest struct {
-  Id            string          `json:"id"`
-  Name          string          `json:"name"`
-  Email         string          `json:"email"`
-  Password      string          `json:"password"`
+  *IdentitiesRequest
 }
 
 type PostIdentitiesResponse struct {
-  Id            string          `json:"id"`
-  Name          string          `json:"name"`
-  Email         string          `json:"email"`
-  Password      string          `json:"password"`
+  *IdentitiesResponse
 }
 
 type PutIdentitiesRequest struct {
-  Id            string          `json:"id"`
-  Name          string          `json:"name"`
-  Email         string          `json:"email"`
-  Password      string          `json:"password"`
+  *IdentitiesRequest
 }
 
 type PutIdentitiesResponse struct {
-  Id            string          `json:"id"`
-  Name          string          `json:"name"`
-  Email         string          `json:"email"`
-  Password      string          `json:"password"`
+  *IdentitiesResponse
 }
 
 func GetCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
@@ -66,7 +65,6 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
 
     identityList, err := idpbe.FetchIdentitiesForSub(env.Driver, id)
     if err == nil {
-      //n := env.Database[id]
       n := identityList[0]
       if id == n.Id {
         c.JSON(http.StatusOK, gin.H{
@@ -146,8 +144,25 @@ func PutCollection(env *environment.State, route environment.Route) gin.HandlerF
       return
     }
 
+    updateIdentity := idpbe.Identity{
+      Id: input.Id,
+      Name: input.Name,
+      Email: input.Email,
+    }
+    identityList, err := idpbe.UpdateIdentities(env.Driver, updateIdentity)
+    if err != nil {
+      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    n := identityList[0]
+
     c.JSON(http.StatusOK, gin.H{
-      "message": "pong",
+      "id": n.Id,
+      "name": n.Name,
+      "email": n.Email,
+      "password": n.Password,
     })
   }
   return gin.HandlerFunc(fn)
