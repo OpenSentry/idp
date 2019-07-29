@@ -36,7 +36,7 @@ func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc
 
     hydraLogoutAcceptRequest := hydra.HydraLogoutAcceptRequest{
     }
-    hydraLogoutAcceptResponse, err := hydra.AcceptLogout(config.Hydra.LogoutRequestAcceptUrl, hydraClient, input.Challenge, hydraLogoutAcceptRequest)
+    hydraLogoutAcceptResponse, err := hydra.AcceptLogout(config.Discovery.Hydra.Private.Url + config.Discovery.Hydra.Private.Endpoints.LogoutAccept, hydraClient, input.Challenge, hydraLogoutAcceptRequest)
     if err != nil {
       environment.DebugLog(route.LogId, "PostLogout", err.Error(), requestId)
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
