@@ -28,7 +28,6 @@ func init() {
 }
 
 func main() {
-
   // https://medium.com/neo4j/neo4j-go-driver-is-out-fbb4ba5b3a30
   // Each driver instance is thread-safe and holds a pool of connections that can be re-used over time. If you don’t have a good reason to do otherwise, a typical application should have a single driver instance throughout its lifetime.
   driver, err := neo4j.NewDriver(config.App.Neo4j.Uri, neo4j.BasicAuth(config.App.Neo4j.Username, config.App.Neo4j.Password, ""), func(config *neo4j.Config) {
@@ -51,7 +50,7 @@ func main() {
   hydraConfig := &clientcredentials.Config{
     ClientID:     config.App.Oauth2.Client.Id,
     ClientSecret: config.App.Oauth2.Client.Secret,
-    TokenURL:     config.Discovery.Hydra.Public.Endpoints.Oauth2Token,
+    TokenURL:     provider.Endpoint().TokenURL,
     Scopes:       config.App.Oauth2.Scopes.Required,
     EndpointParams: url.Values{"audience": {"hydra"}},
     AuthStyle: 2, // https://godoc.org/golang.org/x/oauth2#AuthStyle
