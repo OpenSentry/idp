@@ -4,7 +4,7 @@ import (
   "strings"
   "net/http"
   "net/url"
-
+  "os"
 
   "golang.org/x/net/context"
   "golang.org/x/oauth2"
@@ -19,6 +19,8 @@ import (
   "golang-idp-be/config"
   "golang-idp-be/environment"
   "golang-idp-be/identities"
+
+  "github.com/pborman/getopt"
 )
 
 const app = "idpbe"
@@ -63,6 +65,25 @@ func main() {
     Driver: driver,
   }
 
+  optServe := getopt.BoolLong("serve", 0, "Serve application")
+  optHelp := getopt.BoolLong("help", 0, "Help")
+  getopt.Parse()
+
+  if *optHelp {
+    getopt.Usage()
+    os.Exit(0)
+  }
+
+  if *optServe {
+    serve(env)
+  } else {
+    getopt.Usage()
+    os.Exit(0)
+  }
+
+}
+
+func serve(env *environment.State) {
   // Setup routes to use, this defines log for debug log
   routes := map[string]environment.Route{
     "/identities": environment.Route{
