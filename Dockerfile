@@ -39,7 +39,12 @@ EXPOSE 443
 ARG release_build=1
 ENV release_build=$release_build
 
-CMD update-ca-certificates && if [ "$release_build" = "1" ]; \
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+
+CMD if [ "$release_build" = "1" ]; \
       then \
         golang-idp-be; \
       else \
