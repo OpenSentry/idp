@@ -32,7 +32,7 @@ func init() {
 func main() {
   // https://medium.com/neo4j/neo4j-go-driver-is-out-fbb4ba5b3a30
   // Each driver instance is thread-safe and holds a pool of connections that can be re-used over time. If you don’t have a good reason to do otherwise, a typical application should have a single driver instance throughout its lifetime.
-  driver, err := neo4j.NewDriver(config.App.Neo4j.Uri, neo4j.BasicAuth(config.App.Neo4j.Username, config.App.Neo4j.Password, ""), func(config *neo4j.Config) {
+  driver, err := neo4j.NewDriver(config.GetString("neo4j.uri"), neo4j.BasicAuth(config.GetString("neo4j.username"), config.GetString("neo4j.password"), ""), func(config *neo4j.Config) {
     config.Log = neo4j.ConsoleLogger(neo4j.DEBUG)
   });
   if err != nil {
@@ -41,7 +41,7 @@ func main() {
   }
   defer driver.Close()
 
-  provider, err := oidc.NewProvider(context.Background(), config.Discovery.Hydra.Public.Url + "/")
+  provider, err := oidc.NewProvider(context.Background(), config.GetString("hydra.public.url") + "/")
   if err != nil {
     environment.DebugLog(app, "main", "[provider:hydra] " + err.Error(), "")
     return
@@ -50,10 +50,10 @@ func main() {
   // Setup the hydra client idpbe is going to use (oauth2 client credentials)
   // NOTE: We store the hydraConfig also as we are going to need it to let idpbe app start the Oauth2 Authorization code flow.
   hydraConfig := &clientcredentials.Config{
-    ClientID:     config.App.Oauth2.Client.Id,
-    ClientSecret: config.App.Oauth2.Client.Secret,
+    ClientID:     config.GetString("oauth2.client.id"),
+    ClientSecret: config.GetString("oauth2.client.secret"),
     TokenURL:     provider.Endpoint().TokenURL,
-    Scopes:       config.App.Oauth2.Scopes.Required,
+    Scopes:       config.GetStringSlice("oauth2.scopes.required"),
     EndpointParams: url.Values{"audience": {"hydra"}},
     AuthStyle: 2, // https://godoc.org/golang.org/x/oauth2#AuthStyle
   }
@@ -129,7 +129,7 @@ func serve(env *environment.State) {
   r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpbe.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
   r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpbe.recover"), identities.PostRevoke(env, routes["/identities/recover"]))
 
-  r.RunTLS(":" + config.App.Serve.Public.Port, config.App.Serve.Tls.Cert.Path, config.App.Serve.Tls.Key.Path)
+  r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
 
 func authenticationRequired() gin.HandlerFunc {

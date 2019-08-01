@@ -40,7 +40,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
     // Create a new HTTP client to perform the request, to prevent serialization
     hydraClient := hydra.NewHydraClient(env.HydraConfig)
 
-    hydraLoginResponse, err := hydra.GetLogin(config.Discovery.Hydra.Private.Url + config.Discovery.Hydra.Private.Endpoints.Login, hydraClient, input.Challenge)
+    hydraLoginResponse, err := hydra.GetLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.login"), hydraClient, input.Challenge)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
@@ -54,7 +54,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
         RememberFor: HydraSessionTimeout, // This means auto logout in hydra after 30 seconds!
       }
 
-      hydraLoginAcceptResponse := hydra.AcceptLogin(config.Discovery.Hydra.Private.Url + config.Discovery.Hydra.Private.Endpoints.LoginAccept, hydraClient, input.Challenge, hydraLoginAcceptRequest)
+      hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
       environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo, requestId)
       c.JSON(http.StatusOK, gin.H{
@@ -101,7 +101,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
           RememberFor: HydraSessionTimeout, // This means auto logout in hydra after 30 seconds!
         }
 
-        hydraLoginAcceptResponse := hydra.AcceptLogin(config.Discovery.Hydra.Private.Url + config.Discovery.Hydra.Private.Endpoints.LoginAccept, hydraClient, input.Challenge, hydraLoginAcceptRequest)
+        hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
         environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+identity.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo, requestId)
         c.JSON(http.StatusOK, gin.H{
