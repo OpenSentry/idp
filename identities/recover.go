@@ -3,6 +3,7 @@ package identities
 import (
   "net/http"
 
+  "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
   //"golang-idp-be/config"
@@ -23,8 +24,15 @@ type RecoverResponse struct {
 
 func PostRecover(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    requestId := c.MustGet("RequestId").(string)
-    environment.DebugLog(route.LogId, "PostRecover", "", requestId)
+
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "route.logid": route.LogId,
+      "component": "identities",
+      "func": "PostRecover",
+    })
+
+    log.Debug("Received recover request")
 
     var input RecoverRequest
     err := c.BindJSON(&input)

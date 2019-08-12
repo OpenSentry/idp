@@ -3,6 +3,7 @@ package identities
 import (
   "net/http"
 
+  "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
   "golang-idp-be/environment"
@@ -51,8 +52,15 @@ type PutIdentitiesResponse struct {
 
 func GetCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    requestId := c.MustGet(environment.RequestIdKey).(string)
-    environment.DebugLog(route.LogId, "GetCollection", "", requestId)
+
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "route.logid": route.LogId,
+      "component": "identities",
+      "func": "GetCollection",
+    })
+
+    log.Debug("Received read request")
 
     id, _ := c.GetQuery("id")
     if id == "" {
@@ -88,8 +96,15 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
 
 func PostCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    requestId := c.MustGet(environment.RequestIdKey).(string)
-    environment.DebugLog(route.LogId, "PostCollection", "", requestId)
+
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "route.logid": route.LogId,
+      "component": "identities",
+      "func": "PostCollection",
+    })
+
+    log.Debug("Received write request")
 
     var input PostIdentitiesRequest
     err := c.BindJSON(&input)
@@ -133,8 +148,16 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
 
 func PutCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    requestId := c.MustGet(environment.RequestIdKey).(string)
-    environment.DebugLog(route.LogId, "PutCollection", "", requestId)
+
+    // Warning: Do not log user passwords!
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "route.logid": route.LogId,
+      "component": "identities",
+      "func": "PutCollection",
+    })
+
+    log.Debug("Received update request")
 
     var input PutIdentitiesRequest
     err := c.BindJSON(&input)
