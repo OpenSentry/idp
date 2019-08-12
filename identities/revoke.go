@@ -3,6 +3,7 @@ package identities
 import (
   "net/http"
 
+  "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
   //"golang-idp-be/config"
@@ -22,8 +23,16 @@ type RevokeResponse struct {
 
 func PostRevoke(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    requestId := c.MustGet("RequestId").(string)
-    environment.DebugLog(route.LogId, "PostRevoke", "", requestId)
+
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "route.logid": route.LogId,
+      "component": "identities",
+      "func": "PostRevoke",
+    })
+
+
+    log.Debug("Received revoke request")
 
     var input RevokeRequest
     err := c.BindJSON(&input)
