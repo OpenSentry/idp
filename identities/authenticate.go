@@ -3,6 +3,7 @@ package identities
 import (
   "net/http"
 
+  "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
   "golang-idp-be/config"
@@ -26,8 +27,15 @@ const HydraSessionTimeout = 120 // 2m
 
 func PostAuthenticate(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    requestId := c.MustGet("RequestId").(string)
-    environment.DebugLog(route.LogId, "PostAuthenticate", "", requestId)
+
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "route.logid": route.LogId,
+      "component": "identities",
+      "func": "PostAuthenticate",
+    })
+
+    log.Debug("Received authentication request")
 
     var input AuthenticateRequest
     err := c.BindJSON(&input)
@@ -56,7 +64,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
       hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
-      environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo, requestId)
+      log.Debug("id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
       c.JSON(http.StatusOK, gin.H{
         "id": input.Id,
         "authenticated": true,
@@ -68,7 +76,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
     // Only challenge is required in the request, but no need to ask DB for empty id.
     if input.Id == "" {
-      environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
+      log.Debug("id:"+input.Id+" authenticated:false redirect_to:")
       c.JSON(http.StatusOK, gin.H{
         "id": input.Id,
         "authenticated": false,
@@ -79,7 +87,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
     identities, err := idpbe.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
-      environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
+      log.Debug("id:"+input.Id+" authenticated:false redirect_to:")
       c.JSON(http.StatusOK, gin.H{
         "id": input.Id,
         "authenticated": false,
@@ -90,7 +98,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
     if identities != nil {
 
-      // FIXME: Fail of identities contains more than one. Hint: Missing a unique constraint in the db schema?
+      // FIXME: Fail if identities contains more than one. Hint: Missing a unique constraint in the db schema?
       identity := identities[0];
 
       valid, _ := idpbe.ValidatePassword(identity.Password, input.Password)
@@ -103,7 +111,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
         hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
-        environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+identity.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo, requestId)
+        log.Debug("id:"+identity.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
         c.JSON(http.StatusOK, gin.H{
           "id": identity.Id,
           "authenticated": true,
@@ -114,11 +122,11 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       }
 
     } else {
-      environment.DebugLog(route.LogId, "PostAuthenticate", "No identities found", requestId)
+      log.Info("No identities found")
     }
 
     // Deny by default
-    environment.DebugLog(route.LogId, "PostAuthenticate", "id:"+input.Id+" authenticated:false redirect_to:", requestId)
+    log.Debug("id:"+input.Id+" authenticated:false redirect_to:")
     c.JSON(http.StatusOK, gin.H{
       "id": input.Id,
       "authenticated": false,
