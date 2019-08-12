@@ -11,9 +11,9 @@ import (
 
 const (
   RequestIdKey string = "RequestId"
-  AccessTokenKey = "access_token"
-  IdTokenKey = "id_token"
-  LogKey = "log"
+  AccessTokenKey string = "access_token"
+  IdTokenKey string = "id_token"
+  LogKey string = "log"
 )
 
 type State struct {
