@@ -168,7 +168,6 @@ func authenticationRequired() gin.HandlerFunc {
     })
 
     log.Debug("Checking Authorization: Bearer <token> in request")
-    log.Debug("Checking Authorization: Bearer <token> in request #2 test")
 
     var token *oauth2.Token
     auth := c.Request.Header.Get("Authorization")
