@@ -15,6 +15,14 @@ func GetString(key string) string {
   return viper.GetString(key)
 }
 
+func GetInt(key string) int {
+  return viper.GetInt(key)
+}
+
+func GetIntStrict(key string) int {
+  return viper.GetInt(key)
+}
+
 func GetStringStrict(key string) string {
   return viper.GetString(key)
 }

@@ -8,7 +8,7 @@ import (
 
   "golang-idp-be/config"
   "golang-idp-be/environment"
-  "golang-idp-be/gateway/idpbe"
+  "golang-idp-be/gateway/idpapi"
   "golang-idp-be/gateway/hydra"
 )
 
@@ -22,8 +22,6 @@ type AuthenticateResponse struct {
   Id              string            `json:"id"`
   Authenticated   bool              `json:"authenticated"`
 }
-
-const HydraSessionTimeout = 120 // 2m
 
 func PostAuthenticate(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
@@ -59,7 +57,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       hydraLoginAcceptRequest := hydra.HydraLoginAcceptRequest{
         Subject: hydraLoginResponse.Subject,
         Remember: true,
-        RememberFor: HydraSessionTimeout, // This means auto logout in hydra after 30 seconds!
+        RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
       }
 
       hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
@@ -85,7 +83,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    identities, err := idpbe.FetchIdentitiesForSub(env.Driver, input.Id)
+    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
       log.Debug("id:"+input.Id+" authenticated:false redirect_to:")
       c.JSON(http.StatusOK, gin.H{
@@ -101,12 +99,12 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       // FIXME: Fail if identities contains more than one. Hint: Missing a unique constraint in the db schema?
       identity := identities[0];
 
-      valid, _ := idpbe.ValidatePassword(identity.Password, input.Password)
+      valid, _ := idpapi.ValidatePassword(identity.Password, input.Password)
       if valid == true {
         hydraLoginAcceptRequest := hydra.HydraLoginAcceptRequest{
           Subject: identity.Id,
           Remember: true,
-          RememberFor: HydraSessionTimeout, // This means auto logout in hydra after 30 seconds!
+          RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
         }
 
         hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
