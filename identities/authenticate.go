@@ -2,14 +2,12 @@ package identities
 
 import (
   "net/http"
-
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-
+  "github.com/CharMixer/hydra-client" // FIXME: Do not use upper case
   "golang-idp-be/config"
   "golang-idp-be/environment"
   "golang-idp-be/gateway/idpapi"
-  "golang-idp-be/gateway/hydra"
 )
 
 type AuthenticateRequest struct {
@@ -54,7 +52,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
     }
 
     if hydraLoginResponse.Skip {
-      hydraLoginAcceptRequest := hydra.HydraLoginAcceptRequest{
+      hydraLoginAcceptRequest := hydra.LoginAcceptRequest{
         Subject: hydraLoginResponse.Subject,
         Remember: true,
         RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
@@ -101,7 +99,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
       valid, _ := idpapi.ValidatePassword(identity.Password, input.Password)
       if valid == true {
-        hydraLoginAcceptRequest := hydra.HydraLoginAcceptRequest{
+        hydraLoginAcceptRequest := hydra.LoginAcceptRequest{
           Subject: identity.Id,
           Remember: true,
           RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!

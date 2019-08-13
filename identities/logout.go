@@ -4,9 +4,9 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
+  "github.com/CharMixer/hydra-client" // FIXME: Do not use upper case
   "golang-idp-be/config"
   "golang-idp-be/environment"
-  "golang-idp-be/gateway/hydra"
 )
 
 type LogoutRequest struct {
@@ -39,7 +39,7 @@ func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc
     // Create a new HTTP client to perform the request, to prevent serialization
     hydraClient := hydra.NewHydraClient(env.HydraConfig)
 
-    hydraLogoutAcceptRequest := hydra.HydraLogoutAcceptRequest{
+    hydraLogoutAcceptRequest := hydra.LogoutAcceptRequest{
     }
     hydraLogoutAcceptResponse, err := hydra.AcceptLogout(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.logoutAccept"), hydraClient, input.Challenge, hydraLogoutAcceptRequest)
     if err != nil {
