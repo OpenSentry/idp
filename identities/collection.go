@@ -2,14 +2,10 @@ package identities
 
 import (
   "net/http"
-
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-
   "golang-idp-be/environment"
-  _ "golang-idp-be/config"
-  _ "golang-idp-be/gateway/hydra"
-  "golang-idp-be/gateway/idpbe"
+  "golang-idp-be/gateway/idpapi"
 )
 
 type IdentitiesResponse struct {
@@ -71,7 +67,7 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
       return;
     }
 
-    identityList, err := idpbe.FetchIdentitiesForSub(env.Driver, id)
+    identityList, err := idpapi.FetchIdentitiesForSub(env.Driver, id)
     if err == nil {
       n := identityList[0]
       if id == n.Id {
@@ -114,20 +110,20 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       return
     }
 
-    hashedPassword, err := idpbe.CreatePassword(input.Password)
+    hashedPassword, err := idpapi.CreatePassword(input.Password)
     if err != nil {
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
       c.Abort()
       return
     }
 
-    newIdentity := idpbe.Identity{
+    newIdentity := idpapi.Identity{
       Id: input.Id,
       Name: input.Name,
       Email: input.Email,
       Password: hashedPassword,
     }
-    identityList, err := idpbe.CreateIdentities(env.Driver, newIdentity)
+    identityList, err := idpapi.CreateIdentities(env.Driver, newIdentity)
     if err != nil {
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
       c.Abort()
@@ -167,12 +163,12 @@ func PutCollection(env *environment.State, route environment.Route) gin.HandlerF
       return
     }
 
-    updateIdentity := idpbe.Identity{
+    updateIdentity := idpapi.Identity{
       Id: input.Id,
       Name: input.Name,
       Email: input.Email,
     }
-    identityList, err := idpbe.UpdateIdentities(env.Driver, updateIdentity)
+    identityList, err := idpapi.UpdateIdentities(env.Driver, updateIdentity)
     if err != nil {
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
       c.Abort()

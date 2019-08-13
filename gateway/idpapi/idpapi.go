@@ -1,4 +1,4 @@
-package idpbe
+package idpapi
 
 import (
   "fmt"

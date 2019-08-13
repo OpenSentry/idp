@@ -2,14 +2,9 @@ package identities
 
 import (
   "net/http"
-
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-
-  //"golang-idp-be/config"
   "golang-idp-be/environment"
-  //"golang-idp-be/gateway/idpbe"
-  //"golang-idp-be/gateway/hydra"
 )
 
 type RevokeRequest struct {
