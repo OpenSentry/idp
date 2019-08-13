@@ -5,29 +5,24 @@ import (
   "net/http"
   "net/url"
   "os"
-
   "golang.org/x/net/context"
   "golang.org/x/oauth2"
   "golang.org/x/oauth2/clientcredentials"
-
   "github.com/sirupsen/logrus"
   oidc "github.com/coreos/go-oidc"
   "github.com/gin-gonic/gin"
   "github.com/atarantini/ginrequestid"
-
   "github.com/neo4j/neo4j-go-driver/neo4j"
-
   "golang-idp-be/config"
   "golang-idp-be/environment"
   "golang-idp-be/identities"
-
   "github.com/pborman/getopt"
 )
 
-const app = "idpbe"
+const app = "idpapi"
 
 func init() {
-  logrus.SetFormatter(&logrus.JSONFormatter{})
+  //logrus.SetFormatter(&logrus.JSONFormatter{})
   config.InitConfigurations()
 }
 
@@ -56,8 +51,8 @@ func main() {
     return
   }
 
-  // Setup the hydra client idpbe is going to use (oauth2 client credentials)
-  // NOTE: We store the hydraConfig also as we are going to need it to let idpbe app start the Oauth2 Authorization code flow.
+  // Setup the hydra client idpapi is going to use (oauth2 client credentials)
+  // NOTE: We store the hydraConfig also as we are going to need it to let idpapi app start the Oauth2 Authorization code flow.
   hydraConfig := &clientcredentials.Config{
     ClientID:     config.GetString("oauth2.client.id"),
     ClientSecret: config.GetString("oauth2.client.secret"),
@@ -98,23 +93,23 @@ func serve(env *environment.State) {
   routes := map[string]environment.Route{
     "/identities": environment.Route{
        URL: "/identities",
-       LogId: "idpbe://identities",
+       LogId: "idpapi://identities",
     },
     "/identities/authenticate": environment.Route{
       URL: "/identities/authenticate",
-      LogId: "idpfe://identities/authenticate",
+      LogId: "idpui://identities/authenticate",
     },
     "/identities/logout": environment.Route{
       URL: "/identities/logout",
-      LogId: "idpfe://identities/logout",
+      LogId: "idpui://identities/logout",
     },
     "/identities/revoke": environment.Route{
       URL: "/identities/revoke",
-      LogId: "idpfe://identities/revoke",
+      LogId: "idpui://identities/revoke",
     },
     "/identities/recover": environment.Route{
       URL: "/identities/recover",
-      LogId: "idpfe://identities/recover",
+      LogId: "idpui://identities/recover",
     },
   }
 
@@ -132,13 +127,13 @@ func serve(env *environment.State) {
   // All requests need to be authenticated.
   r.Use(authenticationRequired())
 
-  r.GET(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpbe.identities.get"), identities.GetCollection(env, routes["/identities"]))
-  r.POST(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpbe.identities.post"), identities.PostCollection(env, routes["/identities"]))
-  r.PUT(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpbe.identities.put"), identities.PutCollection(env, routes["/identities"]))
-  r.POST(routes["/identities/authenticate"].URL, authorizationRequired(routes["/identities/authenticate"], "idpbe.authenticate"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
-  r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpbe.logout"), identities.PostLogout(env, routes["/identities/logout"]))
-  r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpbe.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
-  r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpbe.recover"), identities.PostRevoke(env, routes["/identities/recover"]))
+  r.GET(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.get"), identities.GetCollection(env, routes["/identities"]))
+  r.POST(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.post"), identities.PostCollection(env, routes["/identities"]))
+  r.PUT(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.put"), identities.PutCollection(env, routes["/identities"]))
+  r.POST(routes["/identities/authenticate"].URL, authorizationRequired(routes["/identities/authenticate"], "idpapi.authenticate"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
+  r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpapi.logout"), identities.PostLogout(env, routes["/identities/logout"]))
+  r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpapi.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
+  r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpapi.recover"), identities.PostRevoke(env, routes["/identities/recover"]))
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
@@ -147,7 +142,7 @@ func logger(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     var requestId string = c.MustGet(environment.RequestIdKey).(string)
     logger := logrus.New() // Use this to direct request log somewhere else than app log
-    logger.SetFormatter(&logrus.JSONFormatter{})
+    //logger.SetFormatter(&logrus.JSONFormatter{})
     requestLog := logger.WithFields(logrus.Fields{
       "appname": env.AppName,
       "requestid": requestId,
