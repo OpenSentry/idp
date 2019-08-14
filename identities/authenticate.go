@@ -29,9 +29,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       "route.logid": route.LogId,
       "component": "identities",
       "func": "PostAuthenticate",
-    })
-
-    log.Debug("Received authentication request")
+    })    
 
     var input AuthenticateRequest
     err := c.BindJSON(&input)
