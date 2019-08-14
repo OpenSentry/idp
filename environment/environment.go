@@ -14,7 +14,6 @@ const (
 )
 
 type State struct {
-  AppName string
   Provider *oidc.Provider
   HydraConfig *clientcredentials.Config
   Driver   neo4j.Driver
