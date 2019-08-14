@@ -26,9 +26,6 @@ func PostRevoke(env *environment.State, route environment.Route) gin.HandlerFunc
       "func": "PostRevoke",
     })
 
-
-    log.Debug("Received revoke request")
-
     var input RevokeRequest
     err := c.BindJSON(&input)
     if err != nil {

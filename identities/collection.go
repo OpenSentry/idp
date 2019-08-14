@@ -56,8 +56,6 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
       "func": "GetCollection",
     })
 
-    log.Debug("Received read request")
-
     id, _ := c.GetQuery("id")
     if id == "" {
       c.JSON(http.StatusNotFound, gin.H{
@@ -99,8 +97,6 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       "component": "identities",
       "func": "PostCollection",
     })
-
-    log.Debug("Received write request")
 
     var input PostIdentitiesRequest
     err := c.BindJSON(&input)

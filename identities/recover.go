@@ -27,8 +27,6 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       "func": "PostRecover",
     })
 
-    log.Debug("Received recover request")
-
     var input RecoverRequest
     err := c.BindJSON(&input)
     if err != nil {
