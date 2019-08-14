@@ -43,11 +43,4 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
-
-CMD if [ "$release_build" = "1" ]; \
-      then \
-        golang-idp-be; \
-      else \
-        go get github.com/pilu/fresh && \
-        fresh; \
-      fi
+CMD ["golang-idp-be"]
