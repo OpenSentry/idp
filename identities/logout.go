@@ -26,8 +26,6 @@ func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc
       "func": "PostLogout",
     })
 
-    log.Debug("Received logout request")
-
     var input LogoutRequest
     err := c.BindJSON(&input)
     if err != nil {

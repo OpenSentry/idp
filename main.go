@@ -117,26 +117,12 @@ func main() {
 func serve(env *environment.State) {
   // Setup routes to use, this defines log for debug log
   routes := map[string]environment.Route{
-    "/identities": environment.Route{
-       URL: "/identities",
-       LogId: "idpapi://identities",
-    },
-    "/identities/authenticate": environment.Route{
-      URL: "/identities/authenticate",
-      LogId: "idpui://identities/authenticate",
-    },
-    "/identities/logout": environment.Route{
-      URL: "/identities/logout",
-      LogId: "idpui://identities/logout",
-    },
-    "/identities/revoke": environment.Route{
-      URL: "/identities/revoke",
-      LogId: "idpui://identities/revoke",
-    },
-    "/identities/recover": environment.Route{
-      URL: "/identities/recover",
-      LogId: "idpui://identities/recover",
-    },
+    "/identities":              environment.Route{URL: "/identities",              LogId: "idpapi://identities"},
+    "/identities/authenticate": environment.Route{URL: "/identities/authenticate", LogId: "idpui://identities/authenticate"},
+    "/identities/password":     environment.Route{URL: "/identities/password",     LogId: "idpapi://identities/password"},
+    "/identities/logout":       environment.Route{URL: "/identities/logout",       LogId: "idpui://identities/logout"},
+    "/identities/revoke":       environment.Route{URL: "/identities/revoke",       LogId: "idpui://identities/revoke"},
+    "/identities/recover":      environment.Route{URL: "/identities/recover",      LogId: "idpui://identities/recover"},
   }
 
   r := gin.New() // Clean gin to take control with logging.
@@ -158,7 +144,10 @@ func serve(env *environment.State) {
   r.GET(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.get"), identities.GetCollection(env, routes["/identities"]))
   r.POST(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.post"), identities.PostCollection(env, routes["/identities"]))
   r.PUT(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.put"), identities.PutCollection(env, routes["/identities"]))
+
   r.POST(routes["/identities/authenticate"].URL, authorizationRequired(routes["/identities/authenticate"], "idpapi.authenticate"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
+  r.POST(routes["/identities/password"].URL, authorizationRequired(routes["/identities/password"], "idpapi.authenticate"), identities.PostPassword(env, routes["/identities/password"]))
+
   r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpapi.logout"), identities.PostLogout(env, routes["/identities/logout"]))
   r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpapi.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
   r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpapi.recover"), identities.PostRevoke(env, routes["/identities/recover"]))
