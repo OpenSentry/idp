@@ -15,6 +15,7 @@ Table of Contents
     * [Endpoints](#endpoints)
     * [Create an Identity](#create-an-identity)
     * [Change a Password](#change-a-password)    
+    * [Authenticate an Identity](#authenticate-an-identity)
 
 # Getting started
 First of all make sure docker is installed and ready to use.
@@ -166,7 +167,7 @@ curl -H "Authorization: Bearer <token>" \
 ```
 
 ## Authenticate an Identity
-To authenticate an Identity, also known as performing a login/signin a `POST` request must be made to the `/identities/authenticate` endpoint. A challenge is required to perform a login. The challenge is obtained by asking Hydra for it.
+To authenticate an Identity, also known as performing a login/signin a `POST` request must be made to the `/identities/authenticate` endpoint. A challenge is required to perform a login. The challenge is obtained by asking Hydra for it when starting the OAuth2 Authorization code flow.
 
 To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idpapi.authenticate` to call the endpoint or the request will be denied.
 
