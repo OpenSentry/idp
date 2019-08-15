@@ -108,5 +108,9 @@ func CreatePassword(password string) (string, error) {
 
 ### Example
 ```bash
-curl -X POST -H "Accept: application/json" -H "Content-Type: application/json" -H "Authorization: Bearer <token>" https://
+curl -H "Accept: application/json" \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <token>"
+     -d '{"id":"test", "password":"secret", "name":"Test", "email":"test@domain.com"}'
+     -X POST https://id.domain.com/api/identities
 ```
