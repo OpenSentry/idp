@@ -54,3 +54,29 @@ An identity is a representation of a person, an app or anything that needs to be
   }
 }
 ```
+
+## Endpoints
+The idpapi exposes the following endpoints
+
+```
+{
+  "/identities": {
+    "description": "CRUD operations on the collection of identities"
+  },
+  "/identities/authenticate": {
+    "description": "Use to authenticate an identity"
+  },
+  "/identities/password": {
+    "description": "Use to change the password of an identity. Password is not part of CRUD on /identities because password is the primary concern of protection and hence treated as a first class citizen in the system"
+  },
+  "/identities/logout": {
+    "description": "Use to logout an identity"
+  },
+  "/identities/revoke": {
+    "description": "Use to revoke an identity. See delete on /identities"
+  },    
+  "/identities/recover": {
+    "description": "Use to recover an identity if password was forgotten"
+  }
+}
+```
