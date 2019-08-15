@@ -30,7 +30,7 @@ The idpapi exposes a set of endpoints that can be used to control identities.
 An identity is a representation of a person, an app or anything that needs to be uniquely identified within the system
 
 #### Fields
-```json
+```JSON
 {
   "id": {
     "type": "string",
@@ -58,7 +58,7 @@ An identity is a representation of a person, an app or anything that needs to be
 ## Endpoints
 The idpapi exposes the following endpoints
 
-```json
+```JSON
 {
   "/identities": {
     "description": "CRUD operations on the collection of identities"
