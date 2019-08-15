@@ -231,14 +231,14 @@ func authenticationRequired() gin.HandlerFunc {
       "func": "authenticationRequired",
     })
 
-    log = log.WithFields(logrus.Fields{"authorization.type": "bearer"})
-    log.Debug("Checking Authorization")
+    log = log.WithFields(logrus.Fields{"authorization": "bearer"})
+    log.Debug("Looking for access token")
     var token *oauth2.Token
     auth := c.Request.Header.Get("Authorization")
     split := strings.SplitN(auth, " ", 2)
     if len(split) == 2 || strings.EqualFold(split[0], "bearer") {
 
-      log.Debug("Authorization found")
+      log.Debug("Found access token")
 
       token = &oauth2.Token{
         AccessToken: split[1],
@@ -251,7 +251,7 @@ func authenticationRequired() gin.HandlerFunc {
         log.Debug("Valid access token")
 
         // See #5 of QTNA
-        log.WithFields(logrus.Fields{"fixme": 1}).Debug("Missing check against token-revoked-list to check if token is revoked")
+        log.WithFields(logrus.Fields{"fixme": 1, "qtna": 5}).Debug("Missing check against token-revoked-list to check if token is revoked")
 
         c.Set(environment.AccessTokenKey, token)
         c.Next() // Authentication successful, continue.
@@ -259,7 +259,7 @@ func authenticationRequired() gin.HandlerFunc {
       }
 
       // Deny by default
-      log.Debug("Invalid Access token")
+      log.Debug("Invalid access token")
       c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid access token."})
       c.Abort()
       return
@@ -277,12 +277,9 @@ func authorizationRequired(route environment.Route, requiredScopes ...string) gi
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
-    log = log.WithFields(logrus.Fields{
-      "func": "authorizationRequired",
-    })
+    log = log.WithFields(logrus.Fields{"func": "authorizationRequired"})
 
-    log.WithFields(logrus.Fields{"authorization.type": "bearer"}).Debug("Checking Authorization")
-
+    // This is required to be here but should be garantueed by the authenticationRequired function.
     _ /*accessToken*/, accessTokenExists := c.Get(environment.AccessTokenKey)
     if accessTokenExists == false {
       c.JSON(http.StatusUnauthorized, gin.H{"error": "No access token found. Hint: Is bearer token missing?"})
@@ -294,22 +291,22 @@ func authorizationRequired(route environment.Route, requiredScopes ...string) gi
     log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Checking required scopes");
 
     // See #3 of QTNA
-    log.WithFields(logrus.Fields{"fixme": 1}).Debug("Missing check if access token is granted the required scopes")
+    log.WithFields(logrus.Fields{"fixme": 1, "qtna": 3}).Debug("Missing check if access token is granted the required scopes")
 
     // See #4 of QTNA
-    log.WithFields(logrus.Fields{"fixme": 1}).Debug("Missing check if the user or client giving the grants in the access token authorized to use the scopes granted")
+    log.WithFields(logrus.Fields{"fixme": 1, "qtna": 4}).Debug("Missing check if the user or client giving the grants in the access token authorized to use the scopes granted")
 
     foundRequiredScopes := true
     if foundRequiredScopes {
-      log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Valid scopes found")
+      log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Found required scopes")
       c.Next() // Authentication successful, continue.
       return;
     }
 
     // Deny by default
     log.WithFields(logrus.Fields{"fixme": 1}).Debug("Calculate missing scopes and only log those");
-    log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Invalid scopes. Hint: Some required scopes are missing, invalid or not granted")
-    c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid scopes. Hint: Some required scopes are missing, invalid or not granted"})
+    log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Missing required scopes. Hint: Some required scopes are missing, invalid or not granted")
+    c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing required scopes. Hint: Some required scopes are missing, invalid or not granted"})
     c.Abort()
   }
   return gin.HandlerFunc(fn)
