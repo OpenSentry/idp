@@ -141,9 +141,7 @@ To use the endpoint a client in terms of the OAuth2 protocol is needed. This cli
 
 ### Example
 ```bash
-curl -H "Accept: application/json" \
-     -H "Content-Type: application/json" \
-     -H "Authorization: Bearer <token>"
+curl -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -H "Accept: application/json" \
      -d '{"id":"test", "password":"secret", "name":"Test", "email":"test@domain.com"}'
      -X POST https://id.domain.com/api/identities
 ```
