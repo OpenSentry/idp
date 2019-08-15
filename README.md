@@ -64,22 +64,52 @@ An identity is a representation of a person, an app or anything that needs to be
 ```
 
 ## Endpoints
-The idpapi exposes the following endpoints
+All endpoints can only be reached trough HTTPS with TLS. All endpoints are protected by OAuth2 scopes that are required by the client to call the endpoints. The following endpoints are exposed:
 
 ```json
 {
   "/identities": {
-    "description": "CRUD operations on the collection of identities"
+    "description": "CRUD operations on the collection of identities",
+    "method": {
+      "get": {
+        "description": "Read the data stored for an Identity",
+        "required_scope": "idpapi.identities.get"
+      },
+      "post": {
+        "description": "Create a new Identity",
+        "required_scope": "idpapi.identities.post"
+      },
+      "put": {
+        "description": "Update data stored for an Identity",
+        "required_scope": "idpapi.identities.put"
+      },
+      "delete": {
+        "description": "Not implemented",
+        "required_scope": "idpapi.identities.delete"
+      }
+    }    
   },
   "/identities/authenticate": {
-    "description": "Use to authenticate an identity"
+    "description": "Use to authenticate an identity",
+    "method": {      
+      "post": {
+        "description": "Authenticate an Identity",
+        "required_scope": "idpapi.authenticate"
+      }      
+    }   
   },
   "/identities/password": {
     "description": "
       Use to change the password of an identity.
       Password is not part of CRUD on /identities because password is the primary concern
       of protection, hence treated as a first class citizen in the system.
-    "
+    ",
+    "method": {      
+      "post": {
+        "description": "Change password for an Identity",
+        "required_scope": "idpapi.authenticate"
+      }      
+    }
   },
   "/identities/logout": {
     "description": "Use to logout an identity"
@@ -105,6 +135,8 @@ func CreatePassword(password string) (string, error) {
   return string(hash), nil
 }
 ```
+
+To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idpapi.identities.post` to call the endpoint or request will be denied by the idpapi.
 
 ### Example
 ```bash
