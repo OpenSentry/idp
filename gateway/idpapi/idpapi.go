@@ -151,7 +151,7 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
 
   ids, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
-    cypher := "MATCH (i:Identity {sub:$sub}) WITH i SET i.name=$name, i.email=$email) RETURN i.sub, i.password, i.name, i.email"
+    cypher := "MATCH (i:Identity {sub:$sub}) WITH i SET i.name=$name, i.email=$email RETURN i.sub, i.password, i.name, i.email"
     params := map[string]interface{}{"sub": identity.Id, "name": identity.Name, "email": identity.Email}
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
