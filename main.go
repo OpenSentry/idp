@@ -32,7 +32,13 @@ var (
 )
 
 func init() {
-  config.InitConfigurations()
+  log = logrus.New();
+
+  err := config.InitConfigurations()
+  if err != nil {
+    log.Panic(err.Error())
+    return
+  }
 
   logDebug = config.GetInt("log.debug")
   logFormat = config.GetString("log.format")
@@ -285,6 +291,9 @@ func authorizationRequired(route environment.Route, requiredScopes ...string) gi
       return
     }
 
+    strRequiredScopes := strings.Join(requiredScopes, ",")
+    log.Debug("Required scopes: " + strRequiredScopes);
+
     // See #3 of QTNA
     log.WithFields(logrus.Fields{
       "fixme": 1,
@@ -294,8 +303,6 @@ func authorizationRequired(route environment.Route, requiredScopes ...string) gi
     log.WithFields(logrus.Fields{
       "fixme": 1,
     }).Debug("Missing check if the user or client giving the grants in the access token authorized to use the scopes granted")
-
-    strRequiredScopes := strings.Join(requiredScopes, ",")
 
     foundRequiredScopes := true
     if foundRequiredScopes {

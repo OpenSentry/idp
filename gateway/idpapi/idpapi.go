@@ -1,10 +1,7 @@
 package idpapi
 
 import (
-  "fmt"
-
   "golang.org/x/crypto/bcrypt"
-
   "github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
@@ -38,7 +35,6 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
 
   session, err = driver.Session(neo4j.AccessModeWrite);
   if err != nil {
-    fmt.Println(err)
     return Identity{}, err
   }
   defer session.Close()
@@ -75,14 +71,12 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
 
     // Check if we encountered any error during record streaming
     if err = result.Err(); err != nil {
-      fmt.Println(err)
       return nil, err
     }
     return ret, nil
   })
 
   if err != nil {
-    fmt.Println(err)
     return Identity{}, err
   }
   return id.(Identity), nil
@@ -95,7 +89,6 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
 
   session, err = driver.Session(neo4j.AccessModeWrite);
   if err != nil {
-    fmt.Println(err)
     return nil, err
   }
   defer session.Close()
@@ -132,14 +125,12 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
 
     // Check if we encountered any error during record streaming
     if err = result.Err(); err != nil {
-      fmt.Println(err)
       return nil, err
     }
     return identities, nil
   })
 
   if err != nil {
-    fmt.Println(err)
     return nil, err
   }
   return ids.([]Identity), nil
@@ -154,7 +145,6 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
 
   session, err = driver.Session(neo4j.AccessModeWrite);
   if err != nil {
-    fmt.Println(err)
     return nil, err
   }
   defer session.Close()
@@ -191,14 +181,12 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
 
     // Check if we encountered any error during record streaming
     if err = result.Err(); err != nil {
-      fmt.Println(err)
       return nil, err
     }
     return identities, nil
   })
 
   if err != nil {
-    fmt.Println(err)
     return nil, err
   }
   return ids.([]Identity), nil
