@@ -26,10 +26,8 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "route.logid": route.LogId,
-      "component": "identities",
       "func": "PostAuthenticate",
-    })    
+    })
 
     var input AuthenticateRequest
     err := c.BindJSON(&input)
