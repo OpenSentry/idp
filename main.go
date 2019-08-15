@@ -73,14 +73,14 @@ func main() {
     }*/
   });
   if err != nil {
-    log.WithFields(appFields).Debug("neo4j.NewDriver" + err.Error())
+    log.WithFields(appFields).Panic("neo4j.NewDriver" + err.Error())
     return
   }
   defer driver.Close()
 
   provider, err := oidc.NewProvider(context.Background(), config.GetString("hydra.public.url") + "/")
   if err != nil {
-    log.WithFields(appFields).Debug("oidc.NewProvider" + err.Error())
+    log.WithFields(appFields).Panic("oidc.NewProvider" + err.Error())
     return
   }
 
