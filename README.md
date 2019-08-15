@@ -11,7 +11,8 @@ Table of Contents
   * [Getting started](#getting-started)
   * [API documentation](#api-documentation)  
     * [Concepts](#concepts)
-      * [Identity](#identity)
+      * [Identity](#identity)    
+    * [Endpoints](#endpoints)    
   
 # Getting started
 First of all make sure docker is installed and ready to use.
