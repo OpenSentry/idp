@@ -91,8 +91,6 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "route.logid": route.LogId,
-      "component": "identities",
       "func": "PostCollection",
     })
 
@@ -142,12 +140,8 @@ func PutCollection(env *environment.State, route environment.Route) gin.HandlerF
     // Warning: Do not log user passwords!
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "route.logid": route.LogId,
-      "component": "identities",
       "func": "PutCollection",
     })
-
-    log.Debug("Received update request")
 
     var input PutIdentitiesRequest
     err := c.BindJSON(&input)
