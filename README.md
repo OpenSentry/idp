@@ -146,3 +146,16 @@ curl -H "Authorization: Bearer <token>" \
      -d '{"id":"test", "password":"secret", "name":"Test", "email":"test@domain.com"}'
      -X POST https://id.domain.com/api/identities
 ```
+
+## Change password of an Identity
+To change the password of an identity a `POST` request must be made to the `/identities/password` endpoint. To ensure that password handling is not taken lightly but rather considered a first class element in the system. It has received its own endpoint. This ensures separation of concerns and hopefully help to prevent accidental updates when updating an Identity with other data.
+
+The change password endpoint is using the same bcrypt library algorithm as when creating an Identity with a password. See [Create an Identity](#create-an-identity).
+
+### Example
+```bash
+curl -H "Authorization: Bearer <token>" \
+     -H "Accept: application/json" -H "Content-Type: application/json" \
+     -d '{"id":"test", "password":"anewsecret"}'
+     -X POST https://id.domain.com/api/identities/password
+```
