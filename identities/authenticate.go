@@ -19,6 +19,7 @@ type AuthenticateRequest struct {
 type AuthenticateResponse struct {
   Id              string            `json:"id"`
   Authenticated   bool              `json:"authenticated"`
+  RedirectTo      string            `json:"redirect_to"`
 }
 
 func PostAuthenticate(env *environment.State, route environment.Route) gin.HandlerFunc {
@@ -35,6 +36,11 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
       return
+    }
+
+    denyResponse := AuthenticateResponse{
+      Id: input.Id,
+      Authenticated: false,
     }
 
     // Create a new HTTP client to perform the request, to prevent serialization
@@ -56,41 +62,50 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
       hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
-      log.Debug("id:"+input.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
-      c.JSON(http.StatusOK, gin.H{
-        "id": input.Id,
-        "authenticated": true,
-        "redirect_to": hydraLoginAcceptResponse.RedirectTo,
-      })
+      acceptResponse := AuthenticateResponse{
+        Id: hydraLoginResponse.Subject,
+        Authenticated: true,
+        RedirectTo: hydraLoginAcceptResponse.RedirectTo,
+      }
+
+      log.WithFields(logrus.Fields{
+        "id": acceptResponse.Id,
+        "authenticated": acceptResponse.Authenticated,
+        "redirect_to": acceptResponse.RedirectTo,
+      }).Debug("Authenticated")
+
+      c.JSON(http.StatusOK, acceptResponse)
       c.Abort()
       return
     }
 
     // Only challenge is required in the request, but no need to ask DB for empty id.
     if input.Id == "" {
-      log.Debug("id:"+input.Id+" authenticated:false redirect_to:")
-      c.JSON(http.StatusOK, gin.H{
-        "id": input.Id,
-        "authenticated": false,
-      })
+      log.WithFields(logrus.Fields{
+        "id": denyResponse.Id,
+        "authenticated": denyResponse.Authenticated,
+        "redirect_to": denyResponse.RedirectTo,
+      }).Debug("Authentication denied")
+      c.JSON(http.StatusOK, denyResponse)
       c.Abort()
       return
     }
 
     identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
-      log.Debug("id:"+input.Id+" authenticated:false redirect_to:")
-      c.JSON(http.StatusOK, gin.H{
-        "id": input.Id,
-        "authenticated": false,
-      })
+      log.WithFields(logrus.Fields{
+        "id": denyResponse.Id,
+        "authenticated": denyResponse.Authenticated,
+        "redirect_to": denyResponse.RedirectTo,
+      }).Debug("Authentication denied")
+      c.JSON(http.StatusOK, denyResponse)
       c.Abort()
       return;
     }
 
     if identities != nil {
 
-      // FIXME: Fail if identities contains more than one. Hint: Missing a unique constraint in the db schema?
+      log.WithFields(logrus.Fields{"fixme": 1}).Debug("Change FetchIdentitiesForSub to not be a bulk function")
       identity := identities[0];
 
       valid, _ := idpapi.ValidatePassword(identity.Password, input.Password)
@@ -103,12 +118,19 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
         hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
-        log.Debug("id:"+identity.Id+" authenticated:true redirect_to:"+hydraLoginAcceptResponse.RedirectTo)
-        c.JSON(http.StatusOK, gin.H{
-          "id": identity.Id,
-          "authenticated": true,
-          "redirect_to": hydraLoginAcceptResponse.RedirectTo,
-        })
+        acceptResponse := AuthenticateResponse{
+          Id: identity.Id,
+          Authenticated: true,
+          RedirectTo: hydraLoginAcceptResponse.RedirectTo,
+        }
+
+        log.WithFields(logrus.Fields{
+          "id": acceptResponse.Id,
+          "authenticated": acceptResponse.Authenticated,
+          "redirect_to": acceptResponse.RedirectTo,
+        }).Debug("Authenticated")
+
+        c.JSON(http.StatusOK, acceptResponse)
         c.Abort()
         return
       }
@@ -118,11 +140,12 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
     }
 
     // Deny by default
-    log.Debug("id:"+input.Id+" authenticated:false redirect_to:")
-    c.JSON(http.StatusOK, gin.H{
-      "id": input.Id,
-      "authenticated": false,
-    })
+    log.WithFields(logrus.Fields{
+      "id": denyResponse.Id,
+      "authenticated": denyResponse.Authenticated,
+      "redirect_to": denyResponse.RedirectTo,
+    }).Debug("Authentication denied")
+    c.JSON(http.StatusOK, denyResponse)
   }
   return gin.HandlerFunc(fn)
 }
