@@ -73,14 +73,14 @@ func main() {
     }*/
   });
   if err != nil {
-    log.WithFields(appFields).WithFields(logrus.Fields{"component": "Storage"}).Debug("neo4j.NewDriver" + err.Error())
+    log.WithFields(appFields).Debug("neo4j.NewDriver" + err.Error())
     return
   }
   defer driver.Close()
 
   provider, err := oidc.NewProvider(context.Background(), config.GetString("hydra.public.url") + "/")
   if err != nil {
-    log.WithFields(appFields).WithFields(logrus.Fields{"component": "Hydra Provider"}).Debug("oidc.NewProvider" + err.Error())
+    log.WithFields(appFields).Debug("oidc.NewProvider" + err.Error())
     return
   }
 
@@ -230,14 +230,14 @@ func authenticationRequired() gin.HandlerFunc {
       "func": "authenticationRequired",
     })
 
-    log.Debug("Checking Authorization: Bearer <token> in request")
-
+    log = log.WithFields(logrus.Fields{"authorization.type": "bearer"})
+    log.Debug("Checking Authorization")
     var token *oauth2.Token
     auth := c.Request.Header.Get("Authorization")
     split := strings.SplitN(auth, " ", 2)
     if len(split) == 2 || strings.EqualFold(split[0], "bearer") {
 
-      log.Debug("Authorization: Bearer <token> found for request")
+      log.Debug("Authorization found")
 
       token = &oauth2.Token{
         AccessToken: split[1],
@@ -250,9 +250,7 @@ func authenticationRequired() gin.HandlerFunc {
         log.Debug("Valid access token")
 
         // See #5 of QTNA
-        log.WithFields(logrus.Fields{
-          "fixme": 1,
-        }).Debug("Missing check against token-revoked-list to check if token is revoked")
+        log.WithFields(logrus.Fields{"fixme": 1}).Debug("Missing check against token-revoked-list to check if token is revoked")
 
         c.Set(environment.AccessTokenKey, token)
         c.Next() // Authentication successful, continue.
@@ -282,7 +280,7 @@ func authorizationRequired(route environment.Route, requiredScopes ...string) gi
       "func": "authorizationRequired",
     })
 
-    log.Debug("Checking Authorization: Bearer <token> in request")
+    log.WithFields(logrus.Fields{"authorization.type": "bearer"}).Debug("Checking Authorization")
 
     _ /*accessToken*/, accessTokenExists := c.Get(environment.AccessTokenKey)
     if accessTokenExists == false {
@@ -292,27 +290,24 @@ func authorizationRequired(route environment.Route, requiredScopes ...string) gi
     }
 
     strRequiredScopes := strings.Join(requiredScopes, ",")
-    log.Debug("Required scopes: " + strRequiredScopes);
+    log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Checking required scopes");
 
     // See #3 of QTNA
-    log.WithFields(logrus.Fields{
-      "fixme": 1,
-    }).Debug("Missing check if access token is granted the required scopes")
+    log.WithFields(logrus.Fields{"fixme": 1}).Debug("Missing check if access token is granted the required scopes")
 
     // See #4 of QTNA
-    log.WithFields(logrus.Fields{
-      "fixme": 1,
-    }).Debug("Missing check if the user or client giving the grants in the access token authorized to use the scopes granted")
+    log.WithFields(logrus.Fields{"fixme": 1}).Debug("Missing check if the user or client giving the grants in the access token authorized to use the scopes granted")
 
     foundRequiredScopes := true
     if foundRequiredScopes {
-      log.Debug("Valid scopes: " + strRequiredScopes)
+      log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Valid scopes found")
       c.Next() // Authentication successful, continue.
       return;
     }
 
     // Deny by default
-    log.Debug("Invalid scopes: " + strRequiredScopes + " Hint: Some required scopes are missing, invalid or not granted")
+    log.WithFields(logrus.Fields{"fixme": 1}).Debug("Calculate missing scopes and only log those");
+    log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Invalid scopes. Hint: Some required scopes are missing, invalid or not granted")
     c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid scopes. Hint: Some required scopes are missing, invalid or not granted"})
     c.Abort()
   }
