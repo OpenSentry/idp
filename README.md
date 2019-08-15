@@ -13,7 +13,7 @@ Table of Contents
     * [Concepts](#concepts)
       * [Identity](#identity)    
     * [Endpoints](#endpoints)    
-  
+
 # Getting started
 First of all make sure docker is installed and ready to use.
 
@@ -22,9 +22,9 @@ Next, run the following commands:
 $ git clone git@github.com:CharMixer/golang-idp-be.git
 $ cd golang-idp-be
 $ # This will build a docker image by getting all necessary requirements and compiling the go project.
-$ docker build -t idp-be .
+$ docker build -t idpapi .
 $ # When the image has been build, use the following docker command to start it up:
-$ docker run -it -p 8080:8080 -v $(pwd):/go/src/golang-idp-be idp-be
+$ docker run -it -p 8080:8080 -v $(pwd):/go/src/golang-idp-be idpapi
 ```
 
 Note that the default settings is a development build, which can be used for automatic rebuilding of the go code with the help of https://github.com/pilu/fresh. Later on the environment variable `APP_ENV` will be used to define a production or development environment
@@ -38,8 +38,7 @@ The idpapi exposes a set of endpoints that can be used to control identities.
 ### Identity
 An identity is a representation of a person, an app or anything that needs to be uniquely identified within the system
 
-#### Fields
-```JSON
+```json
 {
   "id": {
     "type": "string",
@@ -67,7 +66,7 @@ An identity is a representation of a person, an app or anything that needs to be
 ## Endpoints
 The idpapi exposes the following endpoints
 
-```JSON
+```json
 {
   "/identities": {
     "description": "CRUD operations on the collection of identities"
@@ -91,5 +90,18 @@ The idpapi exposes the following endpoints
   "/identities/recover": {
     "description": "Use to recover an identity if password was forgotten"
   }
+}
+```
+
+## Create an Identity
+To create a new identity a `POST` request must be made to the `/identities` endpoint. Specifying an `id` for the Identity, an optional `password` in plain text. Hashing of the password will be done by the endpoint, before sending it to storage. The hashing algorithm is performed by the bcrypt library `golang.org/x/crypto/bcrypt` using the following function:
+
+```golang
+func CreatePassword(password string) (string, error) {
+  hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+  if err != nil {
+    return "", err
+  }
+  return string(hash), nil
 }
 ```
