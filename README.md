@@ -13,7 +13,8 @@ Table of Contents
     * [Concepts](#concepts)
       * [Identity](#identity)    
     * [Endpoints](#endpoints)
-    * [Create an Identity](#create-an-identity)    
+    * [Create an Identity](#create-an-identity)
+    * [Change a Password](#change-a-password)    
 
 # Getting started
 First of all make sure docker is installed and ready to use.
@@ -147,7 +148,7 @@ curl -H "Authorization: Bearer <token>" \
      -X POST https://id.domain.com/api/identities
 ```
 
-## Change password of an Identity
+## Change a Password
 To change the password of an identity a `POST` request must be made to the `/identities/password` endpoint. To ensure that password handling is not taken lightly but rather considered a first class element in the system. It has received its own endpoint. This ensures separation of concerns and hopefully help to prevent accidental updates when updating an Identity with other data.
 
 The change password endpoint is using the same bcrypt library algorithm as when creating an Identity with a password. See [Create an Identity](#create-an-identity).
