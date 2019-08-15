@@ -136,7 +136,7 @@ func CreatePassword(password string) (string, error) {
 }
 ```
 
-To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idpapi.identities.post` to call the endpoint or request will be denied by the idpapi.
+To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idpapi.identities.post` to call the endpoint or the request will be denied.
 
 ### Example
 ```bash
