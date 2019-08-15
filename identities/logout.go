@@ -20,9 +20,7 @@ func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
-    log = log.WithFields(logrus.Fields{
-      "route.logid": route.LogId,
-      "component": "identities",
+    log = log.WithFields(logrus.Fields{      
       "func": "PostLogout",
     })
 

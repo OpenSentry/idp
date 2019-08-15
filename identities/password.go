@@ -22,8 +22,6 @@ func PostPassword(env *environment.State, route environment.Route) gin.HandlerFu
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "route.logid": route.LogId,
-      "component": "identities",
       "func": "PostPassword",
     })
 
