@@ -19,3 +19,38 @@ $ docker run -it -p 8080:8080 -v $(pwd):/go/src/golang-idp-be idp-be
 ```
 
 Note that the default settings is a development build, which can be used for automatic rebuilding of the go code with the help of https://github.com/pilu/fresh. Later on the environment variable `APP_ENV` will be used to define a production or development environment
+
+# API documentation
+
+The idpapi exposes a set of endpoints that can be used to control identities.
+
+## Concepts
+
+### Identity
+An identity is a representation of a person, an app or anything that needs to be uniquely identified within the system
+
+#### Fields
+```
+{
+  "id": {
+    "type": "string",
+    "required": 1,
+    "description": "A globally unique identifier. An example could be a unix username"
+  },
+  "password": {
+    "type": "string",
+    "required": 0,
+    "description": "A password hash. Please do not store plain text passwords!"
+  },
+  "name": {
+    "type": "string",
+    "required": 0,
+    "description": "The name used to address the identity"
+  },
+  "email": {
+    "type": "string",
+    "required": 0,
+    "description": "The email where the identity can be reached for password reset etc."
+  }
+}
+```
