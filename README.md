@@ -164,3 +164,16 @@ curl -H "Authorization: Bearer <token>" \
      -d '{"id":"test", "password":"anewsecret"}'
      -X POST https://id.domain.com/api/identities/password
 ```
+
+## Authenticate an Identity
+To authenticate an Identity, also known as performing a login/signin a `POST` request must be made to the `/identities/authenticate` endpoint. A challenge is required to perform a login. The challenge is obtained by asking Hydra for it.
+
+To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idpapi.authenticate` to call the endpoint or the request will be denied.
+
+### Example
+```bash
+curl -H "Authorization: Bearer <token>" \
+     -H "Accept: application/json" -H "Content-Type: application/json" \
+     -d '{"challenge":"QWRGvqe56wyega5", "id": "test, ""password":"secret"}'
+     -X POST https://id.domain.com/api/identities/authenticate
+```
