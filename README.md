@@ -5,12 +5,14 @@ It does *not* have anything to do with OAuth2 in any way, but is meant to be use
 
 This project will only give you the required API endpoints for managing an Identity Provider - no GUI is included. However, it will be able to run hand-in-hand with https://github.com/charmixer/golang-idp-fe as the graphical web interface.
 
-# Table of Contents
+Table of Contents
+=================
 
-[Getting started](#Getting started)
-[API documentation](#API documentation)
-[Concepts](##Concepts)
-
+  * [Getting started](#getting-started)
+  * [API documentation](#api-documentation)  
+    * [Concepts](#concepts)
+      * [Identity](#identity)
+  
 # Getting started
 First of all make sure docker is installed and ready to use.
 
