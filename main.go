@@ -217,6 +217,7 @@ func RequestLogger(env *environment.State) gin.HandlerFunc {
       "error": errorMessage,
       "body_size": bodySize,
       "path": fullpath,
+      "request.id": requestId,
     }).Info("")
   }
   return gin.HandlerFunc(fn)
