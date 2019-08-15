@@ -94,7 +94,7 @@ The idpapi exposes the following endpoints
 ```
 
 ## Create an Identity
-To create a new identity a `POST` request must be made to the `/identities` endpoint. Specifying an `id` for the Identity, an optional `password` in plain text. Hashing of the password will be done by the endpoint, before sending it to storage. The hashing algorithm is performed by the bcrypt library `golang.org/x/crypto/bcrypt` using the following function:
+To create a new identity a `POST` request must be made to the `/identities` endpoint. Specifying an `id` for the Identity, a name, email and an optional `password` in plain text. Hashing of the password will be done by the endpoint, before sending it to storage. The hashing algorithm is performed by the bcrypt library `golang.org/x/crypto/bcrypt` using the following function:
 
 ```golang
 func CreatePassword(password string) (string, error) {
@@ -104,4 +104,9 @@ func CreatePassword(password string) (string, error) {
   }
   return string(hash), nil
 }
+```
+
+### Example
+```bash
+curl -X POST -H "Accept: application/json" -H "Content-Type: application/json" -H "Authorization: Bearer <token>" https://
 ```
