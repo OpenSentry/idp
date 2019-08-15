@@ -69,8 +69,8 @@ The idpapi exposes the following endpoints
   "/identities/password": {
     "description": "
       Use to change the password of an identity.
-      Password is not part of CRUD on /identities because password is the primary concern of protection,
-      hence treated as a first class citizen in the system.
+      Password is not part of CRUD on /identities because password is the primary concern
+      of protection, hence treated as a first class citizen in the system.
     "
   },
   "/identities/logout": {
