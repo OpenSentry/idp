@@ -4,28 +4,30 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
+  "golang-idp-be/config"
   "golang-idp-be/environment"
   "golang-idp-be/gateway/idpapi"
 )
 
-type PasswordRequest struct {
-  Id              string            `json:"id" binding:"required"`
-  Password        string            `json:"password" binding:"required"`
+type TwoFactorRequest struct {
+  Id       string `json:"id" binding:"required"`
+  Required2Fa bool   `json:"require_2fa,omitempty" binding:"required"`
+  Secret2Fa   string `json:"secret_2fa,omitempty" binding:"required"`
 }
 
-type PasswordResponse struct {
-  Id              string            `json:"id" binding:"required"`
+type TwoFactorResponse struct {
+  Id string `json:"id" binding:"required"`
 }
 
-func PostPassword(env *environment.State, route environment.Route) gin.HandlerFunc {
+func Post2Fa(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PostPassword",
+      "func": "Post2Fa",
     })
 
-    var input PasswordRequest
+    var input TwoFactorRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -45,23 +47,17 @@ func PostPassword(env *environment.State, route environment.Route) gin.HandlerFu
 
       identity := identities[0]; // FIXME do not return a list of identities!
 
-      valid, _ := idpapi.ValidatePassword(identity.Password, input.Password)
-      if valid == true {
-        // Nothing to change was the new password is same as current password
-        c.JSON(http.StatusOK, gin.H{"id": identity.Id})
-        return
-      }
-
-      hashedPassword, err := idpapi.CreatePassword(input.Password)
+      encryptedSecret, err := idpapi.Encrypt(input.Secret2Fa, config.GetString("2fa.cryptkey"))
       if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         c.Abort()
         return
       }
 
-      updatedIdentity, err := idpapi.UpdatePassword(env.Driver, idpapi.Identity{
+      updatedIdentity, err := idpapi.UpdateTwoFactor(env.Driver, idpapi.Identity{
         Id: identity.Id,
-        Password: hashedPassword,
+        Require2Fa: input.Required2Fa,
+        Secret2Fa: encryptedSecret,
       })
       if err != nil {
         log.Debug(err.Error())
@@ -75,7 +71,7 @@ func PostPassword(env *environment.State, route environment.Route) gin.HandlerFu
     }
 
     // Deny by default
-    log.Info("Identity '"+input.Id+"' not found")
+    log.WithFields(logrus.Fields{"id": input.Id}).Info("Identity not found")
     c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
   }
   return gin.HandlerFunc(fn)
