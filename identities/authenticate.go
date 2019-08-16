@@ -17,9 +17,10 @@ type AuthenticateRequest struct {
 }
 
 type AuthenticateResponse struct {
-  Id              string            `json:"id"`
-  Authenticated   bool              `json:"authenticated"`
-  RedirectTo      string            `json:"redirect_to"`
+  Id              string            `json:"id" binding:"required"`
+  Authenticated   bool              `json:"authenticated" binding:"required"`
+  Require2Fa      bool              `json:"require_2fa" binding:"required"`
+  RedirectTo      string            `json:"redirect_to" binding:"required"`
 }
 
 func PostAuthenticate(env *environment.State, route environment.Route) gin.HandlerFunc {
@@ -38,16 +39,12 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    denyResponse := AuthenticateResponse{
-      Id: input.Id,
-      Authenticated: false,
-    }
-
     // Create a new HTTP client to perform the request, to prevent serialization
     hydraClient := hydra.NewHydraClient(env.HydraConfig)
 
     hydraLoginResponse, err := hydra.GetLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.login"), hydraClient, input.Challenge)
     if err != nil {
+      log.Debug(err.Error())
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
       return
@@ -62,15 +59,18 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
       hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
+      log.WithFields(logrus.Fields{"fixme":1}).Debug("Should we ignore 2fa require when hydra says skip?")
       acceptResponse := AuthenticateResponse{
         Id: hydraLoginResponse.Subject,
         Authenticated: true,
+        Require2Fa: false,
         RedirectTo: hydraLoginAcceptResponse.RedirectTo,
       }
 
       log.WithFields(logrus.Fields{
         "id": acceptResponse.Id,
         "authenticated": acceptResponse.Authenticated,
+        "require_2fa": acceptResponse.Require2Fa,
         "redirect_to": acceptResponse.RedirectTo,
       }).Debug("Authenticated")
 
@@ -79,23 +79,20 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    // Only challenge is required in the request, but no need to ask DB for empty id.
-    if input.Id == "" {
-      log.WithFields(logrus.Fields{
-        "id": denyResponse.Id,
-        "authenticated": denyResponse.Authenticated,
-        "redirect_to": denyResponse.RedirectTo,
-      }).Debug("Authentication denied")
-      c.JSON(http.StatusOK, denyResponse)
-      c.Abort()
-      return
+    denyResponse := AuthenticateResponse{
+      Id: input.Id,
+      Authenticated: false,
+      Require2Fa: false,
+      RedirectTo: "",
     }
 
     identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
+      log.Debug(err.Error())
       log.WithFields(logrus.Fields{
         "id": denyResponse.Id,
         "authenticated": denyResponse.Authenticated,
+        "require_2fa": denyResponse.Require2Fa,
         "redirect_to": denyResponse.RedirectTo,
       }).Debug("Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
@@ -110,39 +107,44 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
       valid, _ := idpapi.ValidatePassword(identity.Password, input.Password)
       if valid == true {
+
         hydraLoginAcceptRequest := hydra.LoginAcceptRequest{
           Subject: identity.Id,
           Remember: true,
           RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
         }
-
         hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
 
         acceptResponse := AuthenticateResponse{
           Id: identity.Id,
           Authenticated: true,
+          Require2Fa: identity.Require2Fa,
           RedirectTo: hydraLoginAcceptResponse.RedirectTo,
+        }
+
+        if identity.Require2Fa {
+          acceptResponse.RedirectTo = "/passcode?login_challenge=" + input.Challenge
         }
 
         log.WithFields(logrus.Fields{
           "id": acceptResponse.Id,
           "authenticated": acceptResponse.Authenticated,
+          "require_2fa": acceptResponse.Require2Fa,
           "redirect_to": acceptResponse.RedirectTo,
         }).Debug("Authenticated")
-
         c.JSON(http.StatusOK, acceptResponse)
-        c.Abort()
         return
       }
 
     } else {
-      log.WithFields(logrus.Fields{"id": input.Id}).Info("Identity not found")
+      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
     }
 
     // Deny by default
     log.WithFields(logrus.Fields{
       "id": denyResponse.Id,
       "authenticated": denyResponse.Authenticated,
+      "require_2fa": denyResponse.Require2Fa,
       "redirect_to": denyResponse.RedirectTo,
     }).Debug("Authentication denied")
     c.JSON(http.StatusOK, denyResponse)
