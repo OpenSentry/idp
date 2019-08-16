@@ -3,9 +3,25 @@ package main
 import (
   "bytes"
   "strings"
-  "net"  
+  "net"
   "net/http"
+  "crypto/rand"
+  "encoding/base64"
 )
+
+func GenerateRandomBytes(n int) ([]byte, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func GenerateRandomString(s int) (string, error) {
+	b, err := GenerateRandomBytes(s)
+	return base64.StdEncoding.EncodeToString(b), err
+}
 
 type IpData struct {
   Ip string
