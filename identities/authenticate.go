@@ -136,7 +136,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       }
 
     } else {
-      log.Info("No identities found")
+      log.WithFields(logrus.Fields{"id": input.Id}).Info("Identity not found")
     }
 
     // Deny by default
