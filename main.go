@@ -127,6 +127,7 @@ func serve(env *environment.State) {
     "/identities":              environment.Route{URL: "/identities",              LogId: "idpapi://identities"},
     "/identities/authenticate": environment.Route{URL: "/identities/authenticate", LogId: "idpui://identities/authenticate"},
     "/identities/password":     environment.Route{URL: "/identities/password",     LogId: "idpapi://identities/password"},
+    "/identities/passcode":     environment.Route{URL: "/identities/passcode",     LogId: "idpapi://identities/passcode"},
     "/identities/2fa":          environment.Route{URL: "/identities/2fa",          LogId: "idpapi://identities/2fa"},
     "/identities/logout":       environment.Route{URL: "/identities/logout",       LogId: "idpui://identities/logout"},
     "/identities/revoke":       environment.Route{URL: "/identities/revoke",       LogId: "idpui://identities/revoke"},
@@ -155,6 +156,7 @@ func serve(env *environment.State) {
 
   r.POST(routes["/identities/authenticate"].URL, authorizationRequired(routes["/identities/authenticate"], "idpapi.authenticate"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
   r.POST(routes["/identities/password"].URL, authorizationRequired(routes["/identities/password"], "idpapi.authenticate"), identities.PostPassword(env, routes["/identities/password"]))
+  r.POST(routes["/identities/passcode"].URL, authorizationRequired(routes["/identities/passcode"], "idpapi.authenticate"), identities.PostPasscode(env, routes["/identities/passcode"]))
   r.POST(routes["/identities/2fa"].URL, authorizationRequired(routes["/identities/2fa"], "idpapi.authenticate"), identities.Post2Fa(env, routes["/identities/2fa"]))
 
   r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpapi.logout"), identities.PostLogout(env, routes["/identities/logout"]))

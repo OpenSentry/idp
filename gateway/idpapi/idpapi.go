@@ -9,15 +9,16 @@ import (
   "io"
   "golang.org/x/crypto/bcrypt"
   "github.com/neo4j/neo4j-go-driver/neo4j"
+  "github.com/pquerna/otp/totp"
 )
 
 type Identity struct {
-  Id            string          `json:"id" binding:"required"`
-  Name          string          `json:"name"`
-  Email         string          `json:"email"`
-  Password      string          `json:"password"`
-  Require2Fa    bool            `json:"require_2fa"`
-  Secret2Fa     string          `json:"secret"`
+  Id         string `json:"id" binding:"required"`
+  Name       string `json:"name"`
+  Email      string `json:"email"`
+  Password   string `json:"password"`
+  Require2Fa bool   `json:"require_2fa"`
+  Secret2Fa  string `json:"secret"`
 }
 
 func ValidatePassword(storedPassword string, password string) (bool, error) {
@@ -34,6 +35,11 @@ func CreatePassword(password string) (string, error) {
     return "", err
   }
   return string(hash), nil
+}
+
+func ValidatePasscode(passcode string, secret string) (bool, error) {
+  valid := totp.Validate(passcode, secret)
+  return valid, nil
 }
 
 // Enforce AES-256 by using 32 byte string as key param
