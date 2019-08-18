@@ -63,7 +63,7 @@ func PostPasscode(env *environment.State, route environment.Route) gin.HandlerFu
       identity := identities[0];
 
       // Sanity check. Only check password when 2fa is required by identity.
-      if !identity.Require2Fa {
+      if identity.Require2Fa == false {
         log.WithFields(logrus.Fields{
           "id": denyResponse.Id,
           "verified": denyResponse.Verified,
@@ -91,8 +91,11 @@ func PostPasscode(env *environment.State, route environment.Route) gin.HandlerFu
           Remember: true,
           RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
         }
-
         hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
+        log.WithFields(logrus.Fields{
+          "challenge": input.Challenge,
+          "redirect_to": hydraLoginAcceptResponse.RedirectTo,
+        }).Debug("PostAuthenticate.Hydra.AcceptLogin.Response")
 
         acceptResponse := PasscodeResponse{
           Id: identity.Id,
