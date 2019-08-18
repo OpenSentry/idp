@@ -4,7 +4,10 @@ import (
   "crypto/aes"
   "crypto/cipher"
   "crypto/rand"
+  "crypto/hmac"
+  "crypto/sha256"
   "encoding/base64"
+  "encoding/hex"
   "errors"
   "io"
   "golang.org/x/crypto/bcrypt"
@@ -19,6 +22,13 @@ type Identity struct {
   Password   string `json:"password"`
   Require2Fa bool   `json:"require_2fa"`
   Secret2Fa  string `json:"secret"`
+}
+
+type PasscodeChallenge struct {
+  Challenge  string `json:"challenge" binding:"required"`
+  Id         string `json:"id" binding:"required"`
+  Signature  string `json:"id" binding:"required"`
+  RedirectTo string `json:"redirect_to" binding:"required"`
 }
 
 func ValidatePassword(storedPassword string, password string) (bool, error) {
@@ -40,6 +50,20 @@ func CreatePassword(password string) (string, error) {
 func ValidatePasscode(passcode string, secret string) (bool, error) {
   valid := totp.Validate(passcode, secret)
   return valid, nil
+}
+
+func CreatePasscodeChallenge(url string, challenge string, id string, secret string) PasscodeChallenge {
+
+  redirectTo := url + "?login_challenge=" + challenge + "&id=" + id
+  h := hmac.New(sha256.New, []byte(secret))
+  h.Write([]byte(redirectTo))
+  sha := hex.EncodeToString(h.Sum(nil))
+  return PasscodeChallenge{
+    Challenge: challenge,
+    Id: id,
+    Signature: sha,
+    RedirectTo: redirectTo + "&sig=" + sha,
+  }
 }
 
 // Enforce AES-256 by using 32 byte string as key param
