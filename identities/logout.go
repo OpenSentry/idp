@@ -14,13 +14,14 @@ type LogoutRequest struct {
 }
 
 type LogoutResponse struct {
+  RedirectTo string `json:"redirect_to" binding:"required"`
 }
 
 func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
-    log = log.WithFields(logrus.Fields{      
+    log = log.WithFields(logrus.Fields{
       "func": "PostLogout",
     })
 
@@ -45,10 +46,12 @@ func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc
       return
     }
 
-    log.Debug("redirect_to: " + hydraLogoutAcceptResponse.RedirectTo)
-    c.JSON(http.StatusOK, gin.H{
-      "redirect_to": hydraLogoutAcceptResponse.RedirectTo,
-    })
+    logoutResponse := LogoutResponse{
+      RedirectTo: hydraLogoutAcceptResponse.RedirectTo,
+    }
+
+    log.Debug("redirect_to: " + logoutResponse.RedirectTo)
+    c.JSON(http.StatusOK, logoutResponse)
   }
   return gin.HandlerFunc(fn)
 }
