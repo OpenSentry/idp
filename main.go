@@ -153,6 +153,7 @@ func serve(env *environment.State) {
   r.GET(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.get"), identities.GetCollection(env, routes["/identities"]))
   r.POST(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.post"), identities.PostCollection(env, routes["/identities"]))
   r.PUT(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.put"), identities.PutCollection(env, routes["/identities"]))
+  r.DELETE(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.delete"), identities.DeleteCollection(env, routes["/identities"]))
 
   r.POST(routes["/identities/authenticate"].URL, authorizationRequired(routes["/identities/authenticate"], "idpapi.authenticate"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
   r.POST(routes["/identities/password"].URL, authorizationRequired(routes["/identities/password"], "idpapi.authenticate"), identities.PostPassword(env, routes["/identities/password"]))

@@ -8,13 +8,6 @@ import (
   "golang-idp-be/gateway/idpapi"
 )
 
-type IdentitiesResponse struct {
-  Id            string          `json:"id" binding:"required"`
-  Password      string          `json:"password" binding:"required"`
-  Name          string          `json:"name"`
-  Email         string          `json:"email"`
-}
-
 type IdentitiesRequest struct {
   Id            string          `json:"id" binding:"required"`
   Name          string          `json:"name"`
@@ -22,28 +15,11 @@ type IdentitiesRequest struct {
   Password      string          `json:"password"`
 }
 
-type GetIdentitiesRequest struct {
-  *IdentitiesRequest
-}
-
-type GetIdentitiesResponse struct {
-  *IdentitiesResponse
-}
-
-type PostIdentitiesRequest struct {
-  *IdentitiesRequest
-}
-
-type PostIdentitiesResponse struct {
-  *IdentitiesResponse
-}
-
-type PutIdentitiesRequest struct {
-  *IdentitiesRequest
-}
-
-type PutIdentitiesResponse struct {
-  *IdentitiesResponse
+type IdentitiesResponse struct {
+  Id            string          `json:"id" binding:"required"`
+  Password      string          `json:"password" binding:"required"`
+  Name          string          `json:"name"`
+  Email         string          `json:"email"`
 }
 
 func GetCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
@@ -67,11 +43,11 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
     if err == nil {
       n := identityList[0]
       if id == n.Id {
-        c.JSON(http.StatusOK, gin.H{
-          "id": n.Id,
-          "name": n.Name,
-          "email": n.Email,
-          "password": n.Password,
+        c.JSON(http.StatusOK, IdentitiesResponse{
+          Id: n.Id,
+          Name: n.Name,
+          Email: n.Email,
+          Password: n.Password,
         })
         return
       }
@@ -94,7 +70,7 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       "func": "PostCollection",
     })
 
-    var input PostIdentitiesRequest
+    var input IdentitiesRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -124,11 +100,11 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
 
     n := identityList[0]
 
-    c.JSON(http.StatusOK, gin.H{
-      "id": n.Id,
-      "name": n.Name,
-      "email": n.Email,
-      "password": n.Password,
+    c.JSON(http.StatusOK, IdentitiesResponse{
+      Id: n.Id,
+      Name: n.Name,
+      Email: n.Email,
+      Password: n.Password,
     })
   }
   return gin.HandlerFunc(fn)
@@ -143,7 +119,7 @@ func PutCollection(env *environment.State, route environment.Route) gin.HandlerF
       "func": "PutCollection",
     })
 
-    var input PutIdentitiesRequest
+    var input IdentitiesRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -165,11 +141,47 @@ func PutCollection(env *environment.State, route environment.Route) gin.HandlerF
 
     n := identityList[0]
 
-    c.JSON(http.StatusOK, gin.H{
-      "id": n.Id,
-      "name": n.Name,
-      "email": n.Email,
-      "password": n.Password,
+    c.JSON(http.StatusOK, IdentitiesResponse{
+      Id: n.Id,
+      Name: n.Name,
+      Email: n.Email,
+      Password: n.Password,
+    })
+  }
+  return gin.HandlerFunc(fn)
+}
+
+func DeleteCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
+  fn := func(c *gin.Context) {
+
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "func": "DeleteCollection",
+    })
+
+    var input IdentitiesRequest
+    err := c.BindJSON(&input)
+    if err != nil {
+      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    deleteIdentity := idpapi.Identity{
+      Id: input.Id,
+    }
+    deletedIdentity, err := idpapi.DeleteIdentity(env.Driver, deleteIdentity)
+    if err != nil {
+      log.WithFields(logrus.Fields{
+        "id": input.Id,
+      }).Debug(err.Error())
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    c.JSON(http.StatusOK, IdentitiesResponse{
+      Id: deletedIdentity.Id,
     })
   }
   return gin.HandlerFunc(fn)
