@@ -380,6 +380,40 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
   return ids.([]Identity), nil
 }
 
+func DeleteIdentity(driver neo4j.Driver, identity Identity) (Identity, error) {
+  var err error
+  var session neo4j.Session
+  var id interface{}
+
+  session, err = driver.Session(neo4j.AccessModeWrite);
+  if err != nil {
+    return Identity{}, err
+  }
+  defer session.Close()
+
+  id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+    cypher := "MATCH (i:Identity {sub:$sub}) DETACH DELETE i"
+    params := map[string]interface{}{"sub": identity.Id}
+    if result, err = tx.Run(cypher, params); err != nil {
+      return Identity{}, err
+    }
+
+    result.Next()
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return Identity{}, err
+    }
+    return Identity{Id: identity.Id}, nil
+  })
+
+  if err != nil {
+    return Identity{}, err
+  }
+  return id.(Identity), nil
+}
+
 // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
 func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) {
   var err error
