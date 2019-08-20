@@ -161,7 +161,7 @@ func serve(env *environment.State) {
 
   r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpapi.logout"), identities.PostLogout(env, routes["/identities/logout"]))
   r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpapi.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
-  r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpapi.recover"), identities.PostRevoke(env, routes["/identities/recover"]))
+  r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpapi.recover"), identities.PostRecover(env, routes["/identities/recover"]))
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
