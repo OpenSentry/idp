@@ -16,9 +16,13 @@ import (
   "strings"
   "crypto/tls"
   "fmt"
+  "time"
+  "net/url"
+  "io/ioutil"
   "golang.org/x/crypto/bcrypt"
   "github.com/neo4j/neo4j-go-driver/neo4j"
   "github.com/pquerna/otp/totp"
+  jwt "github.com/dgrijalva/jwt-go"
 )
 
 type Identity struct {
@@ -33,8 +37,19 @@ type Identity struct {
 type PasscodeChallenge struct {
   Challenge  string `json:"challenge" binding:"required"`
   Id         string `json:"id" binding:"required"`
-  Signature  string `json:"id" binding:"required"`
+  Signature  string `json:"sig" binding:"required"`
   RedirectTo string `json:"redirect_to" binding:"required"`
+}
+
+type RecoverChallenge struct {
+  Id         string `json:"id" binding:"required"`
+  VerificationCode string `json:"verification_code" binding:"required"`
+  RedirectTo string `json:"redirect_to" binding:"required"`
+}
+
+type RecoverChallengeClaim struct {
+  VerificationCode string `json:"code" binding:"required"`
+	jwt.StandardClaims
 }
 
 func ValidatePassword(storedPassword string, password string) (bool, error) {
@@ -70,6 +85,134 @@ func CreatePasscodeChallenge(url string, challenge string, id string, secret str
     Signature: sha,
     RedirectTo: redirectTo + "&sig=" + sha,
   }
+}
+
+func VerifyRecoverChallenge(recoverChallenge string, claims *RecoverChallengeClaim, verifyPath string) (*jwt.Token, error) {
+  verifyBytes, err := ioutil.ReadFile(verifyPath)
+  if err != nil {
+    return nil, err
+  }
+  verifyKey, err := jwt.ParseRSAPublicKeyFromPEM(verifyBytes)
+  if err != nil {
+    return nil, err
+  }
+  token, err := jwt.ParseWithClaims(recoverChallenge, claims, func(token *jwt.Token) (interface {}, error) {
+    if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+      return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+    }
+    return verifyKey, nil
+  })
+  return token, nil
+}
+
+func CreateRecoverChallenge(url string, identity Identity, signPath string, challengeTimeoutInSeconds int64, issuer string, audience string) (RecoverChallenge, error) {
+  verificationCode, err := GenerateRandomDigits(6);
+  if err != nil {
+    return RecoverChallenge{}, err
+  }
+
+  code, err := CreatePassword(verificationCode)
+  if err != nil {
+    return RecoverChallenge{}, err
+  }
+
+  signBytes, err := ioutil.ReadFile(signPath)
+  if err != nil {
+    return RecoverChallenge{}, err
+  }
+
+  signKey, err := jwt.ParseRSAPrivateKeyFromPEM(signBytes)
+  if err != nil {
+    return RecoverChallenge{}, err
+  }
+
+  timeout := time.Duration(challengeTimeoutInSeconds)
+  expirationTime := time.Now().Add(timeout * time.Second)
+
+  claims := RecoverChallengeClaim{
+    VerificationCode: code,
+    StandardClaims: jwt.StandardClaims{
+      IssuedAt: time.Now().Unix(),
+			ExpiresAt: expirationTime.Unix(),
+      Subject: identity.Id,
+      Issuer: issuer,
+      Audience: audience,
+		},
+  }
+  token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+
+  // Sign and get the complete encoded token as a string using the secret
+  tokenString, err := token.SignedString(signKey)
+  if err != nil {
+    return RecoverChallenge{}, err
+  }
+
+  redirectTo := url + "?recover_challenge=" + tokenString
+
+  return RecoverChallenge{
+    Id: identity.Id,
+    RedirectTo: redirectTo,
+    VerificationCode: verificationCode,
+  }, nil
+}
+
+func UpdatePasswordForIdentityForVerifiedRecoverChallenge(driver neo4j.Driver, encryptedChallenge string, cryptSecret string) (Identity, error) {
+  var identityResposne Identity
+
+  decryptedChallenge, err := Decrypt(encryptedChallenge, cryptSecret)
+  if err != nil {
+    return identityResposne, err
+  }
+
+  challenge, err := url.ParseQuery(decryptedChallenge)
+  if err != nil {
+    return identityResposne, err
+  }
+
+  id := challenge.Get("id")
+  email := challenge.Get("email")
+
+  password := challenge.Get("password")
+  if password == "" {
+    return identityResposne, errors.New("Password is empty")
+  }
+
+  identities, err := FetchIdentitiesForSub(driver, id)
+  if err != nil {
+    return identityResposne, err
+  }
+
+  if identities != nil {
+    identity := identities[0];
+
+    if ( identity.Email != email ) {
+      return identityResposne, errors.New("Email on identity has changed since recover challenge was created")
+    }
+
+    identity.Password = password
+    updatedIdentity, err := UpdatePassword(driver, identity)
+    if err != nil {
+      return identityResposne, err
+    }
+
+    return updatedIdentity, nil
+  }
+
+  return identityResposne, errors.New("Identity not found")
+}
+
+var table = [...]byte{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'}
+
+func GenerateRandomDigits(max int) (string, error) {
+  b := make([]byte, max)
+  n, err := io.ReadAtLeast(rand.Reader, b, max)
+  if n != max {
+    return "", err
+  }
+  for i := 0; i < len(b); i++ {
+    b[i] = table[int(b[i])%len(table)]
+  }
+  return string(b), nil
 }
 
 // Enforce AES-256 by using 32 byte string as key param

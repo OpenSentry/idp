@@ -18,13 +18,12 @@ type RecoverRequest struct {
 
 type RecoverResponse struct {
   Id              string          `json:"id" binding:"required"`
-  RecoverMethod   string          `json:"recover_method" binding:"required"`
-  Email           string          `json:"email" binding:"required"`
+  RedirectTo      string          `json:"redirect_to" binding:"required"`
 }
 
 type RecoverTemplateData struct {
   Name string
-  RecoverLink string
+  VerificationCode string
   Sender string
 }
 
@@ -44,96 +43,102 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
+    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id) // FIXME do not return a list of identities!
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
       c.Abort()
       return
     }
-    if identities != nil {
-      identity := identities[0]; // FIXME do not return a list of identities!
 
-      sender := idpapi.SMTPSender{
-        Name: config.GetString("recover.sender.name"),
-        Email: config.GetString("recover.sender.email"),
-      }
+    if identities == nil {
+      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
+      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
+      return;
+    }
 
-      smtpConfig := idpapi.SMTPConfig{
-        Host: config.GetString("mail.smtp.host"),
-        Username: config.GetString("mail.smtp.user"),
-        Password: config.GetString("mail.smtp.password"),
-        Sender: sender,
-        SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
-      }
+    // Found identity prepare to send recover email
+    identity := identities[0];
 
-      recoverLink := config.GetString("recover.link")
-      recoverChallenge := "1234"
+    sender := idpapi.SMTPSender{
+      Name: config.GetString("recover.sender.name"),
+      Email: config.GetString("recover.sender.email"),
+    }
 
-      recoverTemplateFile := config.GetString("recover.template.email.file")
-      recoverSubject := config.GetString("recover.template.email.subject")
+    smtpConfig := idpapi.SMTPConfig{
+      Host: config.GetString("mail.smtp.host"),
+      Username: config.GetString("mail.smtp.user"),
+      Password: config.GetString("mail.smtp.password"),
+      Sender: sender,
+      SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
+    }
 
-      tplRecover, err := ioutil.ReadFile(recoverTemplateFile)
-      if err != nil {
-        log.WithFields(logrus.Fields{
-          "file": recoverTemplateFile,
-        }).Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
-        return
-      }
-
-      t := template.Must(template.New(recoverTemplateFile).Parse(string(tplRecover)))
-
-      data := RecoverTemplateData{
-        Sender: sender.Name,
-        Name: input.Id,
-        RecoverLink: recoverLink + "?recover_challenge=" + recoverChallenge,
-      }
-
-      var tpl bytes.Buffer
-      if err := t.Execute(&tpl, data); err != nil {
-        log.Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
-        return
-      }
-
-      recoverMail := idpapi.RecoverMail{
-        Subject: recoverSubject,
-        Body: tpl.String(),
-      }
-
-      _, err = idpapi.SendRecoverMailForIdentity(smtpConfig, identity, recoverMail)
-      if err != nil {
-        log.WithFields(logrus.Fields{
-          "id": identity.Id,
-          "file": recoverTemplateFile,
-        }).Debug("Failed to send recover mail")
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
-        return
-      }
-
-      recoverResponse := RecoverResponse{
-        Id: identity.Id,
-        Email: identity.Email,
-        RecoverMethod: "email",
-      }
-      log.WithFields(logrus.Fields{
-        "id": recoverResponse.Id,
-        "recover_method": recoverResponse.RecoverMethod,
-        "email": recoverResponse.Email,
-      }).Debug("Recover mail send")
-      c.JSON(http.StatusOK, recoverResponse)
+    recoverChallenge, err := idpapi.CreateRecoverChallenge(config.GetString("recover.link"), identity, config.GetString("recover.sign.key.path"), 60 * 5, "idpapi", "idpui") // FIXME config issuer and audience
+    if err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
       c.Abort()
       return
     }
 
-    // Deny by default
-    log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
-    c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-    return;
+    log.WithFields(logrus.Fields{
+      "verification_code": recoverChallenge.VerificationCode,
+    }).Debug("VERIFICATION CODE - DO NOT DO THIS IN PRODUCTION");
+
+    recoverTemplateFile := config.GetString("recover.template.email.file")
+    recoverSubject := config.GetString("recover.template.email.subject")
+
+    tplRecover, err := ioutil.ReadFile(recoverTemplateFile)
+    if err != nil {
+      log.WithFields(logrus.Fields{
+        "file": recoverTemplateFile,
+      }).Debug(err.Error())
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    t := template.Must(template.New(recoverTemplateFile).Parse(string(tplRecover)))
+
+    data := RecoverTemplateData{
+      Sender: sender.Name,
+      Name: input.Id,
+      VerificationCode: recoverChallenge.VerificationCode,
+    }
+
+    var tpl bytes.Buffer
+    if err := t.Execute(&tpl, data); err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    recoverMail := idpapi.RecoverMail{
+      Subject: recoverSubject,
+      Body: tpl.String(),
+    }
+
+    _, err = idpapi.SendRecoverMailForIdentity(smtpConfig, identity, recoverMail)
+    if err != nil {
+      log.WithFields(logrus.Fields{
+        "id": identity.Id,
+        "file": recoverTemplateFile,
+      }).Debug("Failed to send recover mail")
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    recoverResponse := RecoverResponse{
+      Id: identity.Id,
+      RedirectTo: recoverChallenge.RedirectTo,
+    }
+    log.WithFields(logrus.Fields{
+      "id": recoverResponse.Id,
+      "redirect_to": recoverResponse.RedirectTo,
+    }).Debug("Recover mail send")
+    c.JSON(http.StatusOK, recoverResponse)
   }
   return gin.HandlerFunc(fn)
 }

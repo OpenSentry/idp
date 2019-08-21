@@ -124,14 +124,15 @@ func main() {
 func serve(env *environment.State) {
   // Setup routes to use, this defines log for debug log
   routes := map[string]environment.Route{
-    "/identities":              environment.Route{URL: "/identities",              LogId: "idpapi://identities"},
-    "/identities/authenticate": environment.Route{URL: "/identities/authenticate", LogId: "idpui://identities/authenticate"},
-    "/identities/password":     environment.Route{URL: "/identities/password",     LogId: "idpapi://identities/password"},
-    "/identities/passcode":     environment.Route{URL: "/identities/passcode",     LogId: "idpapi://identities/passcode"},
-    "/identities/2fa":          environment.Route{URL: "/identities/2fa",          LogId: "idpapi://identities/2fa"},
-    "/identities/logout":       environment.Route{URL: "/identities/logout",       LogId: "idpui://identities/logout"},
-    "/identities/revoke":       environment.Route{URL: "/identities/revoke",       LogId: "idpui://identities/revoke"},
-    "/identities/recover":      environment.Route{URL: "/identities/recover",      LogId: "idpui://identities/recover"},
+    "/identities":                     environment.Route{URL: "/identities",                     LogId: "idpapi://identities"},
+    "/identities/authenticate":        environment.Route{URL: "/identities/authenticate",        LogId: "idpui://identities/authenticate"},
+    "/identities/password":            environment.Route{URL: "/identities/password",            LogId: "idpapi://identities/password"},
+    "/identities/passcode":            environment.Route{URL: "/identities/passcode",            LogId: "idpapi://identities/passcode"},
+    "/identities/2fa":                 environment.Route{URL: "/identities/2fa",                 LogId: "idpapi://identities/2fa"},
+    "/identities/logout":              environment.Route{URL: "/identities/logout",              LogId: "idpui://identities/logout"},
+    "/identities/revoke":              environment.Route{URL: "/identities/revoke",              LogId: "idpui://identities/revoke"},
+    "/identities/recover":             environment.Route{URL: "/identities/recover",             LogId: "idpui://identities/recover"},
+    "/identities/recoververification": environment.Route{URL: "/identities/recoververification", LogId: "idpui://identities/recoververification"},
   }
 
   r := gin.New() // Clean gin to take control with logging.
@@ -161,7 +162,10 @@ func serve(env *environment.State) {
 
   r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpapi.logout"), identities.PostLogout(env, routes["/identities/logout"]))
   r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpapi.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
+
+  // FIXME Recover scope should be authenticate like password?
   r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpapi.recover"), identities.PostRecover(env, routes["/identities/recover"]))
+  r.POST(routes["/identities/recoververification"].URL, authorizationRequired(routes["/identities/recoververification"], "idpapi.recover"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
