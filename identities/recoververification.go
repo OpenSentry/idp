@@ -62,7 +62,12 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
     valid, err := idpapi.ValidatePassword(claims.VerificationCode, input.VerificationCode)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid verification code"})
+      log.WithFields(logrus.Fields{
+        "id": denyResponse.Id,
+        "verified": denyResponse.Verified,
+        "redirect_to": denyResponse.RedirectTo,
+      }).Debug("Recover rejected")
+      c.JSON(http.StatusOK, denyResponse)
       c.Abort();
       return
     }
