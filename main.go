@@ -133,6 +133,7 @@ func serve(env *environment.State) {
     "/identities/revoke":              environment.Route{URL: "/identities/revoke",              LogId: "idpui://identities/revoke"},
     "/identities/recover":             environment.Route{URL: "/identities/recover",             LogId: "idpui://identities/recover"},
     "/identities/recoververification": environment.Route{URL: "/identities/recoververification", LogId: "idpui://identities/recoververification"},
+    "/identities/deleteverification":  environment.Route{URL: "/identities/deleteverification",  LogId: "idpui://identities/deleteverification"},
   }
 
   r := gin.New() // Clean gin to take control with logging.
@@ -155,6 +156,8 @@ func serve(env *environment.State) {
   r.POST(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.post"), identities.PostCollection(env, routes["/identities"]))
   r.PUT(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.put"), identities.PutCollection(env, routes["/identities"]))
   r.DELETE(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.delete"), identities.DeleteCollection(env, routes["/identities"]))
+
+  r.POST(routes["/identities/deleteverification"].URL, authorizationRequired(routes["/identities/deleteverification"], "idpapi.identities.delete"), identities.PostDeleteVerification(env, routes["/identities/deleteverification"]))
 
   r.POST(routes["/identities/authenticate"].URL, authorizationRequired(routes["/identities/authenticate"], "idpapi.authenticate"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
   r.POST(routes["/identities/password"].URL, authorizationRequired(routes["/identities/password"], "idpapi.authenticate"), identities.PostPassword(env, routes["/identities/password"]))
