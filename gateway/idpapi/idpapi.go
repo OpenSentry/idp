@@ -10,24 +10,40 @@ import (
   "encoding/hex"
   "errors"
   "io"
+  "net"
+  "net/mail"
+  "net/smtp"
+  "strings"
+  "crypto/tls"
+  "fmt"
+  "time"
   "golang.org/x/crypto/bcrypt"
   "github.com/neo4j/neo4j-go-driver/neo4j"
   "github.com/pquerna/otp/totp"
 )
 
 type Identity struct {
-  Id         string `json:"id" binding:"required"`
-  Name       string `json:"name"`
-  Email      string `json:"email"`
-  Password   string `json:"password"`
-  Require2Fa bool   `json:"require_2fa"`
-  Secret2Fa  string `json:"secret"`
+  Id                   string `json:"id" binding:"required"`
+  Name                 string `json:"name"`
+  Email                string `json:"email"`
+  Password             string `json:"password"`
+  Require2Fa           bool   `json:"require_2fa"`
+  Secret2Fa            string `json:"secret"`
+  OtpRecoverCode       string `json:"otp_recover_code"`
+  OtpRecoderCodeExpire int64  `json:"otp_recover_code_expire"`
 }
 
 type PasscodeChallenge struct {
   Challenge  string `json:"challenge" binding:"required"`
   Id         string `json:"id" binding:"required"`
-  Signature  string `json:"id" binding:"required"`
+  Signature  string `json:"sig" binding:"required"`
+  RedirectTo string `json:"redirect_to" binding:"required"`
+}
+
+type RecoverChallenge struct {
+  Id         string `json:"id" binding:"required"`
+  VerificationCode string `json:"verification_code" binding:"required"`
+  Expire     int64 `json:"expire" binding:"required"`
   RedirectTo string `json:"redirect_to" binding:"required"`
 }
 
@@ -64,6 +80,39 @@ func CreatePasscodeChallenge(url string, challenge string, id string, secret str
     Signature: sha,
     RedirectTo: redirectTo + "&sig=" + sha,
   }
+}
+
+func CreateRecoverChallenge(url string, identity Identity, challengeTimeoutInSeconds int64) (RecoverChallenge, error) {
+  verificationCode, err := GenerateRandomDigits(6);
+  if err != nil {
+    return RecoverChallenge{}, err
+  }
+
+  timeout := time.Duration(challengeTimeoutInSeconds)
+  expirationTime := time.Now().Add(timeout * time.Second)
+  expiresAt := expirationTime.Unix()
+  redirectTo := url
+
+  return RecoverChallenge{
+    Id: identity.Id,
+    VerificationCode: verificationCode,
+    Expire: expiresAt,
+    RedirectTo: redirectTo,
+  }, nil
+}
+
+var table = [...]byte{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'}
+
+func GenerateRandomDigits(max int) (string, error) {
+  b := make([]byte, max)
+  n, err := io.ReadAtLeast(rand.Reader, b, max)
+  if n != max {
+    return "", err
+  }
+  for i := 0; i < len(b); i++ {
+    b[i] = table[int(b[i])%len(table)]
+  }
+  return string(b), nil
 }
 
 // Enforce AES-256 by using 32 byte string as key param
@@ -157,7 +206,7 @@ func UpdateTwoFactor(driver neo4j.Driver, identity Identity) (Identity, error) {
 
   id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
-    cypher := "MATCH (i:Identity {sub:$sub}) SET i.require_2fa=$required, i.secret_2fa=$secret RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa"
+    cypher := "MATCH (i:Identity {sub:$sub}) SET i.require_2fa=$required, i.secret_2fa=$secret RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire"
     params := map[string]interface{}{"sub": identity.Id, "required": identity.Require2Fa, "secret": identity.Secret2Fa}
     if result, err = tx.Run(cypher, params); err != nil {
       return Identity{}, err
@@ -177,6 +226,8 @@ func UpdateTwoFactor(driver neo4j.Driver, identity Identity) (Identity, error) {
       email := record.GetByIndex(3).(string)
       require2Fa := record.GetByIndex(4).(bool)
       secret2Fa := record.GetByIndex(5).(string)
+      otpRecoverCode := record.GetByIndex(6).(string)
+      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
 
       identity := Identity{
         Id: sub,
@@ -185,6 +236,70 @@ func UpdateTwoFactor(driver neo4j.Driver, identity Identity) (Identity, error) {
         Password: password,
         Require2Fa: require2Fa,
         Secret2Fa: secret2Fa,
+        OtpRecoverCode: otpRecoverCode,
+        OtpRecoderCodeExpire: otpRecoverCodeExpire,
+      }
+      ret = identity
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+    return ret, nil
+  })
+
+  if err != nil {
+    return Identity{}, err
+  }
+  return id.(Identity), nil
+}
+
+func UpdateOtpRecoverCode(driver neo4j.Driver, identity Identity) (Identity, error) {
+  var err error
+  var session neo4j.Session
+  var id interface{}
+
+  session, err = driver.Session(neo4j.AccessModeWrite);
+  if err != nil {
+    return Identity{}, err
+  }
+  defer session.Close()
+
+  id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+    cypher := "MATCH (i:Identity {sub:$sub}) SET i.otp_recover_code=$code, i.otp_recover_code_expire=$expire RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire"
+    params := map[string]interface{}{"sub": identity.Id, "code": identity.OtpRecoverCode, "expire": identity.OtpRecoderCodeExpire}
+    if result, err = tx.Run(cypher, params); err != nil {
+      return Identity{}, err
+    }
+
+    var ret Identity
+    if result.Next() {
+      record := result.Record()
+
+      // NOTE: This means the statment sequence of the RETURN (possible order by)
+      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
+      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
+      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
+      sub := record.GetByIndex(0).(string)
+      password := record.GetByIndex(1).(string)
+      name := record.GetByIndex(2).(string)
+      email := record.GetByIndex(3).(string)
+      require2Fa := record.GetByIndex(4).(bool)
+      secret2Fa := record.GetByIndex(5).(string)
+      otpRecoverCode := record.GetByIndex(6).(string)
+      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
+
+      identity := Identity{
+        Id: sub,
+        Name: name,
+        Email: email,
+        Password: password,
+        Require2Fa: require2Fa,
+        Secret2Fa: secret2Fa,
+        OtpRecoverCode: otpRecoverCode,
+        OtpRecoderCodeExpire: otpRecoverCodeExpire,
       }
       ret = identity
     }
@@ -215,7 +330,7 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
 
   id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
-    cypher := "MATCH (i:Identity {sub:$sub}) SET i.password=$password RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa"
+    cypher := "MATCH (i:Identity {sub:$sub}) SET i.password=$password RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire"
     params := map[string]interface{}{"sub": identity.Id, "password": identity.Password}
     if result, err = tx.Run(cypher, params); err != nil {
       return Identity{}, err
@@ -235,6 +350,8 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
       email := record.GetByIndex(3).(string)
       require2Fa := record.GetByIndex(4).(bool)
       secret2Fa := record.GetByIndex(5).(string)
+      otpRecoverCode := record.GetByIndex(6).(string)
+      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
 
       identity := Identity{
         Id: sub,
@@ -243,6 +360,8 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
         Password: password,
         Require2Fa: require2Fa,
         Secret2Fa: secret2Fa,
+        OtpRecoverCode: otpRecoverCode,
+        OtpRecoderCodeExpire: otpRecoverCodeExpire,
       }
       ret = identity
     }
@@ -274,7 +393,7 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
   ids, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      CREATE (i:Identity {sub:$sub, password:$password, name:$name, email:$email, require_2fa:false, secret_2fa:""}) RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa
+      CREATE (i:Identity {sub:$sub, password:$password, name:$name, email:$email, require_2fa:false, secret_2fa:"", otp_recover_code:"", otp_recover_code_expire:0}) RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire
     `
     params := map[string]interface{}{"sub": identity.Id, "password": identity.Password, "name": identity.Name, "email": identity.Email}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -295,6 +414,8 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
       email := record.GetByIndex(3).(string)
       require2Fa := record.GetByIndex(4).(bool)
       secret2Fa := record.GetByIndex(5).(string)
+      otpRecoverCode := record.GetByIndex(6).(string)
+      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
 
       identity := Identity{
         Id: sub,
@@ -303,6 +424,8 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
         Password: password,
         Require2Fa: require2Fa,
         Secret2Fa: secret2Fa,
+        OtpRecoverCode: otpRecoverCode,
+        OtpRecoderCodeExpire: otpRecoverCodeExpire,
       }
       identities = append(identities, identity)
     }
@@ -335,7 +458,7 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
 
   ids, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
-    cypher := "MATCH (i:Identity {sub:$sub}) WITH i SET i.name=$name, i.email=$email RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa"
+    cypher := "MATCH (i:Identity {sub:$sub}) WITH i SET i.name=$name, i.email=$email RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire"
     params := map[string]interface{}{"sub": identity.Id, "name": identity.Name, "email": identity.Email}
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
@@ -355,6 +478,8 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
       email := record.GetByIndex(3).(string)
       require2Fa := record.GetByIndex(4).(bool)
       secret2Fa := record.GetByIndex(5).(string)
+      otpRecoverCode := record.GetByIndex(6).(string)
+      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
 
       identity := Identity{
         Id: sub,
@@ -363,6 +488,8 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
         Password: password,
         Require2Fa: require2Fa,
         Secret2Fa: secret2Fa,
+        OtpRecoverCode: otpRecoverCode,
+        OtpRecoderCodeExpire: otpRecoverCodeExpire,
       }
       identities = append(identities, identity)
     }
@@ -429,7 +556,7 @@ func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) 
   ids, err = session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
 
-    cypher := "MATCH (i:Identity {sub: $sub}) RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa ORDER BY i.sub"
+    cypher := "MATCH (i:Identity {sub: $sub}) RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire ORDER BY i.sub"
     params := map[string]interface{}{"sub": sub}
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
@@ -449,6 +576,8 @@ func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) 
       email := record.GetByIndex(3).(string)
       require2Fa := record.GetByIndex(4).(bool)
       secret2Fa := record.GetByIndex(5).(string)
+      otpRecoverCode := record.GetByIndex(6).(string)
+      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
 
       identity := Identity{
         Id: sub,
@@ -457,6 +586,8 @@ func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) 
         Password: password,
         Require2Fa: require2Fa,
         Secret2Fa: secret2Fa,
+        OtpRecoverCode: otpRecoverCode,
+        OtpRecoderCodeExpire: otpRecoverCodeExpire,
       }
       identities = append(identities, identity)
     }
@@ -471,4 +602,134 @@ func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) 
     return nil, err
   }
   return ids.([]Identity), nil
+}
+
+type SMTPSender struct {
+  Name string
+  Email string
+  ReturnPath string
+}
+
+type SMTPConfig struct {
+  Host string
+  Username string
+  Password string
+  Sender SMTPSender
+  SkipTlsVerify int
+}
+
+type RecoverMail struct {
+  Subject string
+  Body string
+}
+
+func encodeRFC2047(String string) string {
+	// use mail's rfc2047 to encode any string
+	addr := mail.Address{String, ""}
+	return strings.Trim(addr.String(), " <>")
+}
+
+type unencryptedAuth struct {
+    smtp.Auth
+}
+
+func (a unencryptedAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+    s := *server
+    s.TLS = true
+    return a.Auth.Start(&s)
+}
+
+func SendRecoverMailForIdentity(smtpConfig SMTPConfig, identity Identity, recoverMail RecoverMail) (bool, error) {
+
+  from := mail.Address{smtpConfig.Sender.Name, smtpConfig.Sender.Email}
+  to := mail.Address{identity.Name, identity.Email}
+
+  subject := recoverMail.Subject
+  body := recoverMail.Body
+
+  header := make(map[string]string)
+	header["Return-Path"] = smtpConfig.Sender.ReturnPath
+	header["From"] = from.String()
+	header["To"] = to.String()
+	header["Subject"] = encodeRFC2047(subject)
+	header["MIME-Version"] = "1.0"
+	header["Content-Type"] = "text/plain; charset=\"utf-8\""
+	header["Content-Transfer-Encoding"] = "base64"
+
+	message := ""
+	for k, v := range header {
+		message += fmt.Sprintf("%s: %s\r\n", k, v)
+	}
+	message += "\r\n" + base64.StdEncoding.EncodeToString([]byte(body))
+
+  host, _, _ := net.SplitHostPort(smtpConfig.Host)
+
+  // Trick go library into thinking we are encrypting password to allow SMTP with authentication but no encryption
+  //auth := unencryptedAuth { smtp.PlainAuth("", smtpConfig.Username, smtpConfig.Password, host) }
+  auth := smtp.PlainAuth("", smtpConfig.Username, smtpConfig.Password, host)
+
+  /*err := smtp.SendMail(smtpConfig.Host, auth, smtpConfig.Sender.Email, []string{identity.Email}, []byte(message))
+  if err != nil {
+  	return false, err
+  }
+  return true, nil*/
+
+  tlsconfig := &tls.Config {
+    InsecureSkipVerify: smtpConfig.SkipTlsVerify == 1, // Using selfsigned certs
+    ServerName: host,
+  }
+
+  // Here is the key, you need to call tls.Dial instead of smtp.Dial
+  // for smtp servers running on 465 that require an ssl connection
+  // from the very beginning (no starttls)
+  /*conn, err := tls.Dial("tcp", smtpConfig.Host, tlsconfig)
+  if err != nil {
+    return false, err
+  }
+
+  c, err := smtp.NewClient(conn, host)
+  if err != nil {
+    return false, err
+  }
+  */
+
+  c, err := smtp.Dial(smtpConfig.Host)
+  if err != nil {
+    return false, err
+  }
+
+  err = c.StartTLS(tlsconfig)
+
+  // Auth
+  if err := c.Auth(auth); err != nil {
+    return false, err
+  }
+
+  // To && From
+  if err = c.Mail(from.Address); err != nil {
+    return false, err
+  }
+
+  if err = c.Rcpt(to.Address); err != nil {
+    return false, err
+  }
+
+  // Data
+  w, err := c.Data()
+  if err != nil {
+    return false, err
+  }
+
+  _, err = w.Write([]byte(message))
+  if err != nil {
+    return false, err
+  }
+
+  err = w.Close()
+  if err != nil {
+    return false, err
+  }
+
+  c.Quit()
+  return true, nil
 }
