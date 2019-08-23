@@ -73,10 +73,31 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
     }
 
-    recoverChallenge, err := idpapi.CreateRecoverChallenge(config.GetString("recover.link"), identity, config.GetString("recover.sign.key.path"), 60 * 5, "idpapi", "idpui") // FIXME config issuer and audience
+    recoverChallenge, err := idpapi.CreateRecoverChallenge(config.GetString("recover.link"), identity, 60 * 5) // Fixme configfy 60*5
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    hashedCode, err := idpapi.CreatePassword(recoverChallenge.VerificationCode)
+    if err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    n := idpapi.Identity{
+      Id: identity.Id,
+      OtpRecoverCode: hashedCode,
+      OtpRecoderCodeExpire: recoverChallenge.Expire,
+    }
+    updatedIdentity, err := idpapi.UpdateOtpRecoverCode(env.Driver, n)
+    if err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
       c.Abort()
       return
     }
@@ -102,7 +123,7 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
 
     data := RecoverTemplateData{
       Sender: sender.Name,
-      Name: input.Id,
+      Name: updatedIdentity.Id,
       VerificationCode: recoverChallenge.VerificationCode,
     }
 
@@ -119,10 +140,10 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       Body: tpl.String(),
     }
 
-    _, err = idpapi.SendRecoverMailForIdentity(smtpConfig, identity, recoverMail)
+    _, err = idpapi.SendRecoverMailForIdentity(smtpConfig, updatedIdentity, recoverMail)
     if err != nil {
       log.WithFields(logrus.Fields{
-        "id": identity.Id,
+        "id": updatedIdentity.Id,
         "file": recoverTemplateFile,
       }).Debug("Failed to send recover mail")
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -131,7 +152,7 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
     }
 
     recoverResponse := RecoverResponse{
-      Id: identity.Id,
+      Id: updatedIdentity.Id,
       RedirectTo: recoverChallenge.RedirectTo,
     }
     log.WithFields(logrus.Fields{

@@ -4,15 +4,15 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "golang-idp-be/config"
   "golang-idp-be/environment"
   "golang-idp-be/gateway/idpapi"
 )
 
 type RecoverVerificationRequest struct {
-  Challenge        string `json:"recover_challenge" binding:"required"`
+  Id               string `json:"id" binding:"required"`
   VerificationCode string `json:"verification_code" binding:"required"`
-  Password         string  `json:"password" binding:"required"`
+  Password         string `json:"password" binding:"required"`
+  RedirectTo       string `json:"redirect_to" binding:"required"`
 }
 
 type RecoverVerificationResponse struct {
@@ -38,28 +38,29 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
     }
 
     denyResponse := RecoverVerificationResponse{
-      Id: "",
+      Id: input.Id,
       Verified: false,
       RedirectTo: "",
     }
 
-    claims := idpapi.RecoverChallengeClaim{}
-    token, err := idpapi.VerifyRecoverChallenge(input.Challenge, &claims, config.GetString("recover.sign.verify.path"))
+    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, denyResponse)
-      c.Abort()
-      return
-    }
-
-    if !token.Valid {
-      log.WithFields(logrus.Fields{"recover_challenge": input.Challenge}).Debug("Invalid recover_challenge")
-      c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid recover_challenge"})
+      c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid id"})
       c.Abort();
       return
     }
 
-    valid, err := idpapi.ValidatePassword(claims.VerificationCode, input.VerificationCode)
+    if identities == nil {
+      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
+      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
+      c.Abort();
+      return
+    }
+
+    identity := identities[0];
+
+    valid, err := idpapi.ValidatePassword(identity.OtpRecoverCode, input.VerificationCode)
     if err != nil {
       log.Debug(err.Error())
       log.WithFields(logrus.Fields{
@@ -74,23 +75,6 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
 
     if valid == true {
 
-      identities, err := idpapi.FetchIdentitiesForSub(env.Driver, claims.Subject)
-      if err != nil {
-        log.Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid subject"})
-        c.Abort();
-        return
-      }
-
-      if identities == nil {
-        log.WithFields(logrus.Fields{"id": claims.Subject}).Debug("Identity not found")
-        c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-        c.Abort();
-        return
-      }
-
-      identity := identities[0];
-
       // Update the password
       hashedPassword, err := idpapi.CreatePassword(input.Password)
       if err != nil {
@@ -98,9 +82,12 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
         c.Abort()
         return
       }
-      identity.Password = hashedPassword
 
-      _, err = idpapi.UpdatePassword(env.Driver, identity)
+      n := idpapi.Identity{
+        Id: identity.Id,
+        Password: hashedPassword,
+      }
+      updatedIdentity, err := idpapi.UpdatePassword(env.Driver, n)
       if err != nil {
         log.Debug(err.Error())
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Update password failed"})
@@ -109,14 +96,14 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
       }
 
       acceptResponse := RecoverVerificationResponse{
-        Id: identity.Id,
+        Id: updatedIdentity.Id,
         Verified: true,
-        RedirectTo: "/me",
+        RedirectTo: input.RedirectTo,
       }
       log.WithFields(logrus.Fields{
-        "id": denyResponse.Id,
-        "verified": denyResponse.Verified,
-        "redirect_to": denyResponse.RedirectTo,
+        "id": acceptResponse.Id,
+        "verified": acceptResponse.Verified,
+        "redirect_to": acceptResponse.RedirectTo,
       }).Debug("Recover accepted")
       c.JSON(http.StatusOK, acceptResponse)
       return
