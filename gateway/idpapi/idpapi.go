@@ -31,6 +31,8 @@ type Identity struct {
   Secret2Fa            string `json:"secret"`
   OtpRecoverCode       string `json:"otp_recover_code"`
   OtpRecoderCodeExpire int64  `json:"otp_recover_code_expire"`
+  OtpDeleteCode        string `json:"otp_delete_code"`
+  OtpDeleteCodeExpire  int64  `json:"otp_delete_code_expire"`
 }
 
 type PasscodeChallenge struct {
@@ -41,10 +43,17 @@ type PasscodeChallenge struct {
 }
 
 type RecoverChallenge struct {
-  Id         string `json:"id" binding:"required"`
+  Id               string `json:"id" binding:"required"`
   VerificationCode string `json:"verification_code" binding:"required"`
-  Expire     int64 `json:"expire" binding:"required"`
-  RedirectTo string `json:"redirect_to" binding:"required"`
+  Expire           int64  `json:"expire" binding:"required"`
+  RedirectTo       string `json:"redirect_to" binding:"required"`
+}
+
+type DeleteChallenge struct {
+  Id               string `json:"id" binding:"required"`
+  VerificationCode string `json:"verification_code" binding:"required"`
+  Expire           int64  `json:"expire" binding:"required"`
+  RedirectTo       string `json:"redirect_to" binding:"required"`
 }
 
 func ValidatePassword(storedPassword string, password string) (bool, error) {
@@ -80,6 +89,25 @@ func CreatePasscodeChallenge(url string, challenge string, id string, secret str
     Signature: sha,
     RedirectTo: redirectTo + "&sig=" + sha,
   }
+}
+
+func CreateDeleteChallenge(url string, identity Identity, challengeTimeoutInSeconds int64) (DeleteChallenge, error) {
+  verificationCode, err := GenerateRandomDigits(6);
+  if err != nil {
+    return DeleteChallenge{}, err
+  }
+
+  timeout := time.Duration(challengeTimeoutInSeconds)
+  expirationTime := time.Now().Add(timeout * time.Second)
+  expiresAt := expirationTime.Unix()
+  redirectTo := url
+
+  return DeleteChallenge{
+    Id: identity.Id,
+    VerificationCode: verificationCode,
+    Expire: expiresAt,
+    RedirectTo: redirectTo,
+  }, nil
 }
 
 func CreateRecoverChallenge(url string, identity Identity, challengeTimeoutInSeconds int64) (RecoverChallenge, error) {
@@ -206,7 +234,7 @@ func UpdateTwoFactor(driver neo4j.Driver, identity Identity) (Identity, error) {
 
   id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
-    cypher := "MATCH (i:Identity {sub:$sub}) SET i.require_2fa=$required, i.secret_2fa=$secret RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire"
+    cypher := "MATCH (i:Identity {sub:$sub}) SET i.require_2fa=$required, i.secret_2fa=$secret RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire"
     params := map[string]interface{}{"sub": identity.Id, "required": identity.Require2Fa, "secret": identity.Secret2Fa}
     if result, err = tx.Run(cypher, params); err != nil {
       return Identity{}, err
@@ -228,6 +256,8 @@ func UpdateTwoFactor(driver neo4j.Driver, identity Identity) (Identity, error) {
       secret2Fa := record.GetByIndex(5).(string)
       otpRecoverCode := record.GetByIndex(6).(string)
       otpRecoverCodeExpire := record.GetByIndex(7).(int64)
+      otpDeleteCode := record.GetByIndex(8).(string)
+      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
 
       identity := Identity{
         Id: sub,
@@ -238,6 +268,74 @@ func UpdateTwoFactor(driver neo4j.Driver, identity Identity) (Identity, error) {
         Secret2Fa: secret2Fa,
         OtpRecoverCode: otpRecoverCode,
         OtpRecoderCodeExpire: otpRecoverCodeExpire,
+        OtpDeleteCode: otpDeleteCode,
+        OtpDeleteCodeExpire: otpDeleteCodeExpire,
+      }
+      ret = identity
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+    return ret, nil
+  })
+
+  if err != nil {
+    return Identity{}, err
+  }
+  return id.(Identity), nil
+}
+
+func UpdateOtpDeleteCode(driver neo4j.Driver, identity Identity) (Identity, error) {
+  var err error
+  var session neo4j.Session
+  var id interface{}
+
+  session, err = driver.Session(neo4j.AccessModeWrite);
+  if err != nil {
+    return Identity{}, err
+  }
+  defer session.Close()
+
+  id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+    cypher := "MATCH (i:Identity {sub:$sub}) SET i.otp_delete_code=$code, i.otp_delete_code_expire=$expire RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire"
+    params := map[string]interface{}{"sub": identity.Id, "code": identity.OtpRecoverCode, "expire": identity.OtpRecoderCodeExpire}
+    if result, err = tx.Run(cypher, params); err != nil {
+      return Identity{}, err
+    }
+
+    var ret Identity
+    if result.Next() {
+      record := result.Record()
+
+      // NOTE: This means the statment sequence of the RETURN (possible order by)
+      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
+      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
+      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
+      sub := record.GetByIndex(0).(string)
+      password := record.GetByIndex(1).(string)
+      name := record.GetByIndex(2).(string)
+      email := record.GetByIndex(3).(string)
+      require2Fa := record.GetByIndex(4).(bool)
+      secret2Fa := record.GetByIndex(5).(string)
+      otpRecoverCode := record.GetByIndex(6).(string)
+      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
+      otpDeleteCode := record.GetByIndex(8).(string)
+      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
+
+      identity := Identity{
+        Id: sub,
+        Name: name,
+        Email: email,
+        Password: password,
+        Require2Fa: require2Fa,
+        Secret2Fa: secret2Fa,
+        OtpRecoverCode: otpRecoverCode,
+        OtpRecoderCodeExpire: otpRecoverCodeExpire,
+        OtpDeleteCode: otpDeleteCode,
+        OtpDeleteCodeExpire: otpDeleteCodeExpire,
       }
       ret = identity
     }
@@ -268,7 +366,7 @@ func UpdateOtpRecoverCode(driver neo4j.Driver, identity Identity) (Identity, err
 
   id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
-    cypher := "MATCH (i:Identity {sub:$sub}) SET i.otp_recover_code=$code, i.otp_recover_code_expire=$expire RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire"
+    cypher := "MATCH (i:Identity {sub:$sub}) SET i.otp_recover_code=$code, i.otp_recover_code_expire=$expire RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire"
     params := map[string]interface{}{"sub": identity.Id, "code": identity.OtpRecoverCode, "expire": identity.OtpRecoderCodeExpire}
     if result, err = tx.Run(cypher, params); err != nil {
       return Identity{}, err
@@ -290,6 +388,8 @@ func UpdateOtpRecoverCode(driver neo4j.Driver, identity Identity) (Identity, err
       secret2Fa := record.GetByIndex(5).(string)
       otpRecoverCode := record.GetByIndex(6).(string)
       otpRecoverCodeExpire := record.GetByIndex(7).(int64)
+      otpDeleteCode := record.GetByIndex(8).(string)
+      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
 
       identity := Identity{
         Id: sub,
@@ -300,6 +400,8 @@ func UpdateOtpRecoverCode(driver neo4j.Driver, identity Identity) (Identity, err
         Secret2Fa: secret2Fa,
         OtpRecoverCode: otpRecoverCode,
         OtpRecoderCodeExpire: otpRecoverCodeExpire,
+        OtpDeleteCode: otpDeleteCode,
+        OtpDeleteCodeExpire: otpDeleteCodeExpire,
       }
       ret = identity
     }
@@ -330,7 +432,7 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
 
   id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
-    cypher := "MATCH (i:Identity {sub:$sub}) SET i.password=$password RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire"
+    cypher := "MATCH (i:Identity {sub:$sub}) SET i.password=$password RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire"
     params := map[string]interface{}{"sub": identity.Id, "password": identity.Password}
     if result, err = tx.Run(cypher, params); err != nil {
       return Identity{}, err
@@ -352,6 +454,8 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
       secret2Fa := record.GetByIndex(5).(string)
       otpRecoverCode := record.GetByIndex(6).(string)
       otpRecoverCodeExpire := record.GetByIndex(7).(int64)
+      otpDeleteCode := record.GetByIndex(8).(string)
+      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
 
       identity := Identity{
         Id: sub,
@@ -362,6 +466,8 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
         Secret2Fa: secret2Fa,
         OtpRecoverCode: otpRecoverCode,
         OtpRecoderCodeExpire: otpRecoverCodeExpire,
+        OtpDeleteCode: otpDeleteCode,
+        OtpDeleteCodeExpire: otpDeleteCodeExpire,
       }
       ret = identity
     }
@@ -393,7 +499,7 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
   ids, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      CREATE (i:Identity {sub:$sub, password:$password, name:$name, email:$email, require_2fa:false, secret_2fa:"", otp_recover_code:"", otp_recover_code_expire:0}) RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire
+      CREATE (i:Identity {sub:$sub, password:$password, name:$name, email:$email, require_2fa:false, secret_2fa:"", otp_recover_code:"", otp_recover_code_expire:0}) RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": identity.Id, "password": identity.Password, "name": identity.Name, "email": identity.Email}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -416,6 +522,8 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
       secret2Fa := record.GetByIndex(5).(string)
       otpRecoverCode := record.GetByIndex(6).(string)
       otpRecoverCodeExpire := record.GetByIndex(7).(int64)
+      otpDeleteCode := record.GetByIndex(8).(string)
+      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
 
       identity := Identity{
         Id: sub,
@@ -426,6 +534,8 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
         Secret2Fa: secret2Fa,
         OtpRecoverCode: otpRecoverCode,
         OtpRecoderCodeExpire: otpRecoverCodeExpire,
+        OtpDeleteCode: otpDeleteCode,
+        OtpDeleteCodeExpire: otpDeleteCodeExpire,
       }
       identities = append(identities, identity)
     }
@@ -458,7 +568,7 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
 
   ids, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
-    cypher := "MATCH (i:Identity {sub:$sub}) WITH i SET i.name=$name, i.email=$email RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire"
+    cypher := "MATCH (i:Identity {sub:$sub}) WITH i SET i.name=$name, i.email=$email RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire"
     params := map[string]interface{}{"sub": identity.Id, "name": identity.Name, "email": identity.Email}
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
@@ -480,6 +590,8 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
       secret2Fa := record.GetByIndex(5).(string)
       otpRecoverCode := record.GetByIndex(6).(string)
       otpRecoverCodeExpire := record.GetByIndex(7).(int64)
+      otpDeleteCode := record.GetByIndex(8).(string)
+      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
 
       identity := Identity{
         Id: sub,
@@ -490,6 +602,8 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
         Secret2Fa: secret2Fa,
         OtpRecoverCode: otpRecoverCode,
         OtpRecoderCodeExpire: otpRecoverCodeExpire,
+        OtpDeleteCode: otpDeleteCode,
+        OtpDeleteCodeExpire: otpDeleteCodeExpire,
       }
       identities = append(identities, identity)
     }
@@ -556,7 +670,7 @@ func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) 
   ids, err = session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
 
-    cypher := "MATCH (i:Identity {sub: $sub}) RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire ORDER BY i.sub"
+    cypher := "MATCH (i:Identity {sub: $sub}) RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire ORDER BY i.sub"
     params := map[string]interface{}{"sub": sub}
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
@@ -578,6 +692,8 @@ func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) 
       secret2Fa := record.GetByIndex(5).(string)
       otpRecoverCode := record.GetByIndex(6).(string)
       otpRecoverCodeExpire := record.GetByIndex(7).(int64)
+      otpDeleteCode := record.GetByIndex(8).(string)
+      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
 
       identity := Identity{
         Id: sub,
@@ -588,6 +704,8 @@ func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) 
         Secret2Fa: secret2Fa,
         OtpRecoverCode: otpRecoverCode,
         OtpRecoderCodeExpire: otpRecoverCodeExpire,
+        OtpDeleteCode: otpDeleteCode,
+        OtpDeleteCodeExpire: otpDeleteCodeExpire,
       }
       identities = append(identities, identity)
     }

@@ -2,8 +2,12 @@ package identities
 
 import (
   "net/http"
+  "text/template"
+  "io/ioutil"
+  "bytes"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
+  "golang-idp-be/config"
   "golang-idp-be/environment"
   "golang-idp-be/gateway/idpapi"
 )
@@ -166,6 +170,126 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       c.Abort()
       return
     }
+
+    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id) // FIXME do not return a list of identities!
+    if err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    if identities == nil {
+      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
+      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
+      return;
+    }
+
+    // Found identity prepare to send recover email
+    identity := identities[0];
+
+    sender := idpapi.SMTPSender{
+      Name: config.GetString("delete.sender.name"),
+      Email: config.GetString("delete.sender.email"),
+    }
+
+    smtpConfig := idpapi.SMTPConfig{
+      Host: config.GetString("mail.smtp.host"),
+      Username: config.GetString("mail.smtp.user"),
+      Password: config.GetString("mail.smtp.password"),
+      Sender: sender,
+      SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
+    }
+
+    deleteChallenge, err := idpapi.CreateDeleteChallenge(config.GetString("delete.link"), identity, 60 * 5) // Fixme configfy 60*5
+    if err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    hashedCode, err := idpapi.CreatePassword(deleteChallenge.VerificationCode)
+    if err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    n := idpapi.Identity{
+      Id: identity.Id,
+      OtpDeleteCode: hashedCode,
+      OtpDeleteCodeExpire: deleteChallenge.Expire,
+    }
+    updatedIdentity, err := idpapi.UpdateOtpDeleteCode(env.Driver, n)
+    if err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    log.WithFields(logrus.Fields{
+      "verification_code": deleteChallenge.VerificationCode,
+    }).Debug("VERIFICATION CODE - DO NOT DO THIS IN PRODUCTION");
+
+    templateFile := config.GetString("delete.template.email.file")
+    emailSubject := config.GetString("delete.template.email.subject")
+
+    tplRecover, err := ioutil.ReadFile(templateFile)
+    if err != nil {
+      log.WithFields(logrus.Fields{
+        "file": templateFile,
+      }).Debug(err.Error())
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    t := template.Must(template.New(templateFile).Parse(string(tplRecover)))
+
+    data := RecoverTemplateData{
+      Sender: sender.Name,
+      Name: updatedIdentity.Id,
+      VerificationCode: deleteChallenge.VerificationCode,
+    }
+
+    var tpl bytes.Buffer
+    if err := t.Execute(&tpl, data); err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    recoverMail := idpapi.RecoverMail{
+      Subject: emailSubject,
+      Body: tpl.String(),
+    }
+
+    _, err = idpapi.SendRecoverMailForIdentity(smtpConfig, updatedIdentity, recoverMail)
+    if err != nil {
+      log.WithFields(logrus.Fields{
+        "id": updatedIdentity.Id,
+        "file": templateFile,
+      }).Debug("Failed to send delete mail")
+      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    recoverResponse := RecoverResponse{
+      Id: updatedIdentity.Id,
+      RedirectTo: deleteChallenge.RedirectTo,
+    }
+    log.WithFields(logrus.Fields{
+      "id": recoverResponse.Id,
+      "redirect_to": recoverResponse.RedirectTo,
+    }).Debug("Delete mail send")
+    c.JSON(http.StatusOK, recoverResponse)
+
+
 
     deleteIdentity := idpapi.Identity{
       Id: input.Id,
