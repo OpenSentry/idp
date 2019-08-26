@@ -162,10 +162,9 @@ func serve(env *environment.State) {
 
   r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpapi.logout"), identities.PostLogout(env, routes["/identities/logout"]))
   r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpapi.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
-
-  // FIXME Recover scope should be authenticate like password?
-  r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpapi.recover"), identities.PostRecover(env, routes["/identities/recover"]))
-  r.POST(routes["/identities/recoververification"].URL, authorizationRequired(routes["/identities/recoververification"], "idpapi.recover"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
+  
+  r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpapi.authenticate"), identities.PostRecover(env, routes["/identities/recover"]))
+  r.POST(routes["/identities/recoververification"].URL, authorizationRequired(routes["/identities/recoververification"], "idpapi.authenticate"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
