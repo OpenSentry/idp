@@ -1,0 +1,9 @@
+/identities/delete
+
+for idp: Kan den fjerne Identity
+
+for alle andre apps kan den kun fjerne rettigheds relationer for brugeren som har med client_id at gøre.
+så det er scope på app niveaue.
+
+
+Tilføj bruger: Er invitation
