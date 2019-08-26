@@ -25,7 +25,7 @@ func PostDeleteVerification(env *environment.State, route environment.Route) gin
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PostRecoverVerification",
+      "func": "PostDeleteVerification",
     })
 
     var input DeleteVerificationRequest
@@ -59,7 +59,7 @@ func PostDeleteVerification(env *environment.State, route environment.Route) gin
 
     identity := identities[0];
 
-    valid, err := idpapi.ValidatePassword(identity.OtpRecoverCode, input.VerificationCode)
+    valid, err := idpapi.ValidatePassword(identity.OtpDeleteCode, input.VerificationCode)
     if err != nil {
       log.Debug(err.Error())
       log.WithFields(logrus.Fields{
@@ -73,6 +73,9 @@ func PostDeleteVerification(env *environment.State, route environment.Route) gin
     }
 
     if valid == true {
+
+      log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all access tokens for identity - put them on revoked list or rely on expire")
+      log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all consents in hydra for identity - this is probably aap?")
 
       n := idpapi.Identity{
         Id: identity.Id,

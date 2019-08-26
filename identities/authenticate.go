@@ -19,6 +19,7 @@ type AuthenticateRequest struct {
 
 type AuthenticateResponse struct {
   Id              string            `json:"id" binding:"required"`
+  NotFound        bool              `json:"not_found" binding:"required"`
   Authenticated   bool              `json:"authenticated" binding:"required"`
   Require2Fa      bool              `json:"require_2fa" binding:"required"`
   RedirectTo      string            `json:"redirect_to" binding:"required"`
@@ -82,6 +83,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       acceptResponse := AuthenticateResponse{
         Id: hydraLoginResponse.Subject,
         Authenticated: true,
+        NotFound: false,
         Require2Fa: false,
         RedirectTo: hydraLoginAcceptResponse.RedirectTo,
       }
@@ -101,6 +103,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
     denyResponse := AuthenticateResponse{
       Id: input.Id,
+      NotFound: false,
       Authenticated: false,
       Require2Fa: false,
       RedirectTo: "",
@@ -145,6 +148,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
 
         acceptResponse := AuthenticateResponse{
           Id: identity.Id,
+          NotFound: false,
           Authenticated: true,
           Require2Fa: identity.Require2Fa,
           RedirectTo: "",
@@ -183,6 +187,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       }
 
     } else {
+      denyResponse.NotFound = true
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
     }
 
