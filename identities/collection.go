@@ -26,6 +26,21 @@ type IdentitiesResponse struct {
   Email         string          `json:"email"`
 }
 
+type DeleteRequest struct {
+  Id              string            `json:"id" binding:"required"`
+}
+
+type DeleteResponse struct {
+  Id              string          `json:"id" binding:"required"`
+  RedirectTo      string          `json:"redirect_to" binding:"required"`
+}
+
+type DeleteTemplateData struct {
+  Name string
+  VerificationCode string
+  Sender string
+}
+
 func GetCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
@@ -163,13 +178,15 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       "func": "DeleteCollection",
     })
 
-    var input IdentitiesRequest
+    var input DeleteRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
       return
     }
+
+    log.WithFields(logrus.Fields{"fixme":1}).Debug("Match that access_token.sub matches requested id to delete");
 
     identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id) // FIXME do not return a list of identities!
     if err != nil {
@@ -249,7 +266,7 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
 
     t := template.Must(template.New(templateFile).Parse(string(tplRecover)))
 
-    data := RecoverTemplateData{
+    data := DeleteTemplateData{
       Sender: sender.Name,
       Name: updatedIdentity.Id,
       VerificationCode: deleteChallenge.VerificationCode,
@@ -263,12 +280,12 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    recoverMail := idpapi.RecoverMail{
+    anEmail := idpapi.AnEmail{
       Subject: emailSubject,
       Body: tpl.String(),
     }
 
-    _, err = idpapi.SendRecoverMailForIdentity(smtpConfig, updatedIdentity, recoverMail)
+    _, err = idpapi.SendAnEmailForIdentity(smtpConfig, updatedIdentity, anEmail)
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": updatedIdentity.Id,
@@ -279,34 +296,15 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    recoverResponse := RecoverResponse{
+    deleteResponse := DeleteResponse{
       Id: updatedIdentity.Id,
       RedirectTo: deleteChallenge.RedirectTo,
     }
     log.WithFields(logrus.Fields{
-      "id": recoverResponse.Id,
-      "redirect_to": recoverResponse.RedirectTo,
+      "id": deleteResponse.Id,
+      "redirect_to": deleteResponse.RedirectTo,
     }).Debug("Delete mail send")
-    c.JSON(http.StatusOK, recoverResponse)
-
-
-
-    deleteIdentity := idpapi.Identity{
-      Id: input.Id,
-    }
-    deletedIdentity, err := idpapi.DeleteIdentity(env.Driver, deleteIdentity)
-    if err != nil {
-      log.WithFields(logrus.Fields{
-        "id": input.Id,
-      }).Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
-      return
-    }
-
-    c.JSON(http.StatusOK, IdentitiesResponse{
-      Id: deletedIdentity.Id,
-    })
+    c.JSON(http.StatusOK, deleteResponse)
   }
   return gin.HandlerFunc(fn)
 }

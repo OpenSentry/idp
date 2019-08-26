@@ -135,12 +135,12 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    recoverMail := idpapi.RecoverMail{
+    mail := idpapi.AnEmail{
       Subject: recoverSubject,
       Body: tpl.String(),
     }
 
-    _, err = idpapi.SendRecoverMailForIdentity(smtpConfig, updatedIdentity, recoverMail)
+    _, err = idpapi.SendAnEmailForIdentity(smtpConfig, updatedIdentity, mail)
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": updatedIdentity.Id,

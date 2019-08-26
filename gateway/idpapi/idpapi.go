@@ -301,7 +301,7 @@ func UpdateOtpDeleteCode(driver neo4j.Driver, identity Identity) (Identity, erro
   id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := "MATCH (i:Identity {sub:$sub}) SET i.otp_delete_code=$code, i.otp_delete_code_expire=$expire RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire"
-    params := map[string]interface{}{"sub": identity.Id, "code": identity.OtpRecoverCode, "expire": identity.OtpRecoderCodeExpire}
+    params := map[string]interface{}{"sub": identity.Id, "code": identity.OtpDeleteCode, "expire": identity.OtpDeleteCodeExpire}
     if result, err = tx.Run(cypher, params); err != nil {
       return Identity{}, err
     }
@@ -499,7 +499,7 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
   ids, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      CREATE (i:Identity {sub:$sub, password:$password, name:$name, email:$email, require_2fa:false, secret_2fa:"", otp_recover_code:"", otp_recover_code_expire:0}) RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      CREATE (i:Identity {sub:$sub, password:$password, name:$name, email:$email, require_2fa:false, secret_2fa:"", otp_recover_code:"", otp_recover_code_expire:0, otp_delete_code:"", otp_delete_code_expire:0}) RETURN i.sub, i.password, i.name, i.email, i.require_2fa, i.secret_2fa, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": identity.Id, "password": identity.Password, "name": identity.Name, "email": identity.Email}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -634,7 +634,9 @@ func DeleteIdentity(driver neo4j.Driver, identity Identity) (Identity, error) {
 
   id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
-    cypher := "MATCH (i:Identity {sub:$sub}) DETACH DELETE i"
+    cypher := `
+      MATCH (i:Identity {sub:$sub}) DETACH DELETE i
+    `
     params := map[string]interface{}{"sub": identity.Id}
     if result, err = tx.Run(cypher, params); err != nil {
       return Identity{}, err
@@ -736,7 +738,7 @@ type SMTPConfig struct {
   SkipTlsVerify int
 }
 
-type RecoverMail struct {
+type AnEmail struct {
   Subject string
   Body string
 }
@@ -757,13 +759,13 @@ func (a unencryptedAuth) Start(server *smtp.ServerInfo) (string, []byte, error) 
     return a.Auth.Start(&s)
 }
 
-func SendRecoverMailForIdentity(smtpConfig SMTPConfig, identity Identity, recoverMail RecoverMail) (bool, error) {
+func SendAnEmailForIdentity(smtpConfig SMTPConfig, identity Identity, anEmail AnEmail) (bool, error) {
 
   from := mail.Address{smtpConfig.Sender.Name, smtpConfig.Sender.Email}
   to := mail.Address{identity.Name, identity.Email}
 
-  subject := recoverMail.Subject
-  body := recoverMail.Body
+  subject := anEmail.Subject
+  body := anEmail.Body
 
   header := make(map[string]string)
 	header["Return-Path"] = smtpConfig.Sender.ReturnPath
