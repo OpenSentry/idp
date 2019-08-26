@@ -17,6 +17,7 @@ type State struct {
   Provider *oidc.Provider
   HydraConfig *clientcredentials.Config
   Driver   neo4j.Driver
+  BannedUsernames map[string]bool
 }
 
 type Route struct {
