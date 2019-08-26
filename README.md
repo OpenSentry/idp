@@ -11,8 +11,18 @@ Table of Contents
   * [Getting started](#getting-started)
   * [API documentation](#api-documentation)  
     * [Concepts](#concepts)
-      * [Identity](#identity)    
+      * [Identity](#identity)              
+    * [A note on scopes](#a-note-on-scopes)    
     * [Endpoints](#endpoints)
+      * [POST /identities](#post-identities)
+      * [GET /identities](#get-identities)
+      * [PUT /identities](#put-identities)
+      * [DELETE /identities](#delete-identities)        
+      * [POST /identities/deleteverification](#post-identities-deleteverification)
+      * [POST /identities/authenticate](#post-identities-authenticate)          
+      * [POST /identities/password](#post-identities-password)
+      * [POST /identities/recover](#post-identities-recover)
+      * [POST /identities/recoververification](#post-identities-recoververification)
     * [Create an Identity](#create-an-identity)
     * [Change a Password](#change-a-password)    
     * [Authenticate an Identity](#authenticate-an-identity)
@@ -39,90 +49,417 @@ The idpapi exposes a set of endpoints that can be used to control identities.
 ## Concepts
 
 ### Identity
-An identity is a representation of a person, an app or anything that needs to be uniquely identified within the system
+An identity is a representation of a person, an app or anything that needs to be uniquely identified within a system
 
 ```json
 {
   "id": {
-    "type": "string",
-    "required": 1,
+    "type": "string",    
     "description": "A globally unique identifier. An example could be a unix username"
   },
   "password": {
-    "type": "string",
-    "required": 0,
+    "type": "string",    
     "description": "A password hash. Please do not store plain text passwords!"
   },
   "name": {
-    "type": "string",
-    "required": 0,
+    "type": "string",    
     "description": "The name used to address the identity"
   },
   "email": {
-    "type": "string",
-    "required": 0,
+    "type": "string",    
     "description": "The email where the identity can be reached for password reset etc."
   }
 }
 ```
 
+## A note on scopes
+The scope `authenticate:identity` is used whenever the password credentials of an Identity is involved. This also include verification codes that are a form of two-factor alias for passwords. This scope should be restricted to applications inside the trust zone only.
+
 ## Endpoints
 All endpoints can only be reached trough HTTPS with TLS. All endpoints are protected by OAuth2 scopes that are required by the client to call the endpoints. The following endpoints are exposed:
 
+### POST /identities
+
+Create an Identity. Requires scope `authenticate:identity`
+
+#### Input
 ```json
 {
-  "/identities": {
-    "description": "CRUD operations on the collection of identities",
-    "method": {
-      "get": {
-        "description": "Read the data stored for an Identity",
-        "required_scope": "idpapi.identities.get"
-      },
-      "post": {
-        "description": "Create a new Identity",
-        "required_scope": "idpapi.identities.post"
-      },
-      "put": {
-        "description": "Update data stored for an Identity",
-        "required_scope": "idpapi.identities.put"
-      },
-      "delete": {
-        "description": "Not implemented",
-        "required_scope": "idpapi.identities.delete"
-      }
-    }    
+  "id": {
+     "type": "string",
+     "required": true
+   },
+  "password": {
+     "type": "string",
+     "required": false
   },
-  "/identities/authenticate": {
-    "description": "Use to authenticate an identity",
-    "method": {      
-      "post": {
-        "description": "Authenticate an Identity",
-        "required_scope": "idpapi.authenticate"
-      }      
-    }   
+  "name": {
+     "type": "string",
+     "required": false
   },
-  "/identities/password": {
-    "description": "
-      Use to change the password of an identity.
-      Password is not part of CRUD on /identities because password is the primary concern
-      of protection, hence treated as a first class citizen in the system.
-    ",
-    "method": {      
-      "post": {
-        "description": "Change password for an Identity",
-        "required_scope": "idpapi.authenticate"
-      }      
-    }
-  },
-  "/identities/logout": {
-    "description": "Use to logout an identity"
-  },
-  "/identities/revoke": {
-    "description": "Use to revoke an identity. See delete on /identities"
-  },    
-  "/identities/recover": {
-    "description": "Use to recover an identity if password was forgotten"
+  "email": {
+     "type": "string",
+     "required": false
   }
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+     "type": "string",
+     "required": true
+   },
+  "password": {
+     "type": "string",
+     "required": true
+  },
+  "name": {
+     "type": "string",
+     "required": false
+  },
+  "email": {
+     "type": "string",
+     "required": false
+  }
+}
+```
+
+### GET /identities
+
+Read an Identity. Requires scope `read:identity`
+
+#### Input
+```json
+{
+  "id": {
+     "type": "string",
+     "required": true
+   },
+  "password": {
+     "type": "string",
+     "required": false
+  },
+  "name": {
+     "type": "string",
+     "required": false
+  },
+  "email": {
+     "type": "string",
+     "required": false
+  }
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+     "type": "string",
+     "required": true
+   },
+  "password": {
+     "type": "string",
+     "required": true
+  },
+  "name": {
+     "type": "string",
+     "required": false
+  },
+  "email": {
+     "type": "string",
+     "required": false
+  }
+}
+```
+
+### PUT /identities
+
+Update an Identity. Requires scope `update:identity`. Note that it is not possible to update the password or other password or code credentials on the Identity using this function. This is to prevent accidental updates and to seperate what functions can be exposed to UI applications outside the trust zone.
+
+#### Input
+```json
+{
+  "id": {
+     "type": "string",
+     "required": true
+   },
+  "password": {
+     "type": "string",
+     "required": false
+  },
+  "name": {
+     "type": "string",
+     "required": false
+  },
+  "email": {
+     "type": "string",
+     "required": false
+  }
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+     "type": "string",
+     "required": true
+   },
+  "password": {
+     "type": "string",
+     "required": true
+  },
+  "name": {
+     "type": "string",
+     "required": false
+  },
+  "email": {
+     "type": "string",
+     "required": false
+  }
+}
+```
+
+### DELETE /identities
+
+Update an Identity. Requires scope `delete:identity`. This will send an email with a verification code to the email of the Identity. The verification code should be used with the endpoint [POST /identities/deleteverification](#delete-identities-deleteverification).
+
+#### Input
+```json
+{
+  "id": {
+     "type": "string",
+     "required": true
+   },
+  "password": {
+     "type": "string",
+     "required": false
+  },
+  "name": {
+     "type": "string",
+     "required": false
+  },
+  "email": {
+     "type": "string",
+     "required": false
+  }
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+     "type": "string",
+     "required": true
+   },
+  "password": {
+     "type": "string",
+     "required": true
+  },
+  "name": {
+     "type": "string",
+     "required": false
+  },
+  "email": {
+     "type": "string",
+     "required": false
+  }
+}
+```
+
+### POST /identities/deleteverification
+
+Confirm deletion of an Identity. Requires scope `delete:identity`. If the verification code matches what was generated by the [DELETE /identities](#delete-identities) endpoint. The Identity will be deleted. Beware this is an unrecoverable action. Use with care.
+
+#### Input
+```json
+{
+  "id": {
+     "type": "string",
+     "required": true
+   },
+  "verification_code": {
+     "type": "string",
+     "required": true
+  },
+  "redirect_to": {
+     "type": "string",
+     "required": true
+  }
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+     "type": "string",
+     "required": true
+  },
+  "verified": {
+     "type": "bool",
+     "required": true
+  },
+  "redirect_to": {
+     "type": "string",
+     "required": true
+  }
+}
+```
+
+### POST /identities/authenticate
+
+Authenticate an Identity. Requires scope `authenticate:identity`. This will validate credentials of a user to match it to an Identity.
+
+#### Input
+```json
+{
+  "challenge": {
+    "type": "string",
+    "required": true
+  },
+  "id": {
+    "type": "string",
+    "required": false
+  },
+  "password": {
+    "type": "string",
+    "required": false
+  },
+  "password": {
+    "type": "string",
+    "required": false
+  },
+
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+    "type": "string",
+    "required": true
+  },
+  "not_found": {
+    "type": "bool",
+    "required": true
+  },
+  "authenticated": {
+    "type": "bool",
+    "required": true
+  },
+  "require_2fa": {
+    "type": "bool",
+    "required": true
+  },
+  "redirect_to": {
+    "type": "string",
+    "required": true
+  }
+}
+```
+
+### POST /identities/password
+
+Update the password of an Identity. Requires scope `authenticate:identity`. This overrides any currently registered password. Use with care.
+
+#### Input
+```json
+{  
+  "id": {
+    "type": "string",
+    "required": true
+  },
+  "password": {
+    "type": "string",
+    "required": true
+  }  
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+    "type": "string",
+    "required": true
+  }  
+}
+```
+
+### POST /identities/recover
+
+Initiate the process of recovering an Identity. Requires scope `recover:identity`. This will send an email with a verification code to the email of the Identity. The verification code should be used with the endpoint [POST /identities/recoververification](#post-identities-recoververification).
+
+#### Input
+```json
+{  
+  "id": {
+    "type": "string",
+    "required": true
+  }  
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+    "type": "string",
+    "required": true
+  },
+  "redirect_to": {
+    "type": "string",
+    "required": true
+  }  
+}
+```
+
+### POST /identities/recoververification
+
+Confirm recovery of an Identity. Requires scope `authenticate:identity`. If the verification code matches what was generated by the [POST /identities/recover](#post-identities-recover) endpoint. The password of the Identity will be updated. Use with care.
+
+#### Input
+```json
+{  
+  "id": {
+    "type": "string",
+    "required": true
+  },  
+  "verification_code": {
+    "type": "string",
+    "required": true
+  },
+  "password": {
+    "type": "string",
+    "required": true
+  },
+  "redirect_to": {
+    "type": "string",
+    "required": true
+  },
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+    "type": "string",
+    "required": true
+  },
+  "verified": {
+    "type": "bool",
+    "required": true
+  },
+  "redirect_to": {
+    "type": "string",
+    "required": true
+  }  
 }
 ```
 
