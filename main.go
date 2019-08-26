@@ -6,6 +6,7 @@ import (
   "net/url"
   "os"
   "time"
+  "bufio"
   "golang.org/x/net/context"
   "golang.org/x/oauth2"
   "golang.org/x/oauth2/clientcredentials"
@@ -61,6 +62,26 @@ func init() {
   }
 }
 
+func createBanList(file string) (map[string]bool, error) {
+  var banList map[string]bool = make(map[string]bool)
+  f, err := os.Open(file)
+  if err != nil {
+    return nil, err
+  }
+  defer f.Close()
+
+  scanner := bufio.NewScanner(f)
+  for scanner.Scan() {
+    banList[scanner.Text()] = true
+  }
+
+  if err := scanner.Err(); err != nil {
+    return nil, err
+  }
+
+  return banList, nil
+}
+
 func main() {
 
   // https://medium.com/neo4j/neo4j-go-driver-is-out-fbb4ba5b3a30
@@ -74,14 +95,14 @@ func main() {
     }*/
   });
   if err != nil {
-    log.WithFields(appFields).Panic("neo4j.NewDriver" + err.Error())
+    log.WithFields(appFields).Panic(err.Error())
     return
   }
   defer driver.Close()
 
   provider, err := oidc.NewProvider(context.Background(), config.GetString("hydra.public.url") + "/")
   if err != nil {
-    log.WithFields(appFields).Panic("oidc.NewProvider" + err.Error())
+    log.WithFields(appFields).Panic(err.Error())
     return
   }
 
@@ -96,11 +117,18 @@ func main() {
     AuthStyle: 2, // https://godoc.org/golang.org/x/oauth2#AuthStyle
   }
 
+  bannedUsernames, err := createBanList("/ban/usernames")
+  if err != nil {
+    log.WithFields(appFields).Panic(err.Error())
+    return
+  }
+
   // Setup app state variables. Can be used in handler functions by doing closures see exchangeAuthorizationCodeCallback
   env := &environment.State{
     Provider: provider,
     HydraConfig: hydraConfig,
     Driver: driver,
+    BannedUsernames: bannedUsernames,
   }
 
   //optServe := getopt.BoolLong("serve", 0, "Serve application")
@@ -166,7 +194,7 @@ func serve(env *environment.State) {
 
   r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpapi.logout"), identities.PostLogout(env, routes["/identities/logout"]))
   r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpapi.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
-  
+
   r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpapi.authenticate"), identities.PostRecover(env, routes["/identities/recover"]))
   r.POST(routes["/identities/recoververification"].URL, authorizationRequired(routes["/identities/recoververification"], "idpapi.authenticate"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
 

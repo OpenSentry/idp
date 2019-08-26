@@ -97,6 +97,15 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       return
     }
 
+    log.WithFields(logrus.Fields{"id":input.Id}).Debug("Creating identity")
+    log.Debug(env.BannedUsernames[input.Id])
+
+    if env.BannedUsernames[input.Id] == true {
+      c.JSON(http.StatusNotFound, gin.H{"error": "Id is bannned"})
+      c.Abort()
+      return
+    }
+
     hashedPassword, err := idpapi.CreatePassword(input.Password)
     if err != nil {
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
