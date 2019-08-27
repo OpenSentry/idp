@@ -229,7 +229,7 @@ Update an Identity. Requires scope `update:identity`. Note that it is not possib
 
 ### DELETE /identities
 
-Update an Identity. Requires scope `delete:identity`. This will send an email with a verification code to the email of the Identity. The verification code should be used with the endpoint [POST /identities/deleteverification](#delete-identitiesdeleteverification).
+Request deletion of an Identity. Requires scope `delete:identity`. This will send an email with a verification code to the email of the Identity. The verification code should be used with the endpoint [POST /identities/deleteverification](#delete-identitiesdeleteverification).
 
 #### Input
 ```json
