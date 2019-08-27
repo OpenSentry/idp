@@ -8,6 +8,7 @@ This project will only give you the required API endpoints for managing an Ident
 Table of Contents
 =================
 
+  * [Requirements](#requirements)
   * [Getting started](#getting-started)
   * [API documentation](#api-documentation)  
     * [Concepts](#concepts)
@@ -30,6 +31,9 @@ Table of Contents
     * [Create an Identity](#create-an-identity)
     * [Change a Password](#change-a-password)    
     * [Authenticate an Identity](#authenticate-an-identity)
+
+# Requirements
+TODO
 
 # Getting started
 First of all make sure docker is installed and ready to use.
