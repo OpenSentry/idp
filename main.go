@@ -180,23 +180,23 @@ func serve(env *environment.State) {
   // All requests need to be authenticated.
   r.Use(authenticationRequired())
 
-  r.GET(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.get"), identities.GetCollection(env, routes["/identities"]))
-  r.POST(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.post"), identities.PostCollection(env, routes["/identities"]))
-  r.PUT(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.put"), identities.PutCollection(env, routes["/identities"]))
-  r.DELETE(routes["/identities"].URL, authorizationRequired(routes["/identities"], "idpapi.identities.delete"), identities.DeleteCollection(env, routes["/identities"]))
+  r.GET(routes["/identities"].URL, authorizationRequired(routes["/identities"], "read:identity"), identities.GetCollection(env, routes["/identities"]))
+  r.POST(routes["/identities"].URL, authorizationRequired(routes["/identities"], "authenticate:identity"), identities.PostCollection(env, routes["/identities"]))
+  r.PUT(routes["/identities"].URL, authorizationRequired(routes["/identities"], "update:identity"), identities.PutCollection(env, routes["/identities"]))
+  r.DELETE(routes["/identities"].URL, authorizationRequired(routes["/identities"], "delete:identity"), identities.DeleteCollection(env, routes["/identities"]))
 
-  r.POST(routes["/identities/deleteverification"].URL, authorizationRequired(routes["/identities/deleteverification"], "idpapi.identities.delete"), identities.PostDeleteVerification(env, routes["/identities/deleteverification"]))
+  r.POST(routes["/identities/deleteverification"].URL, authorizationRequired(routes["/identities/deleteverification"], "delete:identity"), identities.PostDeleteVerification(env, routes["/identities/deleteverification"]))
 
-  r.POST(routes["/identities/authenticate"].URL, authorizationRequired(routes["/identities/authenticate"], "idpapi.authenticate"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
-  r.POST(routes["/identities/password"].URL, authorizationRequired(routes["/identities/password"], "idpapi.authenticate"), identities.PostPassword(env, routes["/identities/password"]))
-  r.POST(routes["/identities/passcode"].URL, authorizationRequired(routes["/identities/passcode"], "idpapi.authenticate"), identities.PostPasscode(env, routes["/identities/passcode"]))
-  r.POST(routes["/identities/2fa"].URL, authorizationRequired(routes["/identities/2fa"], "idpapi.authenticate"), identities.Post2Fa(env, routes["/identities/2fa"]))
+  r.POST(routes["/identities/authenticate"].URL, authorizationRequired(routes["/identities/authenticate"], "authenticate:identity"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
+  r.POST(routes["/identities/password"].URL, authorizationRequired(routes["/identities/password"], "authenticate:identity"), identities.PostPassword(env, routes["/identities/password"]))
+  r.POST(routes["/identities/passcode"].URL, authorizationRequired(routes["/identities/passcode"], "authenticate:identity"), identities.PostPasscode(env, routes["/identities/passcode"]))
+  r.POST(routes["/identities/2fa"].URL, authorizationRequired(routes["/identities/2fa"], "authenticate:identity"), identities.Post2Fa(env, routes["/identities/2fa"]))
 
-  r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpapi.logout"), identities.PostLogout(env, routes["/identities/logout"]))
+  r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "logout:identity"), identities.PostLogout(env, routes["/identities/logout"]))
   //r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpapi.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
 
-  r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpapi.authenticate"), identities.PostRecover(env, routes["/identities/recover"]))
-  r.POST(routes["/identities/recoververification"].URL, authorizationRequired(routes["/identities/recoververification"], "idpapi.authenticate"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
+  r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "recover:identity"), identities.PostRecover(env, routes["/identities/recover"]))
+  r.POST(routes["/identities/recoververification"].URL, authorizationRequired(routes["/identities/recoververification"], "authenticate:identity"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
