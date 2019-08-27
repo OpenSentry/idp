@@ -237,19 +237,7 @@ Request deletion of an Identity. Requires scope `delete:identity`. This will sen
   "id": {
      "type": "string",
      "required": true
-   },
-  "password": {
-     "type": "string",
-     "required": false
-  },
-  "name": {
-     "type": "string",
-     "required": false
-  },
-  "email": {
-     "type": "string",
-     "required": false
-  }
+   }
 }
 ```
 
@@ -260,17 +248,9 @@ Request deletion of an Identity. Requires scope `delete:identity`. This will sen
      "type": "string",
      "required": true
    },
-  "password": {
+  "redirect_to": {
      "type": "string",
      "required": true
-  },
-  "name": {
-     "type": "string",
-     "required": false
-  },
-  "email": {
-     "type": "string",
-     "required": false
   }
 }
 ```
