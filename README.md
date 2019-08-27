@@ -141,19 +141,7 @@ Read an Identity. Requires scope `read:identity`
   "id": {
      "type": "string",
      "required": true
-   },
-  "password": {
-     "type": "string",
-     "required": false
-  },
-  "name": {
-     "type": "string",
-     "required": false
-  },
-  "email": {
-     "type": "string",
-     "required": false
-  }
+   }
 }
 ```
 
