@@ -564,20 +564,20 @@ Log an Identity out of the session. Requires scope `logout:identity`.
 
 The following scopes are required for the endpoints.
 
-| Endpoint                                                                    | Scope                   | Description |
-| --------------------------------------------------------------------------- | ----------------------- | ----------- |
-| [POST /identities](#post-identities)                                        | `authenticate:identity` | |
-| [GET /identities](#get-identities)                                          | `read:identity`         | |
-| [PUT /identities](#put-identities)                                          | `update:identity`       | |
-| [DELETE /identities](#delete-identities)                                    | `delete:identity`       | |
-| [POST /identities/deleteverification](#post-identitiesdeleteverification)   | `delete:identity`       | |
-| [POST /identities/authenticate](#post-identitiesauthenticate)               | `authenticate:identity` | |
-| [POST /identities/password](#post-identitiespassword)                       | `authenticate:identity` | |
-| [POST /identities/recover](#post-identitiesrecover)                         | `recover:identity`      | |
-| [POST /identities/recoververification](#post-identitiesrecoververification) | `authenticate:identity` | |
-| [POST /identities/passcode](#post-identitiespasscode)                       | `authenticate:identity` | |
-| [POST /identities/2fa](#post-identities2fa)                                 | `authenticate:identity` | |
-| [POST /identities/logout](#post-identitieslogout)                           | `logout:identity`       | |
+| Endpoint                                                                    | Scope                   |
+| --------------------------------------------------------------------------- | ----------------------- |
+| [POST /identities](#post-identities)                                        | `authenticate:identity` |
+| [GET /identities](#get-identities)                                          | `read:identity`         |
+| [PUT /identities](#put-identities)                                          | `update:identity`       |
+| [DELETE /identities](#delete-identities)                                    | `delete:identity`       |
+| [POST /identities/deleteverification](#post-identitiesdeleteverification)   | `delete:identity`       |
+| [POST /identities/authenticate](#post-identitiesauthenticate)               | `authenticate:identity` |
+| [POST /identities/password](#post-identitiespassword)                       | `authenticate:identity` |
+| [POST /identities/recover](#post-identitiesrecover)                         | `recover:identity`      |
+| [POST /identities/recoververification](#post-identitiesrecoververification) | `authenticate:identity` |
+| [POST /identities/passcode](#post-identitiespasscode)                       | `authenticate:identity` |
+| [POST /identities/2fa](#post-identities2fa)                                 | `authenticate:identity` |
+| [POST /identities/logout](#post-identitieslogout)                           | `logout:identity`       |
 
 ### A note on scopes
 
