@@ -133,7 +133,7 @@ Create an Identity. Requires scope `authenticate:identity`
 
 ### GET /identities
 
-Read an Identity. Requires scope `read:identity`
+Read an Identity. Requires scope `read:identity`. Input is added as a query parameter like this `?id=...` to the url.
 
 #### Input
 ```json
