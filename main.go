@@ -193,7 +193,7 @@ func serve(env *environment.State) {
   r.POST(routes["/identities/2fa"].URL, authorizationRequired(routes["/identities/2fa"], "idpapi.authenticate"), identities.Post2Fa(env, routes["/identities/2fa"]))
 
   r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "idpapi.logout"), identities.PostLogout(env, routes["/identities/logout"]))
-  r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpapi.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
+  //r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpapi.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
 
   r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "idpapi.authenticate"), identities.PostRecover(env, routes["/identities/recover"]))
   r.POST(routes["/identities/recoververification"].URL, authorizationRequired(routes["/identities/recoververification"], "idpapi.authenticate"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))

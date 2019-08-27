@@ -18,7 +18,7 @@ type PasscodeRequest struct {
 
 type PasscodeResponse struct {
   Id         string `json:"id" binding:"required"`
-  Verified   bool   `json:"verifed" binding:"required"`
+  Verified   bool   `json:"verified" binding:"required"`
   RedirectTo string `json:"redirect_to" binding:"required"`
 }
 
