@@ -565,7 +565,7 @@ Log an Identity out of the session. Requires scope `logout:identity`.
 The following scopes are required for the endpoints.
 
 | Endpoint                                                                    | Scope                   | Description |
-|-------------------------------------------------------------------------------------------------------| |
+| --------------------------------------------------------------------------- | ----------------------- | ----------- |
 | [POST /identities](#post-identities)                                        | `authenticate:identity` | |
 | [GET /identities](#get-identities)                                          | `read:identity`         | |
 | [PUT /identities](#put-identities)                                          | `update:identity`       | |
