@@ -11,8 +11,7 @@ Table of Contents
   * [Getting started](#getting-started)
   * [API documentation](#api-documentation)  
     * [Concepts](#concepts)
-      * [Identity](#identity)              
-    * [A note on scopes](#a-note-on-scopes)    
+      * [Identity](#identity)                   
     * [Endpoints](#endpoints)
       * [POST /identities](#post-identities)
       * [GET /identities](#get-identities)
@@ -26,6 +25,8 @@ Table of Contents
       * [POST /identities/passcode](#post-identitiespasscode)
       * [POST /identities/2fa](#post-identities2fa)
       * [POST /identities/logout](#post-identitieslogout)
+    * [Scopes](#scopes)
+      * [A note on scopes](#a-note-on-scopes)   
     * [Create an Identity](#create-an-identity)
     * [Change a Password](#change-a-password)    
     * [Authenticate an Identity](#authenticate-an-identity)
@@ -74,9 +75,6 @@ An identity is a representation of a person, an app or anything that needs to be
   }
 }
 ```
-
-## A note on scopes
-The scope `authenticate:identity` is used whenever the password credentials of an Identity is involved. This also include verification codes that are a form of two-factor alias for passwords. This scope should be restricted to applications inside the trust zone only.
 
 ## Endpoints
 All endpoints can only be reached trough HTTPS with TLS. All endpoints are protected by OAuth2 scopes that are required by the client to call the endpoints. The following endpoints are exposed:
@@ -540,7 +538,7 @@ Enable or disable two-factor authentication for an Identity. Requires scope `aut
 
 ### POST /identities/logout
 
-Log an Identity out of the session. Requires scope `authenticate:identity`.
+Log an Identity out of the session. Requires scope `logout:identity`.
 
 #### Input
 ```json
@@ -561,6 +559,29 @@ Log an Identity out of the session. Requires scope `authenticate:identity`.
   }
 }
 ```
+
+## Scopes
+
+The following scopes are required for the endpoints.
+
+| Endpoint                                                                    | Scope                   | Description |
+|-------------------------------------------------------------------------------------------------------| |
+| [POST /identities](#post-identities)                                        | `authenticate:identity` | |
+| [GET /identities](#get-identities)                                          | `read:identity`         | |
+| [PUT /identities](#put-identities)                                          | `update:identity`       | |
+| [DELETE /identities](#delete-identities)                                    | `delete:identity`       | |
+| [POST /identities/deleteverification](#post-identitiesdeleteverification)   | `delete:identity`       | |
+| [POST /identities/authenticate](#post-identitiesauthenticate)               | `authenticate:identity` | |
+| [POST /identities/password](#post-identitiespassword)                       | `authenticate:identity` | |
+| [POST /identities/recover](#post-identitiesrecover)                         | `recover:identity`      | |
+| [POST /identities/recoververification](#post-identitiesrecoververification) | `authenticate:identity` | |
+| [POST /identities/passcode](#post-identitiespasscode)                       | `authenticate:identity` | |
+| [POST /identities/2fa](#post-identities2fa)                                 | `authenticate:identity` | |
+| [POST /identities/logout](#post-identitieslogout)                           | `logout:identity`       | |
+
+### A note on scopes
+
+The scope `authenticate:identity` is used whenever the password credentials of an Identity is involved. This also include verification codes that are a form of two-factor alias for passwords. This scope should be restricted to applications inside the trust zone only.
 
 ## Create an Identity
 To create a new identity a `POST` request must be made to the `/identities` endpoint. Specifying an `id` for the Identity, a name, email and an optional `password` in plain text. Hashing of the password will be done by the endpoint, before sending it to storage. The hashing algorithm is performed by the bcrypt library `golang.org/x/crypto/bcrypt` using the following function:
