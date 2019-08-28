@@ -17,6 +17,7 @@ import (
   "github.com/neo4j/neo4j-go-driver/neo4j"
   "golang-idp-be/config"
   "golang-idp-be/environment"
+  "golang-idp-be/migration"
   "golang-idp-be/identities"
   "github.com/pborman/getopt"
 )
@@ -82,7 +83,21 @@ func createBanList(file string) (map[string]bool, error) {
   return banList, nil
 }
 
+func migrate(driver neo4j.Driver) {
+  migration.Migrate(driver)
+}
+
 func main() {
+
+  optMigrate := getopt.BoolLong("migrate", 0, "Run migration")
+  //optServe := getopt.BoolLong("serve", 0, "Serve application")
+  optHelp := getopt.BoolLong("help", 0, "Help")
+  getopt.Parse()
+
+  if *optHelp {
+    getopt.Usage()
+    os.Exit(0)
+  }
 
   // https://medium.com/neo4j/neo4j-go-driver-is-out-fbb4ba5b3a30
   // Each driver instance is thread-safe and holds a pool of connections that can be re-used over time. If you don’t have a good reason to do otherwise, a typical application should have a single driver instance throughout its lifetime.
@@ -99,6 +114,13 @@ func main() {
     return
   }
   defer driver.Close()
+
+  // migrate then exit application
+  if *optMigrate {
+    migrate(driver)
+    os.Exit(0)
+    return
+  }
 
   provider, err := oidc.NewProvider(context.Background(), config.GetString("hydra.public.url") + "/")
   if err != nil {
@@ -129,15 +151,6 @@ func main() {
     HydraConfig: hydraConfig,
     Driver: driver,
     BannedUsernames: bannedUsernames,
-  }
-
-  //optServe := getopt.BoolLong("serve", 0, "Serve application")
-  optHelp := getopt.BoolLong("help", 0, "Help")
-  getopt.Parse()
-
-  if *optHelp {
-    getopt.Usage()
-    os.Exit(0)
   }
 
   //if *optServe {
