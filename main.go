@@ -6,7 +6,7 @@ import (
   "net/url"
   "os"
   "time"
-  "bufio"
+  "bufio"  
   "golang.org/x/net/context"
   "golang.org/x/oauth2"
   "golang.org/x/oauth2/clientcredentials"
@@ -15,6 +15,7 @@ import (
   "github.com/gin-gonic/gin"
   "github.com/atarantini/ginrequestid"
   "github.com/neo4j/neo4j-go-driver/neo4j"
+  "github.com/CharMixer/hydra-client" // FIXME: Do not use upper case
   "golang-idp-be/config"
   "golang-idp-be/environment"
   "golang-idp-be/identities"
@@ -180,23 +181,23 @@ func serve(env *environment.State) {
   // All requests need to be authenticated.
   r.Use(authenticationRequired())
 
-  r.GET(routes["/identities"].URL, authorizationRequired(routes["/identities"], "read:identity"), identities.GetCollection(env, routes["/identities"]))
-  r.POST(routes["/identities"].URL, authorizationRequired(routes["/identities"], "authenticate:identity"), identities.PostCollection(env, routes["/identities"]))
-  r.PUT(routes["/identities"].URL, authorizationRequired(routes["/identities"], "update:identity"), identities.PutCollection(env, routes["/identities"]))
-  r.DELETE(routes["/identities"].URL, authorizationRequired(routes["/identities"], "delete:identity"), identities.DeleteCollection(env, routes["/identities"]))
+  r.GET(routes["/identities"].URL, authorizationRequired(env, routes["/identities"], "read:identity"), identities.GetCollection(env, routes["/identities"]))
+  r.POST(routes["/identities"].URL, authorizationRequired(env, routes["/identities"], "authenticate:identity"), identities.PostCollection(env, routes["/identities"]))
+  r.PUT(routes["/identities"].URL, authorizationRequired(env, routes["/identities"], "update:identity"), identities.PutCollection(env, routes["/identities"]))
+  r.DELETE(routes["/identities"].URL, authorizationRequired(env, routes["/identities"], "delete:identity"), identities.DeleteCollection(env, routes["/identities"]))
 
-  r.POST(routes["/identities/deleteverification"].URL, authorizationRequired(routes["/identities/deleteverification"], "delete:identity"), identities.PostDeleteVerification(env, routes["/identities/deleteverification"]))
+  r.POST(routes["/identities/deleteverification"].URL, authorizationRequired(env, routes["/identities/deleteverification"], "delete:identity"), identities.PostDeleteVerification(env, routes["/identities/deleteverification"]))
 
-  r.POST(routes["/identities/authenticate"].URL, authorizationRequired(routes["/identities/authenticate"], "authenticate:identity"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
-  r.POST(routes["/identities/password"].URL, authorizationRequired(routes["/identities/password"], "authenticate:identity"), identities.PostPassword(env, routes["/identities/password"]))
-  r.POST(routes["/identities/passcode"].URL, authorizationRequired(routes["/identities/passcode"], "authenticate:identity"), identities.PostPasscode(env, routes["/identities/passcode"]))
-  r.POST(routes["/identities/2fa"].URL, authorizationRequired(routes["/identities/2fa"], "authenticate:identity"), identities.Post2Fa(env, routes["/identities/2fa"]))
+  r.POST(routes["/identities/authenticate"].URL, authorizationRequired(env, routes["/identities/authenticate"], "authenticate:identity"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
+  r.POST(routes["/identities/password"].URL, authorizationRequired(env, routes["/identities/password"], "authenticate:identity"), identities.PostPassword(env, routes["/identities/password"]))
+  r.POST(routes["/identities/passcode"].URL, authorizationRequired(env, routes["/identities/passcode"], "authenticate:identity"), identities.PostPasscode(env, routes["/identities/passcode"]))
+  r.POST(routes["/identities/2fa"].URL, authorizationRequired(env, routes["/identities/2fa"], "authenticate:identity"), identities.Post2Fa(env, routes["/identities/2fa"]))
 
-  r.POST(routes["/identities/logout"].URL, authorizationRequired(routes["/identities/logout"], "logout:identity"), identities.PostLogout(env, routes["/identities/logout"]))
+  r.POST(routes["/identities/logout"].URL, authorizationRequired(env, routes["/identities/logout"], "logout:identity"), identities.PostLogout(env, routes["/identities/logout"]))
   //r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idpapi.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
 
-  r.POST(routes["/identities/recover"].URL, authorizationRequired(routes["/identities/recover"], "recover:identity"), identities.PostRecover(env, routes["/identities/recover"]))
-  r.POST(routes["/identities/recoververification"].URL, authorizationRequired(routes["/identities/recoververification"], "authenticate:identity"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
+  r.POST(routes["/identities/recover"].URL, authorizationRequired(env, routes["/identities/recover"], "recover:identity"), identities.PostRecover(env, routes["/identities/recover"]))
+  r.POST(routes["/identities/recoververification"].URL, authorizationRequired(env, routes["/identities/recoververification"], "authenticate:identity"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
@@ -263,6 +264,11 @@ func RequestLogger(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
+type JsonError struct {
+  ErrorCode int `json:"error_code" binding:"required"`
+  Error     string `json:"error" binding:"required"`
+}
+
 func authenticationRequired() gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
@@ -307,47 +313,73 @@ func authenticationRequired() gin.HandlerFunc {
 
     // Deny by default
     log.Debug("Missing access token")
-    c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization: Bearer <token> not found in request."})
+    c.JSON(http.StatusUnauthorized, JsonError{ErrorCode: 2, Error: "Authorization: Bearer <token> not found in request"})
     c.Abort()
   }
   return gin.HandlerFunc(fn)
 }
 
-func authorizationRequired(route environment.Route, requiredScopes ...string) gin.HandlerFunc {
+func authorizationRequired(env *environment.State, route environment.Route, requiredScopes ...string) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{"func": "authorizationRequired"})
 
     // This is required to be here but should be garantueed by the authenticationRequired function.
-    _ /*accessToken*/, accessTokenExists := c.Get(environment.AccessTokenKey)
+    t, accessTokenExists := c.Get(environment.AccessTokenKey)
     if accessTokenExists == false {
-      c.JSON(http.StatusUnauthorized, gin.H{"error": "No access token found. Hint: Is bearer token missing?"})
+      c.JSON(http.StatusForbidden, JsonError{ErrorCode: 1, Error: "No access token found. Hint: Is bearer token missing?"})
+			c.Abort()
+			return
+    }
+    var accessToken *oauth2.Token = t.(*oauth2.Token)
+
+    strRequiredScopes := strings.Join(requiredScopes, " ")
+    log.WithFields(logrus.Fields{"scope": strRequiredScopes}).Debug("Checking required scopes");
+
+    // See #3 of QTNA
+    // log.WithFields(logrus.Fields{"fixme": 1, "qtna": 3}).Debug("Missing check if access token is granted the required scopes")
+    hydraClient := hydra.NewHydraClient(env.HydraConfig)
+
+    log.WithFields(logrus.Fields{"token": accessToken.AccessToken}).Debug("Introspecting token")
+
+    introspectRequest := hydra.IntrospectRequest{
+      Token: accessToken.AccessToken,
+      Scope: strRequiredScopes,
+    }
+    introspectResponse, err := hydra.IntrospectToken(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.introspect"), hydraClient, introspectRequest)
+    if err != nil {
+      log.WithFields(logrus.Fields{"scope": strRequiredScopes}).Debug(err.Error())
+      c.JSON(http.StatusForbidden, JsonError{ErrorCode: 2, Error: "Failed to inspect token"})
       c.Abort()
       return
     }
 
-    strRequiredScopes := strings.Join(requiredScopes, ",")
-    log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Checking required scopes");
+    if introspectResponse.Active == true {
 
-    // See #3 of QTNA
-    log.WithFields(logrus.Fields{"fixme": 1, "qtna": 3}).Debug("Missing check if access token is granted the required scopes")
+      // Check scopes. (is done by hydra according to doc)
+      // https://www.ory.sh/docs/hydra/sdk/api#introspect-oauth2-tokens
 
-    // See #4 of QTNA
-    log.WithFields(logrus.Fields{"fixme": 1, "qtna": 4}).Debug("Missing check if the user or client giving the grants in the access token authorized to use the scopes granted")
+      log.Debug(introspectResponse)
 
-    foundRequiredScopes := true
-    if foundRequiredScopes {
-      log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Found required scopes")
-      c.Next() // Authentication successful, continue.
-      return;
+      // See #4 of QTNA
+      log.WithFields(logrus.Fields{"fixme": 1, "qtna": 4}).Debug("Missing check if the user or client giving the grants in the access token authorized to use the scopes granted")
+
+      foundRequiredScopes := true
+      if foundRequiredScopes {
+        log.WithFields(logrus.Fields{"scope": strRequiredScopes}).Debug("Authorized")
+        c.Next() // Authentication successful, continue.
+        return;
+      }
     }
 
     // Deny by default
     log.WithFields(logrus.Fields{"fixme": 1}).Debug("Calculate missing scopes and only log those");
-    log.WithFields(logrus.Fields{"scopes": strRequiredScopes}).Debug("Missing required scopes. Hint: Some required scopes are missing, invalid or not granted")
-    c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing required scopes. Hint: Some required scopes are missing, invalid or not granted"})
+    log.WithFields(logrus.Fields{"scope": strRequiredScopes}).Debug("Missing required scopes. Hint: Some required scopes are missing, invalid or not granted")
+    c.JSON(http.StatusForbidden, JsonError{ErrorCode: 2, Error: "Missing required scopes. Hint: Some required scopes are missing, invalid or not granted"})
     c.Abort()
+    return
+
   }
   return gin.HandlerFunc(fn)
 }
