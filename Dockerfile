@@ -34,13 +34,10 @@ RUN go install -v ./...
 # This container exposes port 443 to the docker network
 EXPOSE 443
 
-#USER 1000
-
-ARG release_build=1
-ENV release_build=$release_build
-
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+#USER 1000
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["golang-idp-be"]
