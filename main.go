@@ -6,7 +6,7 @@ import (
   "net/url"
   "os"
   "time"
-  "bufio"  
+  "bufio"
   "golang.org/x/net/context"
   "golang.org/x/oauth2"
   "golang.org/x/oauth2/clientcredentials"
@@ -381,6 +381,7 @@ func authorizationRequired(env *environment.State, route environment.Route, requ
       foundRequiredScopes := true
       if foundRequiredScopes {
         log.WithFields(logrus.Fields{"scope": strRequiredScopes}).Debug("Authorized")
+        c.Set("sub", introspectResponse.Sub)
         c.Next() // Authentication successful, continue.
         return;
       }
