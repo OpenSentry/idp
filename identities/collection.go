@@ -49,8 +49,12 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
       "func": "GetCollection",
     })
 
-    id, _ := c.GetQuery("id")
-    if id == "" {
+    id, _ := c.GetQuery("id") // From input
+
+    s, _ := c.Get("sub") // From access token
+    subject := s.(string)
+
+    if id == "" && subject == "" {
       c.JSON(http.StatusNotFound, gin.H{
         "error": "Not found",
       })
@@ -58,10 +62,29 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
       return;
     }
 
-    identityList, err := idpapi.FetchIdentitiesForSub(env.Driver, id)
-    if err == nil {
+    if subject != "" && id != "" && subject != id {
+      c.JSON(http.StatusForbidden, gin.H{
+        "error": "Not allowed. Hint: access token does not match id parameter.",
+      })
+      c.Abort()
+      return;
+    }
+
+    if subject == "" && id != "" {
+      subject = id
+    }
+
+    identityList, err := idpapi.FetchIdentitiesForSub(env.Driver, subject)
+    if err != nil {
+      log.WithFields(logrus.Fields{"sub": subject}).Debug(err.Error())
+      c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Identity"})
+      c.Abort()
+      return
+    }
+
+    if len(identityList) > 0 {
       n := identityList[0]
-      if id == n.Id {
+      if subject == n.Id {
         c.JSON(http.StatusOK, IdentitiesResponse{
           Id: n.Id,
           Name: n.Name,
