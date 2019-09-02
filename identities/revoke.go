@@ -4,7 +4,8 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "idp/environment"
+  
+  "github.com/charmixer/idp/environment"
 )
 
 type RevokeRequest struct {
@@ -20,7 +21,7 @@ func PostRevoke(env *environment.State, route environment.Route) gin.HandlerFunc
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
-    log = log.WithFields(logrus.Fields{      
+    log = log.WithFields(logrus.Fields{
       "func": "PostRevoke",
     })
 

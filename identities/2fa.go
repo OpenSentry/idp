@@ -4,9 +4,10 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "idp/config"
-  "idp/environment"
-  "idp/gateway/idp"
+
+  "github.com/charmixer/idp/config"
+  "github.com/charmixer/idp/environment"
+  "github.com/charmixer/idp/gateway/idp"
 )
 
 type TwoFactorRequest struct {
