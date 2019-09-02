@@ -5,8 +5,8 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
   "github.com/CharMixer/hydra-client" // FIXME: Do not use upper case
-  "golang-idp-be/config"
-  "golang-idp-be/environment"
+  "idp/config"
+  "idp/environment"
 )
 
 type LogoutRequest struct {

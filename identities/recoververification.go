@@ -4,8 +4,8 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "golang-idp-be/environment"
-  "golang-idp-be/gateway/idpapi"
+  "idp/environment"
+  "idp/gateway/idp"
 )
 
 type RecoverVerificationRequest struct {
@@ -43,7 +43,7 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
       RedirectTo: "",
     }
 
-    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
+    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid id"})
@@ -60,7 +60,7 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
 
     identity := identities[0];
 
-    valid, err := idpapi.ValidatePassword(identity.OtpRecoverCode, input.VerificationCode)
+    valid, err := idp.ValidatePassword(identity.OtpRecoverCode, input.VerificationCode)
     if err != nil {
       log.Debug(err.Error())
       log.WithFields(logrus.Fields{
@@ -76,18 +76,18 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
     if valid == true {
 
       // Update the password
-      hashedPassword, err := idpapi.CreatePassword(input.Password)
+      hashedPassword, err := idp.CreatePassword(input.Password)
       if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         c.Abort()
         return
       }
 
-      n := idpapi.Identity{
+      n := idp.Identity{
         Id: identity.Id,
         Password: hashedPassword,
       }
-      updatedIdentity, err := idpapi.UpdatePassword(env.Driver, n)
+      updatedIdentity, err := idp.UpdatePassword(env.Driver, n)
       if err != nil {
         log.Debug(err.Error())
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Update password failed"})

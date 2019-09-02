@@ -5,9 +5,9 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
   "github.com/CharMixer/hydra-client" // FIXME: Do not use upper case
-  "golang-idp-be/config"
-  "golang-idp-be/environment"
-  "golang-idp-be/gateway/idpapi"
+  "idp/config"
+  "idp/environment"
+  "idp/gateway/idp"
 )
 
 type AuthenticateRequest struct {
@@ -123,7 +123,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       return;
     }
 
-    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
+    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       log.WithFields(logrus.Fields{
@@ -143,7 +143,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       log.WithFields(logrus.Fields{"fixme": 1}).Debug("Change FetchIdentitiesForSub to not be a bulk function")
       identity := identities[0];
 
-      valid, _ := idpapi.ValidatePassword(identity.Password, input.Password)
+      valid, _ := idp.ValidatePassword(identity.Password, input.Password)
       if valid == true {
 
         acceptResponse := AuthenticateResponse{
@@ -158,7 +158,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
           // Do not call hydra yet we need passcode authentication aswell. Create a passcode request instaed.
           log.WithFields(logrus.Fields{"fixme": 1}).Debug("How to do the passcode redirect in config? Maybe make request param a jwt");
           url := "/passcode" //config.GetString("idpui.public.url") + config.GetString("idpui.public.url.endpoints.passcode")
-          passcodeChallenge := idpapi.CreatePasscodeChallenge(url, input.Challenge, identity.Id, config.GetString("2fa.sigkey"))
+          passcodeChallenge := idp.CreatePasscodeChallenge(url, input.Challenge, identity.Id, config.GetString("2fa.sigkey"))
           acceptResponse.RedirectTo = passcodeChallenge.RedirectTo
 
         } else {
