@@ -7,9 +7,9 @@ import (
   "bytes"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "golang-idp-be/config"
-  "golang-idp-be/environment"
-  "golang-idp-be/gateway/idpapi"
+  "idp/config"
+  "idp/environment"
+  "idp/gateway/idp"
 )
 
 type RecoverRequest struct {
@@ -43,7 +43,7 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id) // FIXME do not return a list of identities!
+    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id) // FIXME do not return a list of identities!
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -60,12 +60,12 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
     // Found identity prepare to send recover email
     identity := identities[0];
 
-    sender := idpapi.SMTPSender{
+    sender := idp.SMTPSender{
       Name: config.GetString("recover.sender.name"),
       Email: config.GetString("recover.sender.email"),
     }
 
-    smtpConfig := idpapi.SMTPConfig{
+    smtpConfig := idp.SMTPConfig{
       Host: config.GetString("mail.smtp.host"),
       Username: config.GetString("mail.smtp.user"),
       Password: config.GetString("mail.smtp.password"),
@@ -73,7 +73,7 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
     }
 
-    recoverChallenge, err := idpapi.CreateRecoverChallenge(config.GetString("recover.link"), identity, 60 * 5) // Fixme configfy 60*5
+    recoverChallenge, err := idp.CreateRecoverChallenge(config.GetString("recover.link"), identity, 60 * 5) // Fixme configfy 60*5
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -81,7 +81,7 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    hashedCode, err := idpapi.CreatePassword(recoverChallenge.VerificationCode)
+    hashedCode, err := idp.CreatePassword(recoverChallenge.VerificationCode)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -89,12 +89,12 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    n := idpapi.Identity{
+    n := idp.Identity{
       Id: identity.Id,
       OtpRecoverCode: hashedCode,
       OtpRecoderCodeExpire: recoverChallenge.Expire,
     }
-    updatedIdentity, err := idpapi.UpdateOtpRecoverCode(env.Driver, n)
+    updatedIdentity, err := idp.UpdateOtpRecoverCode(env.Driver, n)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -135,12 +135,12 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    mail := idpapi.AnEmail{
+    mail := idp.AnEmail{
       Subject: recoverSubject,
       Body: tpl.String(),
     }
 
-    _, err = idpapi.SendAnEmailForIdentity(smtpConfig, updatedIdentity, mail)
+    _, err = idp.SendAnEmailForIdentity(smtpConfig, updatedIdentity, mail)
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": updatedIdentity.Id,

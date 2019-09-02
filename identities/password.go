@@ -4,8 +4,8 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "golang-idp-be/environment"
-  "golang-idp-be/gateway/idpapi"
+  "idp/environment"
+  "idp/gateway/idp"
 )
 
 type PasswordRequest struct {
@@ -33,7 +33,7 @@ func PostPassword(env *environment.State, route environment.Route) gin.HandlerFu
       return
     }
 
-    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
+    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -45,21 +45,21 @@ func PostPassword(env *environment.State, route environment.Route) gin.HandlerFu
 
       identity := identities[0]; // FIXME do not return a list of identities!
 
-      valid, _ := idpapi.ValidatePassword(identity.Password, input.Password)
+      valid, _ := idp.ValidatePassword(identity.Password, input.Password)
       if valid == true {
         // Nothing to change was the new password is same as current password
         c.JSON(http.StatusOK, gin.H{"id": identity.Id})
         return
       }
 
-      hashedPassword, err := idpapi.CreatePassword(input.Password)
+      hashedPassword, err := idp.CreatePassword(input.Password)
       if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         c.Abort()
         return
       }
 
-      updatedIdentity, err := idpapi.UpdatePassword(env.Driver, idpapi.Identity{
+      updatedIdentity, err := idp.UpdatePassword(env.Driver, idp.Identity{
         Id: identity.Id,
         Password: hashedPassword,
       })

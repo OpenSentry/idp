@@ -4,9 +4,9 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "golang-idp-be/config"
-  "golang-idp-be/environment"
-  "golang-idp-be/gateway/idpapi"
+  "idp/config"
+  "idp/environment"
+  "idp/gateway/idp"
 )
 
 type TwoFactorRequest struct {
@@ -35,7 +35,7 @@ func Post2Fa(env *environment.State, route environment.Route) gin.HandlerFunc {
       return
     }
 
-    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
+    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -47,14 +47,14 @@ func Post2Fa(env *environment.State, route environment.Route) gin.HandlerFunc {
 
       identity := identities[0]; // FIXME do not return a list of identities!
 
-      encryptedSecret, err := idpapi.Encrypt(input.Secret2Fa, config.GetString("2fa.cryptkey"))
+      encryptedSecret, err := idp.Encrypt(input.Secret2Fa, config.GetString("2fa.cryptkey"))
       if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         c.Abort()
         return
       }
 
-      updatedIdentity, err := idpapi.UpdateTwoFactor(env.Driver, idpapi.Identity{
+      updatedIdentity, err := idp.UpdateTwoFactor(env.Driver, idp.Identity{
         Id: identity.Id,
         Require2Fa: input.Required2Fa,
         Secret2Fa: encryptedSecret,
