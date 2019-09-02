@@ -5,8 +5,9 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
   hydra "github.com/charmixer/hydra/client"
-  "idp/config"
-  "idp/environment"
+
+  "github.com/charmixer/idp/config"
+  "github.com/charmixer/idp/environment"
 )
 
 type LogoutRequest struct {

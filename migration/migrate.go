@@ -1,11 +1,13 @@
 package migration
 
 import (
-  "fmt"
-  "github.com/neo4j/neo4j-go-driver/neo4j"
   "io/ioutil"
   "strings"
-  "idp/config"
+  "fmt"
+  
+  "github.com/neo4j/neo4j-go-driver/neo4j"
+
+  "github.com/charmixer/idp/config"
 )
 
 func loadMigrationsFromFile(path string) []string {
