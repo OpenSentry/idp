@@ -16,11 +16,12 @@ import (
   "github.com/atarantini/ginrequestid"
   "github.com/neo4j/neo4j-go-driver/neo4j"
   hydra "github.com/charmixer/hydra/client"
-  "idp/config"
-  "idp/environment"
-  "idp/migration"
-  "idp/identities"
-  "github.com/pborman/getopt"
+  "github.com/pborman/getopt"  
+
+  "github.com/charmixer/idp/config"
+  "github.com/charmixer/idp/environment"
+  "github.com/charmixer/idp/migration"
+  "github.com/charmixer/idp/identities"
 )
 
 const app = "idp"

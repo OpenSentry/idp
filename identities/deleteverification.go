@@ -4,8 +4,9 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "idp/environment"
-  "idp/gateway/idp"
+
+  "github.com/charmixer/idp/environment"
+  "github.com/charmixer/idp/gateway/idp"
 )
 
 type DeleteVerificationRequest struct {
