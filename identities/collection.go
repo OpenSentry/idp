@@ -7,9 +7,9 @@ import (
   "bytes"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "golang-idp-be/config"
-  "golang-idp-be/environment"
-  "golang-idp-be/gateway/idpapi"
+  "idp/config"
+  "idp/environment"
+  "idp/gateway/idp"
 )
 
 type IdentitiesRequest struct {
@@ -74,7 +74,7 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
       subject = id
     }
 
-    identityList, err := idpapi.FetchIdentitiesForSub(env.Driver, subject)
+    identityList, err := idp.FetchIdentitiesForSub(env.Driver, subject)
     if err != nil {
       log.WithFields(logrus.Fields{"sub": subject}).Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Identity"})
@@ -129,20 +129,20 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       return
     }
 
-    hashedPassword, err := idpapi.CreatePassword(input.Password)
+    hashedPassword, err := idp.CreatePassword(input.Password)
     if err != nil {
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
       c.Abort()
       return
     }
 
-    newIdentity := idpapi.Identity{
+    newIdentity := idp.Identity{
       Id: input.Id,
       Name: input.Name,
       Email: input.Email,
       Password: hashedPassword,
     }
-    identityList, err := idpapi.CreateIdentities(env.Driver, newIdentity)
+    identityList, err := idp.CreateIdentities(env.Driver, newIdentity)
     if err != nil {
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
       c.Abort()
@@ -178,12 +178,12 @@ func PutCollection(env *environment.State, route environment.Route) gin.HandlerF
       return
     }
 
-    updateIdentity := idpapi.Identity{
+    updateIdentity := idp.Identity{
       Id: input.Id,
       Name: input.Name,
       Email: input.Email,
     }
-    identityList, err := idpapi.UpdateIdentities(env.Driver, updateIdentity)
+    identityList, err := idp.UpdateIdentities(env.Driver, updateIdentity)
     if err != nil {
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
       c.Abort()
@@ -220,7 +220,7 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
 
     log.WithFields(logrus.Fields{"fixme":1}).Debug("Match that access_token.sub matches requested id to delete");
 
-    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id) // FIXME do not return a list of identities!
+    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id) // FIXME do not return a list of identities!
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -237,12 +237,12 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
     // Found identity prepare to send recover email
     identity := identities[0];
 
-    sender := idpapi.SMTPSender{
+    sender := idp.SMTPSender{
       Name: config.GetString("delete.sender.name"),
       Email: config.GetString("delete.sender.email"),
     }
 
-    smtpConfig := idpapi.SMTPConfig{
+    smtpConfig := idp.SMTPConfig{
       Host: config.GetString("mail.smtp.host"),
       Username: config.GetString("mail.smtp.user"),
       Password: config.GetString("mail.smtp.password"),
@@ -250,7 +250,7 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
     }
 
-    deleteChallenge, err := idpapi.CreateDeleteChallenge(config.GetString("delete.link"), identity, 60 * 5) // Fixme configfy 60*5
+    deleteChallenge, err := idp.CreateDeleteChallenge(config.GetString("delete.link"), identity, 60 * 5) // Fixme configfy 60*5
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -258,7 +258,7 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    hashedCode, err := idpapi.CreatePassword(deleteChallenge.VerificationCode)
+    hashedCode, err := idp.CreatePassword(deleteChallenge.VerificationCode)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -266,12 +266,12 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    n := idpapi.Identity{
+    n := idp.Identity{
       Id: identity.Id,
       OtpDeleteCode: hashedCode,
       OtpDeleteCodeExpire: deleteChallenge.Expire,
     }
-    updatedIdentity, err := idpapi.UpdateOtpDeleteCode(env.Driver, n)
+    updatedIdentity, err := idp.UpdateOtpDeleteCode(env.Driver, n)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -312,12 +312,12 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    anEmail := idpapi.AnEmail{
+    anEmail := idp.AnEmail{
       Subject: emailSubject,
       Body: tpl.String(),
     }
 
-    _, err = idpapi.SendAnEmailForIdentity(smtpConfig, updatedIdentity, anEmail)
+    _, err = idp.SendAnEmailForIdentity(smtpConfig, updatedIdentity, anEmail)
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": updatedIdentity.Id,

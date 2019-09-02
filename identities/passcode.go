@@ -5,9 +5,9 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
   "github.com/CharMixer/hydra-client" // FIXME: Do not use upper case
-  "golang-idp-be/config"
-  "golang-idp-be/environment"
-  "golang-idp-be/gateway/idpapi"
+  "idp/config"
+  "idp/environment"
+  "idp/gateway/idp"
 )
 
 type PasscodeRequest struct {
@@ -44,7 +44,7 @@ func PostPasscode(env *environment.State, route environment.Route) gin.HandlerFu
       RedirectTo: "",
     }
 
-    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
+    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       log.WithFields(logrus.Fields{
@@ -74,14 +74,14 @@ func PostPasscode(env *environment.State, route environment.Route) gin.HandlerFu
         return
       }
 
-      decryptedSecret, err := idpapi.Decrypt(identity.Secret2Fa, config.GetString("2fa.cryptkey"))
+      decryptedSecret, err := idp.Decrypt(identity.Secret2Fa, config.GetString("2fa.cryptkey"))
       if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         c.Abort()
         return
       }
 
-      valid, _ := idpapi.ValidatePasscode(input.Passcode, decryptedSecret)
+      valid, _ := idp.ValidatePasscode(input.Passcode, decryptedSecret)
       if valid == true {
 
         hydraClient := hydra.NewHydraClient(env.HydraConfig)

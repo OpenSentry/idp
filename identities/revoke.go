@@ -4,7 +4,7 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "golang-idp-be/environment"
+  "idp/environment"
 )
 
 type RevokeRequest struct {

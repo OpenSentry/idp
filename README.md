@@ -3,7 +3,7 @@ The purpose of this project is to make it possible for anyone to run a very simp
 
 It does *not* have anything to do with OAuth2 in any way, but is meant to be used as the Identity Provider for another service like ORY Hydra (https://github.com/ory/hydra).
 
-This project will only give you the required API endpoints for managing an Identity Provider - no GUI is included. However, it will be able to run hand-in-hand with https://github.com/charmixer/golang-idp-fe as the graphical web interface.
+This project will only give you the required API endpoints for managing an Identity Provider - no GUI is included. However, it will be able to run hand-in-hand with https://github.com/charmixer/idpui as the graphical web interface.
 
 Table of Contents
 =================
@@ -40,19 +40,19 @@ First of all make sure docker is installed and ready to use.
 
 Next, run the following commands:
 ```
-$ git clone git@github.com:CharMixer/golang-idp-be.git
-$ cd golang-idp-be
+$ git clone git@github.com:CharMixer/idp.git
+$ cd idp
 $ # This will build a docker image by getting all necessary requirements and compiling the go project.
-$ docker build -t idpapi .
+$ docker build -t idp .
 $ # When the image has been build, use the following docker command to start it up:
-$ docker run -it -p 8080:8080 -v $(pwd):/go/src/golang-idp-be idpapi
+$ docker run -it -p 8080:8080 -v $(pwd):/go/src/idp idp
 ```
 
 Note that the default settings is a development build, which can be used for automatic rebuilding of the go code with the help of https://github.com/pilu/fresh. Later on the environment variable `APP_ENV` will be used to define a production or development environment
 
 # API documentation
 
-The idpapi exposes a set of endpoints that can be used to control identities.
+The idp exposes a set of endpoints that can be used to control identities.
 
 ## Concepts
 
@@ -568,7 +568,7 @@ func CreatePassword(password string) (string, error) {
 }
 ```
 
-To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idpapi.identities.post` to call the endpoint or the request will be denied.
+To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idp.identities.post` to call the endpoint or the request will be denied.
 
 ### Example
 ```bash
@@ -585,7 +585,7 @@ To ensure that password handling is not taken lightly but rather considered a fi
 
 The change password endpoint is using the same bcrypt library algorithm as when creating an Identity with a password. See [Create an Identity](#create-an-identity).
 
-To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idpapi.authenticate` to call the endpoint or the request will be denied.
+To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idp.authenticate` to call the endpoint or the request will be denied.
 
 ### Example
 ```bash
@@ -598,7 +598,7 @@ curl -H "Authorization: Bearer <token>" \
 ## Authenticate an Identity
 To authenticate an Identity, also known as performing a login/signin a `POST` request must be made to the `/identities/authenticate` endpoint. A challenge is required to perform a login. The challenge is obtained by asking Hydra for it when starting the OAuth2 Authorization code flow.
 
-To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idpapi.authenticate` to call the endpoint or the request will be denied.
+To use the endpoint a client in terms of the OAuth2 protocol is needed. This client needs to have been granted the scope `idp.authenticate` to call the endpoint or the request will be denied.
 
 ### Example
 ```bash

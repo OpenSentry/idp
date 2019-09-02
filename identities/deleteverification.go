@@ -4,8 +4,8 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "golang-idp-be/environment"
-  "golang-idp-be/gateway/idpapi"
+  "idp/environment"
+  "idp/gateway/idp"
 )
 
 type DeleteVerificationRequest struct {
@@ -42,7 +42,7 @@ func PostDeleteVerification(env *environment.State, route environment.Route) gin
       RedirectTo: "",
     }
 
-    identities, err := idpapi.FetchIdentitiesForSub(env.Driver, input.Id)
+    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid id"})
@@ -59,7 +59,7 @@ func PostDeleteVerification(env *environment.State, route environment.Route) gin
 
     identity := identities[0];
 
-    valid, err := idpapi.ValidatePassword(identity.OtpDeleteCode, input.VerificationCode)
+    valid, err := idp.ValidatePassword(identity.OtpDeleteCode, input.VerificationCode)
     if err != nil {
       log.Debug(err.Error())
       log.WithFields(logrus.Fields{
@@ -77,10 +77,10 @@ func PostDeleteVerification(env *environment.State, route environment.Route) gin
       log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all access tokens for identity - put them on revoked list or rely on expire")
       log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all consents in hydra for identity - this is probably aap?")
 
-      n := idpapi.Identity{
+      n := idp.Identity{
         Id: identity.Id,
       }
-      updatedIdentity, err := idpapi.DeleteIdentity(env.Driver, n)
+      updatedIdentity, err := idp.DeleteIdentity(env.Driver, n)
       if err != nil {
         log.Debug(err.Error())
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete identitiy failed"})

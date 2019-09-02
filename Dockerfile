@@ -19,7 +19,7 @@ WORKDIR /seabolt/build
 RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
 
 # Set the Current Working Directory inside the container
-WORKDIR $GOPATH/src/golang-idp-be
+WORKDIR $GOPATH/src/idp
 
 # Copy everything from the current directory to the PWD(Present Working Directory) inside the container
 COPY . .
@@ -40,4 +40,4 @@ RUN chmod +x /entrypoint.sh
 #USER 1000
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["golang-idp-be"]
+CMD ["idp"]

@@ -1,4 +1,4 @@
-package idpapi
+package idp
 
 import (
   "crypto/aes"
