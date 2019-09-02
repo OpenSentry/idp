@@ -15,7 +15,7 @@ import (
   "github.com/gin-gonic/gin"
   "github.com/atarantini/ginrequestid"
   "github.com/neo4j/neo4j-go-driver/neo4j"
-  "github.com/CharMixer/hydra-client" // FIXME: Do not use upper case
+  hydra "github.com/charmixer/hydra/client"
   "idp/config"
   "idp/environment"
   "idp/migration"

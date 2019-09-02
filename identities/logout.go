@@ -4,7 +4,7 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "github.com/CharMixer/hydra-client" // FIXME: Do not use upper case
+  hydra "github.com/charmixer/hydra/client"
   "idp/config"
   "idp/environment"
 )
