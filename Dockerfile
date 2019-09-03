@@ -19,7 +19,7 @@ WORKDIR /seabolt/build
 RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
 
 # Set the Current Working Directory inside the container
-WORKDIR $GOPATH/src/idp
+WORKDIR $GOPATH/src/github.com/charmixer/idp
 
 # Copy everything from the current directory to the PWD(Present Working Directory) inside the container
 COPY . .
