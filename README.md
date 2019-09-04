@@ -13,7 +13,11 @@ Table of Contents
   * [API documentation](#api-documentation)  
     * [Concepts](#concepts)
       * [Identity](#identity)                   
+      * [Challenge](#challenge)
     * [Endpoints](#endpoints)
+      * [GET /challenges](#get-challenges)
+      * [POST /challenges](#post-challenges)
+      * [POST /challenges/verify](post-challengesverify)
       * [POST /identities](#post-identities)
       * [GET /identities](#get-identities)
       * [PUT /identities](#put-identities)
@@ -23,8 +27,7 @@ Table of Contents
       * [POST /identities/password](#post-identitiespassword)
       * [POST /identities/recover](#post-identitiesrecover)
       * [POST /identities/recoververification](#post-identitiesrecoververification)
-      * [POST /identities/passcode](#post-identitiespasscode)
-      * [POST /identities/2fa](#post-identities2fa)
+      * [POST /identities/totp](#post-identitiestotp)      
       * [POST /identities/logout](#post-identitieslogout)
     * [Scopes](#scopes)
       * [A note on scopes](#a-note-on-scopes)   
@@ -80,8 +83,217 @@ An identity is a representation of a person, an app or anything that needs to be
 }
 ```
 
+### Challenge
+A challenge is a two factor security measure used in the authentication of an Identity
+
+```json
+{
+  "otp_challenge": {
+    "type": "string",
+    "description": "A globally unique identifier An example could be an UUID"
+  },
+  "aud": {
+    "type": "string",    
+    "description": "The intended audience for the challenge. Eg the place of verification"
+  },
+  "iat": {
+    "type": "int64",    
+    "description": "The creation timestamp of the challenge in unixtime"
+  },
+  "exp": {
+    "type": "int64",    
+    "description": "The time of expiration of the challenge in unixtime"
+  },
+  "ttl": {
+    "type": "int",    
+    "description": "Time to live in seconds for the challenge. Used to calculate the time of expiration"
+  },
+  "redirect_to": {
+    "type": "string",
+    "description": "The redirect returned upon successful code verification"
+  },
+  "code_type": {
+    "type": "string",
+    "description": "An identifier for the type of code challenge. If anything else but TOTP is set the code set in the code hash will be used. If TOTP is set the totp_secret set on the identity will be used for code verification"
+  },
+  "code": {
+    "type": "string",
+    "description": "A code hash used for code verification. Please do not store plain text codes!"
+  }
+}
+```
+
 ## Endpoints
 All endpoints can only be reached trough HTTPS with TLS. All endpoints are protected by OAuth2 scopes that are required by the client to call the endpoints. The following endpoints are exposed:
+
+### GET /challenges
+
+Read a challenge. Requires scope `authenticate:identity`. Input is added as a query parameter like this `?otp_challenge=...` to the url.
+
+#### Input
+```json
+{
+  "otp_challenge": {
+    "type": "string",
+    "required": true
+  }  
+}
+```
+
+#### Output
+```json
+{
+  "otp_challenge": {
+    "type": "string",
+    "description": "A globally unique identifier An example could be an UUID"
+  },
+  "sub": {
+    "type": "string",
+    "description": "The subject for which this challenge is requested"
+  },
+  "aud": {
+    "type": "string",    
+    "description": "The intended audience for the challenge. Eg the place of verification"
+  },
+  "iat": {
+    "type": "int64",    
+    "description": "The creation timestamp of the challenge in unixtime"
+  },
+  "exp": {
+    "type": "int64",    
+    "description": "The time of expiration of the challenge in unixtime"
+  },
+  "ttl": {
+    "type": "int",    
+    "description": "Time to live in seconds for the challenge. Used to calculate the time of expiration"
+  },
+  "redirect_to": {
+    "type": "string",
+    "description": "The redirect returned upon successful code verification"
+  },
+  "code_type": {
+    "type": "string",
+    "description": "An identifier for the type of code challenge. If anything else but TOTP is set the code set in the code hash will be used. If TOTP is set the totp_secret set on the identity will be used for code verification"
+  },
+  "code": {
+    "type": "string",
+    "description": "A code hash used for code verification. Please do not store plain text codes!"
+  }
+}
+```
+
+### POST /challenges
+
+Create a challenge. Requires scope `authenticate:identity`
+
+#### Input
+```json
+{
+  "sub": {
+    "type": "string",
+    "description": "The subject for which this challenge is requested"
+  },  
+  "aud": {
+    "type": "string",    
+    "description": "The intended audience for the challenge. Eg the place of verification"
+  },  
+  "ttl": {
+    "type": "int",    
+    "description": "Time to live in seconds for the challenge. Used to calculate the time of expiration"
+  },
+  "redirect_to": {
+    "type": "string",
+    "description": "The redirect returned upon successful code verification"
+  },
+  "code_type": {
+    "type": "string",
+    "description": "An identifier for the type of code challenge. If anything else but TOTP is set the code set in the code hash will be used. If TOTP is set the totp_secret set on the identity will be used for code verification"
+  },
+  "code": {
+    "type": "string",
+    "description": "A code hash used for code verification. Please do not store plain text codes!"
+  }
+}
+```
+
+#### Output
+```json
+{
+  "otp_challenge": {
+    "type": "string",
+    "description": "A globally unique identifier An example could be an UUID"
+  },
+  "sub": {
+    "type": "string",
+    "description": "The subject for which this challenge is requested"
+  },
+  "aud": {
+    "type": "string",    
+    "description": "The indenteded audience for the challenge. Eg the place of verification"
+  },
+  "iat": {
+    "type": "int64",    
+    "description": "The creation timestamp of the challenge in unixtime"
+  },
+  "exp": {
+    "type": "int64",    
+    "description": "The time of expiration of the challenge in unixtime"
+  },
+  "ttl": {
+    "type": "int",    
+    "description": "Time to live in seconds for the challenge. Used to calculate the time of expiration"
+  },
+  "redirect_to": {
+    "type": "string",
+    "description": "The redirect returned upon successful code verification"
+  },
+  "code_type": {
+    "type": "string",
+    "description": "An identifier for the type of code challenge. If anything else but TOTP is set the code set in the code hash will be used. If TOTP is set the totp_secret set on the identity will be used for code verification"
+  },
+  "code": {
+    "type": "string",
+    "description": "A code hash used for code verification. Please do not store plain text codes!"
+  }
+}
+```
+
+### POST /challenges/verify
+
+Verify a challenge. Requires scope `authenticate:identity`
+
+#### Input
+```json
+{
+  "otp_challenge": {
+    "type": "string",
+    "required": true
+  },
+  "code"  : {
+    "type": "string",
+    "required": true
+  }
+}
+```
+
+#### Output
+```json
+{
+  "otp_challenge": {
+    "type": "string",
+    "required": true
+  },
+  "verified"  : {
+    "type": "bool",
+    "required": true
+  },
+  "redirect_to": {
+    "type": "string",
+    "required": true
+  }
+}
+```
+
 
 ### POST /identities
 
@@ -325,7 +537,7 @@ Authenticate an Identity. Requires scope `authenticate:identity`. This will vali
     "type": "bool",
     "required": true
   },
-  "require_2fa": {
+  "totp_required": {
     "type": "bool",
     "required": true
   },
@@ -436,9 +648,9 @@ Confirm recovery of an Identity. Requires scope `authenticate:identity`. If the 
 }
 ```
 
-### POST /identities/passcode
+### POST /identities/otp
 
-Confirm two-factor code of an Identity. Requires scope `authenticate:identity`. If the verification code matches what was generated by the [POST /identities/2fa](#post-identities2fa) endpoint. The Identity is authenticated.
+Confirm two-factor code of an Identity. Requires scope `authenticate:identity`. If the verification code matches what was generated by the [POST /identities/totp](#post-identitiestotp) endpoint. The Identity is authenticated.
 
 #### Input
 ```json
@@ -447,7 +659,7 @@ Confirm two-factor code of an Identity. Requires scope `authenticate:identity`. 
     "type": "string",
     "required": true
   },  
-  "passcode": {
+  "otp": {
     "type": "string",
     "required": true
   },
@@ -476,7 +688,7 @@ Confirm two-factor code of an Identity. Requires scope `authenticate:identity`. 
 }
 ```
 
-### POST /identities/2fa
+### POST /identities/totp
 
 Enable or disable two-factor authentication for an Identity. Requires scope `authenticate:identity`.
 
@@ -487,11 +699,11 @@ Enable or disable two-factor authentication for an Identity. Requires scope `aut
     "type": "string",
     "required": true
   },  
-  "require_2fa": {
+  "totp_required": {
     "type": "bool",
     "required": true
   },
-  "secret_2fa": {
+  "totp_secret": {
     "type": "string",
     "required": true
   }
@@ -547,8 +759,7 @@ The following scopes are required for the endpoints.
 | [POST /identities/password](#post-identitiespassword)                       | `authenticate:identity` |
 | [POST /identities/recover](#post-identitiesrecover)                         | `recover:identity`      |
 | [POST /identities/recoververification](#post-identitiesrecoververification) | `authenticate:identity` |
-| [POST /identities/passcode](#post-identitiespasscode)                       | `authenticate:identity` |
-| [POST /identities/2fa](#post-identities2fa)                                 | `authenticate:identity` |
+| [POST /identities/totp](#post-identitiestotptotp)                            | `authenticate:identity` |
 | [POST /identities/logout](#post-identitieslogout)                           | `logout:identity`       |
 
 ### A note on scopes
