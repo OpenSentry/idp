@@ -13,7 +13,7 @@ import (
   "github.com/sirupsen/logrus"
   oidc "github.com/coreos/go-oidc"
   "github.com/gin-gonic/gin"
-  "github.com/atarantini/ginrequestid"
+  "github.com/gofrs/uuid"
   "github.com/neo4j/neo4j-go-driver/neo4j"
   hydra "github.com/charmixer/hydra/client"
   "github.com/pborman/getopt"
@@ -184,7 +184,7 @@ func serve(env *environment.State) {
   r := gin.New() // Clean gin to take control with logging.
   r.Use(gin.Recovery())
 
-  r.Use(ginrequestid.RequestId())
+  r.Use(requestId())
   r.Use(RequestLogger(env))
 
   // ## QTNA - Questions that need answering before granting access to a protected resource
@@ -404,4 +404,24 @@ func authorizationRequired(env *environment.State, route environment.Route, requ
 
   }
   return gin.HandlerFunc(fn)
+}
+
+func requestId() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Check for incoming header, use it if exists
+		requestID := c.Request.Header.Get("X-Request-Id")
+
+		// Create request id with UUID4
+		if requestID == "" {
+			uuid4, _ := uuid.NewV4()
+			requestID = uuid4.String()
+		}
+
+		// Expose it for use in the application
+		c.Set("RequestId", requestID)
+
+		// Set X-Request-Id header
+		c.Writer.Header().Set("X-Request-Id", requestID)
+		c.Next()
+	}
 }
