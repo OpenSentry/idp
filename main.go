@@ -218,8 +218,6 @@ func serve(env *environment.State) {
   r.POST(routes["/identities/recover"].URL, authorizationRequired(env, routes["/identities/recover"], "recover:identity"), identities.PostRecover(env, routes["/identities/recover"]))
   r.POST(routes["/identities/recoververification"].URL, authorizationRequired(env, routes["/identities/recoververification"], "authenticate:identity"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
 
-
-
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
 
