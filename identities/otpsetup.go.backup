@@ -10,25 +10,25 @@ import (
   "github.com/charmixer/idp/gateway/idp"
 )
 
-type TwoFactorRequest struct {
+type OtpSetupRequest struct {
   Id       string `json:"id" binding:"required"`
-  Required2Fa bool   `json:"require_2fa,omitempty" binding:"required"`
-  Secret2Fa   string `json:"secret_2fa,omitempty" binding:"required"`
+  Required2Fa bool   `json:"totp_required,omitempty" binding:"required"`
+  TotpSecret   string `json:"totp_secret,omitempty" binding:"required"`
 }
 
-type TwoFactorResponse struct {
+type OtpSetupResponse struct {
   Id string `json:"id" binding:"required"`
 }
 
-func Post2Fa(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PostOtpSetup(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "Post2Fa",
+      "func": "PostOtpSetup",
     })
 
-    var input TwoFactorRequest
+    var input OtpSetupRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -48,7 +48,7 @@ func Post2Fa(env *environment.State, route environment.Route) gin.HandlerFunc {
 
       identity := identities[0]; // FIXME do not return a list of identities!
 
-      encryptedSecret, err := idp.Encrypt(input.Secret2Fa, config.GetString("2fa.cryptkey"))
+      encryptedSecret, err := idp.Encrypt(input.TotpSecret, config.GetString("2fa.cryptkey"))
       if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         c.Abort()
@@ -57,8 +57,8 @@ func Post2Fa(env *environment.State, route environment.Route) gin.HandlerFunc {
 
       updatedIdentity, err := idp.UpdateTwoFactor(env.Driver, idp.Identity{
         Id: identity.Id,
-        Require2Fa: input.Required2Fa,
-        Secret2Fa: encryptedSecret,
+        TotpRequired: input.Required2Fa,
+        TotpSecret: encryptedSecret,
       })
       if err != nil {
         log.Debug(err.Error())
@@ -67,7 +67,9 @@ func Post2Fa(env *environment.State, route environment.Route) gin.HandlerFunc {
         return;
       }
 
-      c.JSON(http.StatusOK, gin.H{"id": updatedIdentity.Id})
+      c.JSON(http.StatusOK, OtpSetupResponse{
+        Id: updatedIdentity.Id,
+      })
       return
     }
 

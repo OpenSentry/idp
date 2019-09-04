@@ -1,6 +1,5 @@
 package client
 
-
 import (
   "errors"
   "net/http"
@@ -10,126 +9,10 @@ import (
   "golang.org/x/net/context"
   "golang.org/x/oauth2"
   "golang.org/x/oauth2/clientcredentials"
+
+  "github.com/charmixer/idp/identities"
+  "github.com/charmixer/idp/challenges"
 )
-
-type AuthenticateRequest struct {
-  Id              string            `json:"id"`
-  Password        string            `json:"password"`
-  Challenge       string            `json:"challenge" binding:"required"`
-}
-
-type AuthenticateResponse struct {
-  Id              string            `json:"id"`
-  NotFound        bool              `json:"not_found"`
-  Authenticated   bool              `json:"authenticated"`
-  Require2Fa      bool              `json:"require_2fa"`
-  RedirectTo      string            `json:"redirect_to,omitempty"`
-}
-
-type PasscodeRequest struct {
-  Id        string `json:"id" binding:"required"`
-  Passcode  string `json:"passcode" binding:"required"`
-  Challenge string `json:"challenge" binding:"required"`
-}
-
-type PasscodeResponse struct {
-  Id         string `json:"id" binding:"required"`
-  Verified   bool   `json:"verifed" binding:"required"`
-  RedirectTo string `json:"redirect_to" binding:"required"`
-}
-
-type LogoutRequest struct {
-  Challenge       string            `json:"challenge" binding:"required"`
-}
-
-type LogoutResponse struct {
-  RedirectTo      string            `json:"redirect_to" binding:"required"`
-}
-
-type IdentityRequest struct {
-  Id            string          `json:"id" binding:"required"`
-  Name          string          `json:"name,omitempty"`
-  Email         string          `json:"email,omitempty"`
-  Password      string          `json:"password,omitempty"`
-  Require2Fa    bool            `json:"require_2fa,omitempty"`
-  Secret2Fa     string          `json:"secret_2fa,omitempty"`
-}
-
-type IdentityResponse struct {
-  Id            string          `json:"id" binding:"required"`
-  Name          string          `json:"name,omitempty"`
-  Email         string          `json:"email,omitempty"`
-  Password      string          `json:"password,omitempty"`
-  Require2Fa    bool            `json:"require_2fa,omitempty"`
-  Secret2Fa     string          `json:"secret_2fa,omitempty"`
-}
-
-type RevokeConsentRequest struct {
-  Id string `json:"id"`
-}
-
-type UserInfoResponse struct {
-  Sub       string      `json:"sub"`
-}
-
-type RecoverRequest struct {
-  Id              string            `json:"id" binding:"required"`
-  Password        string            `json:"password" binding:"required"`
-}
-
-type RecoverResponse struct {
-  Id         string `json:"id" binding:"required"`
-  RedirectTo string `json:"redirect_to" binding:"required"`
-}
-
-type RecoverVerificationRequest struct {
-  Id               string `json:"id" binding:"required"`
-  VerificationCode string `json:"verification_code" binding:"required"`
-  Password         string `json:"password" binding:"required"`
-  RedirectTo       string `json:"redirect_to" binding:"required"`
-}
-
-type RecoverVerificationResponse struct {
-  Id         string `json:"id" binding:"required"`
-  Verified   bool   `json:"verifed" binding:"required"`
-  RedirectTo string `json:"redirect_to" binding:"required"`
-}
-
-type DeleteProfileRequest struct {
-  Id              string            `json:"id" binding:"required"`
-}
-
-type DeleteProfileResponse struct {
-  Id         string `json:"id" binding:"required"`
-  RedirectTo string `json:"redirect_to" binding:"required"`
-}
-
-type DeleteProfileVerificationRequest struct {
-  Id               string `json:"id" binding:"required"`
-  VerificationCode string `json:"verification_code" binding:"required"`
-  RedirectTo       string `json:"redirect_to" binding:"required"`
-}
-
-type DeleteProfileVerificationResponse struct {
-  Id         string `json:"id" binding:"required"`
-  Verified   bool   `json:"verifed" binding:"required"`
-  RedirectTo string `json:"redirect_to" binding:"required"`
-}
-
-// App structs
-
-type TwoFactor struct {
-  Required bool
-  Secret string
-}
-
-type Profile struct {
-  Id              string
-  Name            string
-  Email           string
-  Password        string
-  TwoFactor       TwoFactor
-}
 
 type IdpApiClient struct {
   *http.Client
@@ -147,77 +30,45 @@ func NewIdpApiClientWithUserAccessToken(config *oauth2.Config, token *oauth2.Tok
   return &IdpApiClient{client}
 }
 
-// config.AapApi.AuthorizationsUrl
-func RevokeConsent(url string, client *IdpApiClient, revokeConsentRequest RevokeConsentRequest) (bool, error) {
-
-  // FIXME: Call hydra directly. This should not be allowed! (idpui does not have hydra scope)
-  // It should call aap instead. But for testing this was faster.
-  u := "https://oauth.localhost/admin/oauth2/auth/sessions/consent?subject=" + revokeConsentRequest.Id
-  consentRequest, err := http.NewRequest("DELETE", u, nil)
-  if err != nil {
-    return false, err
-  }
-
-  response, err := client.Do(consentRequest)
-  if err != nil {
-    return false, err
-  }
-
-  _ /* responseData */, err = ioutil.ReadAll(response.Body)
-  if err != nil {
-    return false, err
-  }
-
-  return true, nil
-}
-
 // config.IdpApi.IdentitiesUrl
-func CreateProfile(identitiesUrl string, client *IdpApiClient, profile Profile) (Profile, error) {
-  var identityResponse IdentityResponse
-  var newProfile Profile
+func CreateIdentity(identitiesUrl string, client *IdpApiClient, identityRequest identities.IdentitiesRequest) (identities.IdentitiesResponse, error) {
+  var identityResponse identities.IdentitiesResponse
 
-  identityRequest := IdentityRequest{
-    Id: profile.Id,
-    Name: profile.Name,
-    Email: profile.Email,
-    Password: profile.Password,
+  body, err := json.Marshal(identityRequest)
+  if err != nil {
+    return identityResponse, err
   }
-  body, _ := json.Marshal(identityRequest)
 
   var data = bytes.NewBuffer(body)
 
-  request, _ := http.NewRequest("POST", identitiesUrl, data)
+  request, err := http.NewRequest("POST", identitiesUrl, data)
+  if err != nil {
+    return identityResponse, err
+  }
 
   response, err := client.Do(request)
   if err != nil {
-    return newProfile, err
+    return identityResponse, err
   }
 
-  responseData, _ := ioutil.ReadAll(response.Body)
+  responseData, err := ioutil.ReadAll(response.Body)
+  if err != nil {
+    return identityResponse, err
+  }
+
   if response.StatusCode != 200 {
-    return newProfile, errors.New("status: " + string(response.StatusCode) + ", error="+string(responseData))
+    return identityResponse, errors.New(string(responseData))
   }
 
   err = json.Unmarshal(responseData, &identityResponse)
   if err != nil {
-    return newProfile, err
+    return identityResponse, err
   }
-
-  newProfile = Profile{
-    Id: identityResponse.Id,
-    Name: identityResponse.Name,
-    Email: identityResponse.Email,
-    Password: identityResponse.Password,
-    TwoFactor: TwoFactor{
-      Required: identityResponse.Require2Fa,
-      Secret: identityResponse.Secret2Fa,
-    },
-  }
-  return newProfile, nil
+  return identityResponse, nil
 }
 
-func DeleteProfile(deleteUrl string, client *IdpApiClient, deleteProfileRequest DeleteProfileRequest) (DeleteProfileResponse, error) {
-  var deleteResponse DeleteProfileResponse
+func DeleteIdentity(deleteUrl string, client *IdpApiClient, deleteProfileRequest identities.DeleteRequest) (identities.DeleteResponse, error) {
+  var deleteResponse identities.DeleteResponse
 
   body, _ := json.Marshal(deleteProfileRequest)
 
@@ -244,8 +95,8 @@ func DeleteProfile(deleteUrl string, client *IdpApiClient, deleteProfileRequest 
   return deleteResponse, nil
 }
 
-func DeleteProfileVerification(deleteVerificationUrl string, client *IdpApiClient, deleteRequest DeleteProfileVerificationRequest) (DeleteProfileVerificationResponse, error) {
-  var deleteVerificationResponse DeleteProfileVerificationResponse
+func DeleteIdentityVerification(deleteVerificationUrl string, client *IdpApiClient, deleteRequest identities.DeleteVerificationRequest) (identities.DeleteVerificationResponse, error) {
+  var deleteVerificationResponse identities.DeleteVerificationResponse
 
   body, _ := json.Marshal(deleteRequest)
 
@@ -272,203 +123,141 @@ func DeleteProfileVerification(deleteVerificationUrl string, client *IdpApiClien
   return deleteVerificationResponse, nil
 }
 
-func UpdateProfile(identitiesUrl string, client *IdpApiClient, profile Profile) (Profile, error) {
-  var identityResponse IdentityResponse
-  var updatedProfile Profile
+func UpdateIdentity(identitiesUrl string, client *IdpApiClient, identityRequest identities.IdentitiesRequest) (identities.IdentitiesResponse, error) {
+  var identityResponse identities.IdentitiesResponse
 
-  identityRequest := IdentityRequest{
-    Id: profile.Id,
-    Name: profile.Name,
-    Email: profile.Email,
+  body, err := json.Marshal(identityRequest)
+  if err != nil {
+    return identityResponse, nil
   }
-  body, _ := json.Marshal(identityRequest)
 
   var data = bytes.NewBuffer(body)
 
-  request, _ := http.NewRequest("PUT", identitiesUrl, data)
+  request, err := http.NewRequest("PUT", identitiesUrl, data)
+  if err != nil {
+    return identityResponse, nil
+  }
 
   response, err := client.Do(request)
   if err != nil {
-    return updatedProfile, err
-  }
-
-  responseData, _ := ioutil.ReadAll(response.Body)
-  if response.StatusCode != 200 {
-    return updatedProfile, errors.New("status: " + string(response.StatusCode) + ", error="+string(responseData))
-  }
-
-  err = json.Unmarshal(responseData, &identityResponse)
-  if err != nil {
-    return updatedProfile, err
-  }
-
-  updatedProfile = Profile{
-    Id: identityResponse.Id,
-    Name: identityResponse.Name,
-    Email: identityResponse.Email,
-    Password: identityResponse.Password,
-    TwoFactor: TwoFactor{
-      Required: identityResponse.Require2Fa,
-      Secret: identityResponse.Secret2Fa,
-    },
-  }
-  return updatedProfile, nil
-}
-
-func UpdateTwoFactor(identitiesUrl string, client *IdpApiClient, profile Profile) (Profile, error) {
-  var identityResponse IdentityResponse
-  var updatedProfile Profile
-
-  identityRequest := IdentityRequest{
-    Id: profile.Id,
-    Require2Fa: profile.TwoFactor.Required,
-    Secret2Fa: profile.TwoFactor.Secret,
-
-  }
-  body, _ := json.Marshal(identityRequest)
-
-  var data = bytes.NewBuffer(body)
-
-  request, _ := http.NewRequest("POST", identitiesUrl, data)
-
-  response, err := client.Do(request)
-  if err != nil {
-    return updatedProfile, err
-  }
-
-  responseData, _ := ioutil.ReadAll(response.Body)
-  if response.StatusCode != 200 {
-    return updatedProfile, errors.New("status: " + string(response.StatusCode) + ", error="+string(responseData))
-  }
-
-  err = json.Unmarshal(responseData, &identityResponse)
-  if err != nil {
-    return updatedProfile, err
-  }
-
-  updatedProfile = Profile{
-    Id: identityResponse.Id,
-    Name: identityResponse.Name,
-    Email: identityResponse.Email,
-    Password: identityResponse.Password,
-    TwoFactor: TwoFactor{
-      Required: identityResponse.Require2Fa,
-      Secret: identityResponse.Secret2Fa,
-    },
-  }
-  return updatedProfile, nil
-}
-
-func UpdatePassword(identitiesUrl string, client *IdpApiClient, profile Profile) (Profile, error) {
-  var identityResponse IdentityResponse
-  var updatedProfile Profile
-
-  identityRequest := IdentityRequest{
-    Id: profile.Id,
-    Password: profile.Password,
-  }
-  body, _ := json.Marshal(identityRequest)
-
-  var data = bytes.NewBuffer(body)
-
-  request, _ := http.NewRequest("POST", identitiesUrl, data)
-
-  response, err := client.Do(request)
-  if err != nil {
-    return updatedProfile, err
-  }
-
-  responseData, _ := ioutil.ReadAll(response.Body)
-  if response.StatusCode != 200 {
-    return updatedProfile, errors.New("status: " + string(response.StatusCode) + ", error="+string(responseData))
-  }
-
-  err = json.Unmarshal(responseData, &identityResponse)
-  if err != nil {
-    return updatedProfile, err
-  }
-
-  updatedProfile = Profile{
-    Id: identityResponse.Id,
-    Name: identityResponse.Name,
-    Email: identityResponse.Email,
-    Password: identityResponse.Password,
-    TwoFactor: TwoFactor{
-      Required: identityResponse.Require2Fa,
-      Secret: identityResponse.Secret2Fa,
-    },
-  }
-  return updatedProfile, nil
-}
-
-// config.IdpApi.IdentitiesUrl
-func FetchProfile(url string, client *IdpApiClient, identityRequest IdentityRequest) (Profile, error) {
-  var profile Profile
-  var identityResponse IdentityResponse
-  var userInfoResponse UserInfoResponse
-
-  id := identityRequest.Id
-  if id == "" {
-    // Ask hydra for user from access token in client.
-    userInfoRequest, err := http.NewRequest("GET", url, nil)
-    if err != nil {
-      return profile, err
-    }
-
-    response, err := client.Do(userInfoRequest)
-    if err != nil {
-      return profile, err
-    }
-
-    responseData, err := ioutil.ReadAll(response.Body)
-    if err != nil {
-      return profile, err
-    }
-
-    json.Unmarshal(responseData, &userInfoResponse)
-    id = userInfoResponse.Sub
-  }
-
-  request, err := http.NewRequest("GET", url, nil)
-  if err != nil {
-    return profile, err
-  }
-
-  query := request.URL.Query()
-  query.Add("id", id)
-  request.URL.RawQuery = query.Encode()
-
-  response, err := client.Do(request)
-  if err != nil {
-    return profile, err
+    return identityResponse, err
   }
 
   responseData, err := ioutil.ReadAll(response.Body)
   if err != nil {
-    return profile, err
+    return identityResponse, err
+  }
+
+  if response.StatusCode != 200 {
+    return identityResponse, errors.New(string(responseData))
   }
 
   err = json.Unmarshal(responseData, &identityResponse)
   if err != nil {
-    return profile, err
+    return identityResponse, err
+  }
+  return identityResponse, nil
+}
+
+func UpdateTotp(identitiesUrl string, client *IdpApiClient, totpRequest identities.TotpRequest) (identities.TotpResponse, error) {
+  var totpResponse identities.TotpResponse
+
+  body, err := json.Marshal(totpRequest)
+  if err != nil {
+    return totpResponse, err
   }
 
-  profile = Profile{
-    Id: identityResponse.Id,
-    Name: identityResponse.Name,
-    Email: identityResponse.Email,
-    Password: identityResponse.Password,
-    TwoFactor: TwoFactor{
-      Required: identityResponse.Require2Fa,
-      Secret: identityResponse.Secret2Fa,
-    },
+  var data = bytes.NewBuffer(body)
+
+  request, err := http.NewRequest("POST", identitiesUrl, data)
+  if err != nil {
+    return totpResponse, err
   }
-  return profile, nil
+
+  response, err := client.Do(request)
+  if err != nil {
+    return totpResponse, err
+  }
+
+  responseData, _ := ioutil.ReadAll(response.Body)
+  if response.StatusCode != 200 {
+    return totpResponse, errors.New(string(responseData))
+  }
+
+  err = json.Unmarshal(responseData, &totpResponse)
+  if err != nil {
+    return totpResponse, err
+  }
+
+  return totpResponse, nil
+}
+
+func UpdatePassword(passwordUrl string, client *IdpApiClient, passwordRequest identities.PasswordRequest) (identities.PasswordResponse, error) {
+  var passwordResponse identities.PasswordResponse
+
+  body, err := json.Marshal(passwordRequest)
+  if err != nil {
+    return passwordResponse, err
+  }
+
+  var data = bytes.NewBuffer(body)
+
+  request, err := http.NewRequest("POST", passwordUrl, data)
+  if err != nil {
+    return passwordResponse, err
+  }
+
+  response, err := client.Do(request)
+  if err != nil {
+    return passwordResponse, err
+  }
+
+  responseData, _ := ioutil.ReadAll(response.Body)
+  if response.StatusCode != 200 {
+    return passwordResponse, errors.New(string(responseData))
+  }
+
+  err = json.Unmarshal(responseData, &passwordResponse)
+  if err != nil {
+    return passwordResponse, err
+  }
+
+  return passwordResponse, nil
+}
+
+// config.IdpApi.IdentitiesUrl
+func FetchIdentity(identitiesUrl string, client *IdpApiClient, identityRequest identities.IdentitiesRequest) (identities.IdentitiesResponse, error) {
+  var identityResponse identities.IdentitiesResponse
+
+  request, err := http.NewRequest("GET", identitiesUrl, nil)
+  if err != nil {
+    return identityResponse, err
+  }
+
+  query := request.URL.Query()
+  query.Add("id", identityRequest.Id)
+  request.URL.RawQuery = query.Encode()
+
+  response, err := client.Do(request)
+  if err != nil {
+    return identityResponse, err
+  }
+
+  responseData, err := ioutil.ReadAll(response.Body)
+  if err != nil {
+    return identityResponse, err
+  }
+
+  err = json.Unmarshal(responseData, &identityResponse)
+  if err != nil {
+    return identityResponse, err
+  }
+  return identityResponse, nil
 }
 
 // config.IdpApi.AuthenticateUrl
-func Authenticate(authenticateUrl string, client *IdpApiClient, authenticateRequest AuthenticateRequest) (AuthenticateResponse, error) {
-  var authenticateResponse AuthenticateResponse
+func Authenticate(authenticateUrl string, client *IdpApiClient, authenticateRequest identities.AuthenticateRequest) (identities.AuthenticateResponse, error) {
+  var authenticateResponse identities.AuthenticateResponse
 
   body, _ := json.Marshal(authenticateRequest)
 
@@ -495,36 +284,69 @@ func Authenticate(authenticateUrl string, client *IdpApiClient, authenticateRequ
   return authenticateResponse, nil
 }
 
-func VerifyPasscode(passcodeUrl string, client *IdpApiClient, passcodeRequest PasscodeRequest) (PasscodeResponse, error) {
-  var passcodeResponse PasscodeResponse
+func FetchChallenge(challengeUrl string, client *IdpApiClient, challengeRequest challenges.OtpChallengeRequest) (challenges.OtpChallengeResponse, error) {
+  var challengeResponse challenges.OtpChallengeResponse
 
-  body, _ := json.Marshal(passcodeRequest)
+  request, err := http.NewRequest("GET", challengeUrl, nil)
+  if err != nil {
+    return challengeResponse, err
+  }
 
-  var data = bytes.NewBuffer(body)
-
-  request, _ := http.NewRequest("POST", passcodeUrl, data)
+  query := request.URL.Query()
+  query.Add("otp_challenge", challengeRequest.OtpChallenge)
+  request.URL.RawQuery = query.Encode()
 
   response, err := client.Do(request)
   if err != nil {
-    return passcodeResponse, err
+    return challengeResponse, err
+  }
+
+  responseData, err := ioutil.ReadAll(response.Body)
+  if err != nil {
+    return challengeResponse, err
+  }
+
+  if response.StatusCode != 200 {
+    return challengeResponse, errors.New(string(responseData))
+  }
+
+  err = json.Unmarshal(responseData, &challengeResponse)
+  if err != nil {
+    return challengeResponse, err
+  }
+  return challengeResponse, nil
+}
+
+func VerifyChallenge(verifyUrl string, client *IdpApiClient, verifyRequest challenges.VerifyRequest) (challenges.VerifyResponse, error) {
+  var verifyResponse challenges.VerifyResponse
+
+  body, _ := json.Marshal(verifyRequest)
+
+  var data = bytes.NewBuffer(body)
+
+  request, _ := http.NewRequest("POST", verifyUrl, data)
+
+  response, err := client.Do(request)
+  if err != nil {
+    return verifyResponse, err
   }
 
   responseData, _ := ioutil.ReadAll(response.Body)
 
   if response.StatusCode != 200 {
-    return passcodeResponse, errors.New(string(responseData))
+    return verifyResponse, errors.New(string(responseData))
   }
 
-  err = json.Unmarshal(responseData, &passcodeResponse)
+  err = json.Unmarshal(responseData, &verifyResponse)
   if err != nil {
-    return passcodeResponse, err
+    return verifyResponse, err
   }
 
-  return passcodeResponse, nil
+  return verifyResponse, nil
 }
 
-func Recover(recoverUrl string, client *IdpApiClient, recoverRequest RecoverRequest) (RecoverResponse, error) {
-  var recoverResponse RecoverResponse
+func Recover(recoverUrl string, client *IdpApiClient, recoverRequest identities.RecoverRequest) (identities.RecoverResponse, error) {
+  var recoverResponse identities.RecoverResponse
 
   body, _ := json.Marshal(recoverRequest)
 
@@ -551,8 +373,8 @@ func Recover(recoverUrl string, client *IdpApiClient, recoverRequest RecoverRequ
   return recoverResponse, nil
 }
 
-func RecoverVerification(recoverVerificationUrl string, client *IdpApiClient, recoverRequest RecoverVerificationRequest) (RecoverVerificationResponse, error) {
-  var recoverResponse RecoverVerificationResponse
+func RecoverVerification(recoverVerificationUrl string, client *IdpApiClient, recoverRequest identities.RecoverVerificationRequest) (identities.RecoverVerificationResponse, error) {
+  var recoverResponse identities.RecoverVerificationResponse
 
   body, _ := json.Marshal(recoverRequest)
 
@@ -580,8 +402,8 @@ func RecoverVerification(recoverVerificationUrl string, client *IdpApiClient, re
 }
 
 // config.IdpApi.LogoutUrl
-func Logout(logoutUrl string, client *IdpApiClient, logoutRequest LogoutRequest) (LogoutResponse, error) {
-  var logoutResponse LogoutResponse
+func Logout(logoutUrl string, client *IdpApiClient, logoutRequest identities.LogoutRequest) (identities.LogoutResponse, error) {
+  var logoutResponse identities.LogoutResponse
 
   body, _ := json.Marshal(logoutRequest)
 

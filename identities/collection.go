@@ -7,7 +7,7 @@ import (
   "bytes"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  
+
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
@@ -25,6 +25,8 @@ type IdentitiesResponse struct {
   Password      string          `json:"password" binding:"required"`
   Name          string          `json:"name"`
   Email         string          `json:"email"`
+  TotpRequired  bool            `json:"totp_required"`
+  TotpSecret    string          `json:"totp_secret"`
 }
 
 type DeleteRequest struct {

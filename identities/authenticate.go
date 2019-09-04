@@ -14,15 +14,15 @@ import (
 type AuthenticateRequest struct {
   Id              string            `json:"id"`
   Password        string            `json:"password"`
-  Passcode        string            `json:"passcode"`
   Challenge       string            `json:"challenge" binding:"required"`
+  OtpChallenge    string            `json:"otp_challenge"`
 }
 
 type AuthenticateResponse struct {
   Id              string            `json:"id" binding:"required"`
   NotFound        bool              `json:"not_found" binding:"required"`
   Authenticated   bool              `json:"authenticated" binding:"required"`
-  Require2Fa      bool              `json:"require_2fa" binding:"required"`
+  TotpRequired    bool              `json:"totp_required" binding:"required"`
   RedirectTo      string            `json:"redirect_to" binding:"required"`
 }
 
@@ -41,12 +41,6 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       c.Abort()
       return
     }
-
-    log.WithFields(logrus.Fields{
-      "challenge": input.Challenge,
-      "id": input.Id,
-      "password": input.Password,
-    }).Debug("PostAuthenticate.Input")
 
     // Create a new HTTP client to perform the request, to prevent serialization
     hydraClient := hydra.NewHydraClient(env.HydraConfig)
@@ -80,12 +74,11 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
         "redirect_to": hydraLoginAcceptResponse.RedirectTo,
       }).Debug("PostAuthenticate.Hydra.AcceptLogin.Response")
 
-      log.WithFields(logrus.Fields{"fixme":1}).Debug("Should we ignore 2fa require when hydra says skip?")
       acceptResponse := AuthenticateResponse{
         Id: hydraLoginResponse.Subject,
         Authenticated: true,
         NotFound: false,
-        Require2Fa: false,
+        TotpRequired: false,
         RedirectTo: hydraLoginAcceptResponse.RedirectTo,
       }
 
@@ -93,7 +86,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
         "challenge": input.Challenge,
         "id": acceptResponse.Id,
         "authenticated": acceptResponse.Authenticated,
-        "require_2fa": acceptResponse.Require2Fa,
+        "totp_required": acceptResponse.TotpRequired,
         "redirect_to": acceptResponse.RedirectTo,
       }).Debug("Authenticated")
 
@@ -106,22 +99,77 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       Id: input.Id,
       NotFound: false,
       Authenticated: false,
-      Require2Fa: false,
+      TotpRequired: false,
       RedirectTo: "",
     }
 
-    // Masked read on challenge, no need to hit database.
+    // Masked read on challenge that has not been bound to an Identity yet. No need to hit database.
     if input.Challenge != "" && input.Id == "" {
       log.WithFields(logrus.Fields{
         "challenge": input.Challenge,
         "id": denyResponse.Id,
         "authenticated": denyResponse.Authenticated,
-        "require_2fa": denyResponse.Require2Fa,
+        "totp_required": denyResponse.TotpRequired,
         "redirect_to": denyResponse.RedirectTo,
       }).Debug("Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
       c.Abort()
       return;
+    }
+
+    // Found otp_challenge check if verified.
+    if input.OtpChallenge != "" {
+
+      // Cases:
+      // 1. User needs to authenticate
+      //   1. User passes, call accept login
+      //   2. User passes, but require otp before accept login
+      //     3. Generate otp challenge and redirect to verify
+      //     4. User verifies and redirect back to authenticate on login_challenge but now with verified otp_challenge.
+
+      // Check that login_challenge url and login_challenge in otp_challenge is the same. (CSRF)
+      // Accept login based on verified otp data
+
+      otpChallenge, err := idp.FetchChallenge(env.Driver, input.OtpChallenge)
+      if err != nil {
+        log.Debug(err.Error())
+        log.WithFields(logrus.Fields{
+          "challenge": input.Challenge,
+          "id": denyResponse.Id,
+          "authenticated": denyResponse.Authenticated,
+          "totp_required": denyResponse.TotpRequired,
+          "redirect_to": denyResponse.RedirectTo,
+        }).Debug("Authentication denied")
+        c.JSON(http.StatusOK, denyResponse)
+        c.Abort()
+        return;
+      }
+
+      if otpChallenge == nil {
+        log.WithFields(logrus.Fields{
+          "challenge": input.Challenge,
+          "id": denyResponse.Id,
+          "authenticated": denyResponse.Authenticated,
+          "totp_required": denyResponse.TotpRequired,
+          "redirect_to": denyResponse.RedirectTo,
+        }).Debug("Authentication denied")
+        c.JSON(http.StatusOK, denyResponse)
+        c.Abort()
+        return;
+      }
+
+      if otpChallenge.Verified > 0 {
+
+      }
+
+      // Deny by default
+      log.WithFields(logrus.Fields{
+        "id": denyResponse.Id,
+        "authenticated": denyResponse.Authenticated,
+        "totp_required": denyResponse.TotpRequired,
+        "redirect_to": denyResponse.RedirectTo,
+      }).Debug("Authentication denied")
+      c.JSON(http.StatusOK, denyResponse)
     }
 
     identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
@@ -131,7 +179,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
         "challenge": input.Challenge,
         "id": denyResponse.Id,
         "authenticated": denyResponse.Authenticated,
-        "require_2fa": denyResponse.Require2Fa,
+        "totp_required": denyResponse.TotpRequired,
         "redirect_to": denyResponse.RedirectTo,
       }).Debug("Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
@@ -151,16 +199,40 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
           Id: identity.Id,
           NotFound: false,
           Authenticated: true,
-          Require2Fa: identity.Require2Fa,
+          TotpRequired: identity.TotpRequired,
           RedirectTo: "",
         }
 
-        if identity.Require2Fa {
-          // Do not call hydra yet we need passcode authentication aswell. Create a passcode request instaed.
-          log.WithFields(logrus.Fields{"fixme": 1}).Debug("How to do the passcode redirect in config? Maybe make request param a jwt");
-          url := "/passcode" //config.GetString("idpui.public.url") + config.GetString("idpui.public.url.endpoints.passcode")
-          passcodeChallenge := idp.CreatePasscodeChallenge(url, input.Challenge, identity.Id, config.GetString("2fa.sigkey"))
-          acceptResponse.RedirectTo = passcodeChallenge.RedirectTo
+        if identity.TotpRequired {
+          // Do not call hydra yet we need totp authentication aswell. Create a totp request instaed.
+
+          redirectTo := "https://id.localhost/authenticate?login_challenge=" + input.Challenge
+
+          aChallenge := idp.Challenge{
+            TTL: 300, // 5 min
+            CodeType: "TOTP", // means the code is not stored in DB, but calculated from otp_secret
+            Code: "",
+            RedirectTo: redirectTo, // When challenge is verified where should the verify controller redirect to and append otp_challenge=
+            Audience: "https://id.localhost/api/authenticate",
+          }
+
+          challenge, err := idp.CreateChallengeForIdentity(env.Driver, identity, aChallenge)
+          if err != nil {
+            log.Debug(err.Error())
+            log.WithFields(logrus.Fields{
+              "challenge": input.Challenge,
+              "id": denyResponse.Id,
+              "authenticated": denyResponse.Authenticated,
+              "totp_required": denyResponse.TotpRequired,
+              "redirect_to": denyResponse.RedirectTo,
+            }).Debug("Authentication denied")
+            c.JSON(http.StatusOK, denyResponse)
+            c.Abort()
+            return
+          }
+
+          // config.GetString("idpui.public.url") + config.GetString("idpui.public.url.endpoints.verify")
+          acceptResponse.RedirectTo = "/verify?otp_challenge=" + challenge.OtpChallenge
 
         } else {
           hydraLoginAcceptRequest := hydra.LoginAcceptRequest{
@@ -180,7 +252,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
           "challenge": input.Challenge,
           "id": acceptResponse.Id,
           "authenticated": acceptResponse.Authenticated,
-          "require_2fa": acceptResponse.Require2Fa,
+          "totp_required": acceptResponse.TotpRequired,
           "redirect_to": acceptResponse.RedirectTo,
         }).Debug("Authenticated")
         c.JSON(http.StatusOK, acceptResponse)
@@ -196,7 +268,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
     log.WithFields(logrus.Fields{
       "id": denyResponse.Id,
       "authenticated": denyResponse.Authenticated,
-      "require_2fa": denyResponse.Require2Fa,
+      "totp_required": denyResponse.TotpRequired,
       "redirect_to": denyResponse.RedirectTo,
     }).Debug("Authentication denied")
     c.JSON(http.StatusOK, denyResponse)
