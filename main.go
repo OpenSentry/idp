@@ -16,12 +16,13 @@ import (
   "github.com/atarantini/ginrequestid"
   "github.com/neo4j/neo4j-go-driver/neo4j"
   hydra "github.com/charmixer/hydra/client"
-  "github.com/pborman/getopt"  
+  "github.com/pborman/getopt"
 
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/migration"
   "github.com/charmixer/idp/identities"
+  "github.com/charmixer/idp/challenges"
 )
 
 const app = "idp"
@@ -167,11 +168,12 @@ func main() {
 func serve(env *environment.State) {
   // Setup routes to use, this defines log for debug log
   routes := map[string]environment.Route{
+    "/challenges":                     environment.Route{URL: "/challenges",                     LogId: "idp://challenges"},
+    "/challenges/verify":              environment.Route{URL: "/challenges/verify",              LogId: "idp://challenges/verify"},
     "/identities":                     environment.Route{URL: "/identities",                     LogId: "idp://identities"},
     "/identities/authenticate":        environment.Route{URL: "/identities/authenticate",        LogId: "idpui://identities/authenticate"},
     "/identities/password":            environment.Route{URL: "/identities/password",            LogId: "idp://identities/password"},
-    "/identities/passcode":            environment.Route{URL: "/identities/passcode",            LogId: "idp://identities/passcode"},
-    "/identities/2fa":                 environment.Route{URL: "/identities/2fa",                 LogId: "idp://identities/2fa"},
+    "/identities/totp":                environment.Route{URL: "/identities/totp",                LogId: "idp://identities/totp"},
     "/identities/logout":              environment.Route{URL: "/identities/logout",              LogId: "idpui://identities/logout"},
     "/identities/revoke":              environment.Route{URL: "/identities/revoke",              LogId: "idpui://identities/revoke"},
     "/identities/recover":             environment.Route{URL: "/identities/recover",             LogId: "idpui://identities/recover"},
@@ -195,6 +197,10 @@ func serve(env *environment.State) {
   // All requests need to be authenticated.
   r.Use(authenticationRequired())
 
+  r.GET(  routes["/challenges"].URL, authorizationRequired(env, routes["/challenges"], "authenticate:identity"), challenges.GetCollection(env, routes["/challenges"]))
+  r.POST( routes["/challenges"].URL, authorizationRequired(env, routes["/challenges"], "authenticate:identity"), challenges.PostCollection(env, routes["/challenges"]))
+  r.POST( routes["/challenges/verify"].URL, authorizationRequired(env, routes["/challenges/verify"], "authenticate:identity"), challenges.PostVerify(env, routes["/challenges/verify"]))
+
   r.GET(routes["/identities"].URL, authorizationRequired(env, routes["/identities"], "read:identity"), identities.GetCollection(env, routes["/identities"]))
   r.POST(routes["/identities"].URL, authorizationRequired(env, routes["/identities"], "authenticate:identity"), identities.PostCollection(env, routes["/identities"]))
   r.PUT(routes["/identities"].URL, authorizationRequired(env, routes["/identities"], "update:identity"), identities.PutCollection(env, routes["/identities"]))
@@ -204,14 +210,15 @@ func serve(env *environment.State) {
 
   r.POST(routes["/identities/authenticate"].URL, authorizationRequired(env, routes["/identities/authenticate"], "authenticate:identity"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
   r.POST(routes["/identities/password"].URL, authorizationRequired(env, routes["/identities/password"], "authenticate:identity"), identities.PostPassword(env, routes["/identities/password"]))
-  r.POST(routes["/identities/passcode"].URL, authorizationRequired(env, routes["/identities/passcode"], "authenticate:identity"), identities.PostPasscode(env, routes["/identities/passcode"]))
-  r.POST(routes["/identities/2fa"].URL, authorizationRequired(env, routes["/identities/2fa"], "authenticate:identity"), identities.Post2Fa(env, routes["/identities/2fa"]))
+
+  r.POST(routes["/identities/totp"].URL, authorizationRequired(env, routes["/identities/totp"], "authenticate:identity"), identities.PostTotp(env, routes["/identities/totp"]))
 
   r.POST(routes["/identities/logout"].URL, authorizationRequired(env, routes["/identities/logout"], "logout:identity"), identities.PostLogout(env, routes["/identities/logout"]))
-  //r.POST(routes["/identities/revoke"].URL, authorizationRequired(routes["/identities/revoke"], "idp.revoke"), identities.PostRevoke(env, routes["/identities/revoke"]))
 
   r.POST(routes["/identities/recover"].URL, authorizationRequired(env, routes["/identities/recover"], "recover:identity"), identities.PostRecover(env, routes["/identities/recover"]))
   r.POST(routes["/identities/recoververification"].URL, authorizationRequired(env, routes["/identities/recoververification"], "authenticate:identity"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
+
+
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
