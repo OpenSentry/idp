@@ -31,17 +31,7 @@ RUN go mod download
 # Copy everything from the current directory to the PWD(Present Working Directory) inside the container
 COPY . .
 
-RUN go build -o idpui .
-
-# Copy everything from the current directory to the PWD(Present Working Directory) inside the container
-#COPY . .
-
-# Download all the dependencies
-# https://stackoverflow.com/questions/28031603/what-do-three-dots-mean-in-go-command-line-invocations
-#RUN go get -d -v ./...
-
-# Install the package
-#RUN go install -v ./...
+RUN go build -o idp .
 
 # This container exposes port 443 to the docker network
 EXPOSE 443
