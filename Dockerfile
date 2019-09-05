@@ -19,7 +19,6 @@ WORKDIR /seabolt/build
 RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
 
 # Set the Current Working Directory inside the container
-# WORKDIR $GOPATH/src/github.com/charmixer/idp
 WORKDIR /app
 
 # Copy go mod and sum files
