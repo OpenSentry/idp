@@ -229,7 +229,7 @@ func FetchChallenge(driver neo4j.Driver, otpChallenge string) (*Challenge, error
     var result neo4j.Result
 
     cypher := `
-      MATCH (c:Challenge {otp_challenge}:$otpChallenge})<-[:REQUESTED]-(i:Identity) WHERE c.exp > datetime.epochMillis
+      MATCH (c:Challenge {otp_challenge}:$otpChallenge})<-[:REQUESTED]-(i:Identity) WHERE c.exp > datetime.epochSeconds
       RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.sub
     `
     params := map[string]interface{}{"otpChallenge": otpChallenge}
@@ -292,7 +292,7 @@ func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (*Challenge, erro
   obj, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      MATCH (c:Challenge {otp_challenge}:$otpChallenge})<-[:REQUESTED]-(i:Identity) SET c.verified = datetime.epochMillis
+      MATCH (c:Challenge {otp_challenge}:$otpChallenge})<-[:REQUESTED]-(i:Identity) SET c.verified = datetime.epochSeconds
       RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.sub
     `
     params := map[string]interface{}{"otpChallenge": challenge.OtpChallenge}
@@ -357,11 +357,11 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub})
-      MERGE (i)-[:REQUESTED]->(c:Challenge {otp_challenge:randomUUID(), aud:$aud, iat:datetime().epochMillis, exp:datetime().epochMillis + $ttl, verified:0, ttl:$ttl, code_type:$codeType, code:$code, redirect_to:$redirectTo})
+      MERGE (i)-[:REQUESTED]->(c:Challenge {otp_challenge:randomUUID(), aud:$aud, iat:datetime().epochSeconds, exp:datetime().epochSeconds + $ttl, verified:0, ttl:$ttl, code_type:$codeType, code:$code, redirect_to:$redirectTo})
 
       WITH i, c
 
-      MATCH (i)-[:REQUESTED]->(d:Challenge) WHERE d.exp <= datetime().epochMillis DETACH DELETE d
+      MATCH (i)-[:REQUESTED]->(d:Challenge) WHERE d.exp <= datetime().epochSeconds DETACH DELETE d
 
       RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.sub
     `
