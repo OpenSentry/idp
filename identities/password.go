@@ -18,7 +18,7 @@ type PasswordResponse struct {
   Id              string            `json:"id" binding:"required"`
 }
 
-func PostPassword(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PutPassword(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
