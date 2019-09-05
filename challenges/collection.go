@@ -34,17 +34,6 @@ type OtpChallengeCreateRequest struct {
   Code         string `json:"code" binding:"required"`
 }
 
-type OtpChallengeVerifyRequest struct {
-  OtpChallenge string `json:"otp_challenge" binding:"required"`
-  Code string `json:"code" binding:"required"`
-}
-
-type OtpChallengeVerifyResponse struct {
-  OtpChallenge string `json:"otp_challenge" binding:"required"`
-  Verified     bool   `json:"verifed" binding:"required"`
-  RedirectTo   string `json:"redirect_to" binding:"required"`
-}
-
 func GetCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 

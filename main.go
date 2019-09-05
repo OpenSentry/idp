@@ -209,9 +209,9 @@ func serve(env *environment.State) {
   r.POST(routes["/identities/deleteverification"].URL, authorizationRequired(env, routes["/identities/deleteverification"], "delete:identity"), identities.PostDeleteVerification(env, routes["/identities/deleteverification"]))
 
   r.POST(routes["/identities/authenticate"].URL, authorizationRequired(env, routes["/identities/authenticate"], "authenticate:identity"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
-  r.POST(routes["/identities/password"].URL, authorizationRequired(env, routes["/identities/password"], "authenticate:identity"), identities.PostPassword(env, routes["/identities/password"]))
+  r.PUT(routes["/identities/password"].URL, authorizationRequired(env, routes["/identities/password"], "authenticate:identity"), identities.PutPassword(env, routes["/identities/password"]))
 
-  r.POST(routes["/identities/totp"].URL, authorizationRequired(env, routes["/identities/totp"], "authenticate:identity"), identities.PostTotp(env, routes["/identities/totp"]))
+  r.PUT(routes["/identities/totp"].URL, authorizationRequired(env, routes["/identities/totp"], "authenticate:identity"), identities.PutTotp(env, routes["/identities/totp"]))
 
   r.POST(routes["/identities/logout"].URL, authorizationRequired(env, routes["/identities/logout"], "logout:identity"), identities.PostLogout(env, routes["/identities/logout"]))
 

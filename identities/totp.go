@@ -20,7 +20,7 @@ type TotpResponse struct {
   Id string `json:"id" binding:"required"`
 }
 
-func PostTotp(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PutTotp(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
