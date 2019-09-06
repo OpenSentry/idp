@@ -43,7 +43,7 @@ func PostVerify(env *environment.State, route environment.Route) gin.HandlerFunc
       RedirectTo: "",
     }
 
-    challenge, err := idp.FetchChallenge(env.Driver, input.OtpChallenge)
+    challenge, exists, err := idp.FetchChallenge(env.Driver, input.OtpChallenge)
     if err != nil {
       log.WithFields(logrus.Fields{
         "otp_challenge": input.OtpChallenge,
@@ -53,7 +53,7 @@ func PostVerify(env *environment.State, route environment.Route) gin.HandlerFunc
       return
     }
 
-    if challenge == nil {
+    if exists == false {
       log.WithFields(logrus.Fields{
         "otp_challenge": input.OtpChallenge,
       }).Debug("Challenge not found")
@@ -62,7 +62,9 @@ func PostVerify(env *environment.State, route environment.Route) gin.HandlerFunc
       return
     }
 
-    identities, err := idp.FetchIdentitiesForSub(env.Driver, challenge.Subject)
+    log.Debug(challenge)
+
+    identity, exists, err := idp.FetchIdentity(env.Driver, challenge.Subject)
     if err != nil {
       log.WithFields(logrus.Fields{
         "otp_challenge": challenge.OtpChallenge,
@@ -73,7 +75,7 @@ func PostVerify(env *environment.State, route environment.Route) gin.HandlerFunc
       return;
     }
 
-    if identities == nil {
+    if exists == false {
       log.WithFields(logrus.Fields{
         "otp_challenge": challenge.OtpChallenge,
         "id": challenge.Subject,
@@ -82,18 +84,6 @@ func PostVerify(env *environment.State, route environment.Route) gin.HandlerFunc
       c.Abort()
       return;
     }
-
-    if len(identities) > 1 {
-      log.WithFields(logrus.Fields{
-        "otp_challenge": challenge.OtpChallenge,
-        "id": challenge.Subject,
-      }).Debug("Found to many identities")
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Found to many Identity"})
-      c.Abort()
-      return;
-    }
-
-    identity := identities[0];
 
     var valid bool = false
 
@@ -127,13 +117,23 @@ func PostVerify(env *environment.State, route environment.Route) gin.HandlerFunc
     }
 
     if valid == true {
-      verifiedChallenge, err := idp.VerifyChallenge(env.Driver, *challenge)
+      verifiedChallenge, exists, err := idp.VerifyChallenge(env.Driver, challenge)
       if err != nil {
         log.Debug(err.Error())
         log.WithFields(logrus.Fields{"otp_challenge": challenge.OtpChallenge}).Debug("Set challenge verified failed")
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         c.Abort()
         return
+      }
+
+      if exists == false {
+        log.WithFields(logrus.Fields{
+          "otp_challenge": challenge.OtpChallenge,
+          "id": challenge.Subject,
+        }).Debug("Challenge not found")
+        c.JSON(http.StatusNotFound, gin.H{"error": "Challenge not found"})
+        c.Abort()
+        return;
       }
 
       c.JSON(http.StatusOK, VerifyResponse{

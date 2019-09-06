@@ -103,20 +103,6 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       RedirectTo: "",
     }
 
-    // Masked read on challenge that has not been bound to an Identity yet. No need to hit database.
-    if input.Challenge != "" && input.Id == "" {
-      log.WithFields(logrus.Fields{
-        "challenge": input.Challenge,
-        "id": denyResponse.Id,
-        "authenticated": denyResponse.Authenticated,
-        "totp_required": denyResponse.TotpRequired,
-        "redirect_to": denyResponse.RedirectTo,
-      }).Debug("Authentication denied")
-      c.JSON(http.StatusOK, denyResponse)
-      c.Abort()
-      return;
-    }
-
     // Found otp_challenge check if verified.
     if input.OtpChallenge != "" {
 
@@ -130,7 +116,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       // Check that login_challenge url and login_challenge in otp_challenge is the same. (CSRF)
       // Accept login based on verified otp data
 
-      otpChallenge, err := idp.FetchChallenge(env.Driver, input.OtpChallenge)
+      challenge, exists, err := idp.FetchChallenge(env.Driver, input.OtpChallenge)
       if err != nil {
         log.Debug(err.Error())
         log.WithFields(logrus.Fields{
@@ -145,21 +131,52 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
         return;
       }
 
-      if otpChallenge == nil {
+      if exists == false {
         log.WithFields(logrus.Fields{
           "challenge": input.Challenge,
           "id": denyResponse.Id,
           "authenticated": denyResponse.Authenticated,
           "totp_required": denyResponse.TotpRequired,
           "redirect_to": denyResponse.RedirectTo,
-        }).Debug("Authentication denied")
-        c.JSON(http.StatusOK, denyResponse)
+        }).Debug("Challenge not found, OTP")
+        c.JSON(http.StatusNotFound, gin.H{"error": "Challenge not found, OTP"})
         c.Abort()
-        return;
+        return
       }
 
-      if otpChallenge.Verified > 0 {
+      if challenge.Verified > 0 {
+        log.WithFields(logrus.Fields{"otp_challenge": challenge.OtpChallenge}).Debug("Challenge verified")
 
+        log.WithFields(logrus.Fields{"fixme": 1}).Debug("Check if challenge actually matches login_challenge and that session matches?")
+
+        hydraLoginAcceptRequest := hydra.LoginAcceptRequest{
+          Subject: challenge.Subject,
+          Remember: true,
+          RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
+        }
+        hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
+        log.WithFields(logrus.Fields{
+          "challenge": input.Challenge,
+          "redirect_to": hydraLoginAcceptResponse.RedirectTo,
+        }).Debug("PostAuthenticate.Hydra.AcceptLogin.Response")
+
+        acceptResponse := AuthenticateResponse{
+          Id: hydraLoginResponse.Subject,
+          Authenticated: true,
+          NotFound: false,
+          TotpRequired: true, // FIXME: Lookup identity to figure out?
+          RedirectTo: hydraLoginAcceptResponse.RedirectTo,
+        }
+
+        log.WithFields(logrus.Fields{
+          "challenge": input.Challenge,
+          "id": acceptResponse.Id,
+          "authenticated": acceptResponse.Authenticated,
+          "totp_required": acceptResponse.TotpRequired,
+          "redirect_to": acceptResponse.RedirectTo,
+        }).Debug("Authenticated")
+        c.JSON(http.StatusOK, acceptResponse)
+        return
       }
 
       // Deny by default
@@ -172,7 +189,21 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       c.JSON(http.StatusOK, denyResponse)
     }
 
-    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
+    // Masked read on challenge that has not been bound to an Identity yet. No need to hit database.
+    if input.Challenge != "" && input.Id == "" {
+      log.WithFields(logrus.Fields{
+        "challenge": input.Challenge,
+        "id": denyResponse.Id,
+        "authenticated": denyResponse.Authenticated,
+        "totp_required": denyResponse.TotpRequired,
+        "redirect_to": denyResponse.RedirectTo,
+      }).Debug("Authentication denied")
+      c.JSON(http.StatusOK, denyResponse)
+      c.Abort()
+      return;
+    }
+
+    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       log.WithFields(logrus.Fields{
@@ -187,10 +218,16 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       return;
     }
 
-    if identities != nil {
+    if exists == false {
+      denyResponse.NotFound = true
+      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
+      c.JSON(http.StatusOK, denyResponse)
+      c.Abort()
+      return;
+    }
 
-      log.WithFields(logrus.Fields{"fixme": 1}).Debug("Change FetchIdentitiesForSub to not be a bulk function")
-      identity := identities[0];
+    log.WithFields(logrus.Fields{"fixme": 1}).Debug("Use NoLogin boolean on Identity to check if we want to login.")
+    if identity.Id != "" {
 
       valid, _ := idp.ValidatePassword(identity.Password, input.Password)
       if valid == true {
@@ -203,7 +240,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
           RedirectTo: "",
         }
 
-        if identity.TotpRequired {
+        if identity.TotpRequired == true {
           // Do not call hydra yet we need totp authentication aswell. Create a totp request instaed.
 
           redirectTo := "https://id.localhost/authenticate?login_challenge=" + input.Challenge
@@ -215,8 +252,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
             RedirectTo: redirectTo, // When challenge is verified where should the verify controller redirect to and append otp_challenge=
             Audience: "https://id.localhost/api/authenticate",
           }
-
-          challenge, err := idp.CreateChallengeForIdentity(env.Driver, identity, aChallenge)
+          challenge, exists, err := idp.CreateChallengeForIdentity(env.Driver, identity, aChallenge)
           if err != nil {
             log.Debug(err.Error())
             log.WithFields(logrus.Fields{
@@ -227,6 +263,22 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
               "redirect_to": denyResponse.RedirectTo,
             }).Debug("Authentication denied")
             c.JSON(http.StatusOK, denyResponse)
+            c.Abort()
+            return
+          }
+
+log.Debug("WTF WTF WTF")
+log.Debug(challenge)
+
+          if exists == false {
+            log.WithFields(logrus.Fields{
+              "challenge": input.Challenge,
+              "id": denyResponse.Id,
+              "authenticated": denyResponse.Authenticated,
+              "totp_required": denyResponse.TotpRequired,
+              "redirect_to": denyResponse.RedirectTo,
+            }).Debug("Challenge not found, OTP")
+            c.JSON(http.StatusNotFound, gin.H{"error": "Challenge not found, OTP"})
             c.Abort()
             return
           }
@@ -258,10 +310,6 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
         c.JSON(http.StatusOK, acceptResponse)
         return
       }
-
-    } else {
-      denyResponse.NotFound = true
-      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
     }
 
     // Deny by default

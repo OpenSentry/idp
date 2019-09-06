@@ -34,7 +34,7 @@ func PutPassword(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
+    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -42,9 +42,7 @@ func PutPassword(env *environment.State, route environment.Route) gin.HandlerFun
       return;
     }
 
-    if identities != nil {
-
-      identity := identities[0]; // FIXME do not return a list of identities!
+    if exists == true {
 
       valid, _ := idp.ValidatePassword(identity.Password, input.Password)
       if valid == true {

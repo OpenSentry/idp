@@ -43,22 +43,20 @@ func PostDeleteVerification(env *environment.State, route environment.Route) gin
       RedirectTo: "",
     }
 
-    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
+    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid id"})
+      c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Identity"})
       c.Abort();
       return
     }
 
-    if identities == nil {
+    if exists == false {
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
       c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       c.Abort();
       return
     }
-
-    identity := identities[0];
 
     valid, err := idp.ValidatePassword(identity.OtpDeleteCode, input.VerificationCode)
     if err != nil {

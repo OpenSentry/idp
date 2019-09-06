@@ -45,7 +45,7 @@ func PostOtp(env *environment.State, route environment.Route) gin.HandlerFunc {
       RedirectTo: "",
     }
 
-    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
+    identities, err := idp.FetchIdentity(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       log.WithFields(logrus.Fields{
@@ -60,7 +60,7 @@ func PostOtp(env *environment.State, route environment.Route) gin.HandlerFunc {
 
     if identities != nil {
 
-      log.WithFields(logrus.Fields{"fixme": 1}).Debug("Change FetchIdentitiesForSub to not be a bulk function")
+      log.WithFields(logrus.Fields{"fixme": 1}).Debug("Change FetchIdentity to not be a bulk function")
       identity := identities[0];
 
       // Sanity check. Only check password when 2fa is required by identity.

@@ -42,7 +42,7 @@ type Challenge struct {
   Audience     string `json:"aud"`
   IssuedAt     int64  `json:"iat"`
   ExpiresAt    int64  `json:"exp"`
-  TTL          int    `json:"ttl"`
+  TTL          int64  `json:"ttl"`
   RedirectTo   string `json:"redirect_to"`
   CodeType     string `json:"code_type"`
   Code         string `json:"code"`
@@ -214,14 +214,14 @@ func decrypt(ciphertext []byte, key []byte) ([]byte, error) {
   return gcm.Open(nil, nonce, ciphertext, nil)
 }
 
-func FetchChallenge(driver neo4j.Driver, otpChallenge string) (*Challenge, error) {
+func FetchChallenge(driver neo4j.Driver, otpChallenge string) (Challenge, bool, error) {
   var err error
   var session neo4j.Session
   var obj interface{}
 
   session, err = driver.Session(neo4j.AccessModeRead);
   if err != nil {
-    return nil, err
+    return Challenge{}, false, err
   }
   defer session.Close()
 
@@ -229,7 +229,7 @@ func FetchChallenge(driver neo4j.Driver, otpChallenge string) (*Challenge, error
     var result neo4j.Result
 
     cypher := `
-      MATCH (c:Challenge {otp_challenge}:$otpChallenge})<-[:REQUESTED]-(i:Identity) WHERE c.exp > datetime.epochSeconds
+      MATCH (c:Challenge {otp_challenge:$otpChallenge})<-[:REQUESTED]-(i:Identity) WHERE c.exp > datetime().epochSeconds
       RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.sub
     `
     params := map[string]interface{}{"otpChallenge": otpChallenge}
@@ -237,7 +237,7 @@ func FetchChallenge(driver neo4j.Driver, otpChallenge string) (*Challenge, error
       return nil, err
     }
 
-    var challenge *Challenge
+    var challenge Challenge
     if result.Next() {
       record := result.Record()
 
@@ -246,13 +246,13 @@ func FetchChallenge(driver neo4j.Driver, otpChallenge string) (*Challenge, error
       iat := record.GetByIndex(2).(int64)
       exp := record.GetByIndex(3).(int64)
       verified := record.GetByIndex(4).(int64)
-      ttl := record.GetByIndex(5).(int)
+      ttl := record.GetByIndex(5).(int64)
       codeType := record.GetByIndex(6).(string)
       code := record.GetByIndex(7).(string)
       redirectTo := record.GetByIndex(8).(string)
       sub := record.GetByIndex(9).(string)
 
-      challenge = &Challenge{
+      challenge = Challenge{
         OtpChallenge: otpChallenge,
         Subject: sub,
         Audience: aud,
@@ -270,29 +270,36 @@ func FetchChallenge(driver neo4j.Driver, otpChallenge string) (*Challenge, error
     if err = result.Err(); err != nil {
       return nil, err
     }
+
+    // TODO: Check if neo returned empty set
+
     return challenge, nil
   })
+
   if err != nil {
-    return nil, err
+    return Challenge{}, false, err
   }
-  return obj.(*Challenge), nil
+  if obj != nil {
+    return obj.(Challenge), true, nil
+  }
+  return Challenge{}, false, nil
 }
 
-func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (*Challenge, error) {
+func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, bool, error) {
   var err error
   var session neo4j.Session
   var obj interface{}
 
   session, err = driver.Session(neo4j.AccessModeWrite);
   if err != nil {
-    return nil, err
+    return Challenge{}, false, err
   }
   defer session.Close()
 
   obj, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      MATCH (c:Challenge {otp_challenge}:$otpChallenge})<-[:REQUESTED]-(i:Identity) SET c.verified = datetime.epochSeconds
+      MATCH (c:Challenge {otp_challenge:$otpChallenge})<-[:REQUESTED]-(i:Identity) SET c.verified = datetime().epochSeconds
       RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.sub
     `
     params := map[string]interface{}{"otpChallenge": challenge.OtpChallenge}
@@ -300,7 +307,7 @@ func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (*Challenge, erro
       return nil, err
     }
 
-    var challenge *Challenge
+    var challenge Challenge
     if result.Next() {
       record := result.Record()
 
@@ -309,13 +316,13 @@ func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (*Challenge, erro
       iat := record.GetByIndex(2).(int64)
       exp := record.GetByIndex(3).(int64)
       verified := record.GetByIndex(4).(int64)
-      ttl := record.GetByIndex(5).(int)
+      ttl := record.GetByIndex(5).(int64)
       codeType := record.GetByIndex(6).(string)
       code := record.GetByIndex(7).(string)
       redirectTo := record.GetByIndex(8).(string)
       sub := record.GetByIndex(9).(string)
 
-      challenge = &Challenge{
+      challenge = Challenge{
         OtpChallenge: otpChallenge,
         Subject: sub,
         Audience: aud,
@@ -333,23 +340,29 @@ func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (*Challenge, erro
     if err = result.Err(); err != nil {
       return nil, err
     }
+
+    // TODO: Check if neo returned empty set
+
     return challenge, nil
   })
 
   if err != nil {
-    return nil, err
+    return Challenge{}, false, err
   }
-  return obj.(*Challenge), nil
+  if obj != nil {
+    return obj.(Challenge), true, nil
+  }
+  return Challenge{}, false, nil
 }
 
-func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challenge Challenge) (*Challenge, error) {
+func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challenge Challenge) (Challenge, bool, error) {
   var err error
   var session neo4j.Session
   var obj interface{}
 
   session, err = driver.Session(neo4j.AccessModeWrite);
   if err != nil {
-    return nil, err
+    return Challenge{}, false, err
   }
   defer session.Close()
 
@@ -357,7 +370,7 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub})
-      MERGE (i)-[:REQUESTED]->(c:Challenge {otp_challenge:randomUUID(), aud:$aud, iat:datetime().epochSeconds, exp:datetime().epochSeconds + $ttl, verified:0, ttl:$ttl, code_type:$codeType, code:$code, redirect_to:$redirectTo})
+      CREATE (i)-[:REQUESTED]->(c:Challenge {otp_challenge:randomUUID(), aud:$aud, iat:datetime().epochSeconds, exp:datetime().epochSeconds + $ttl, verified:0, ttl:$ttl, code_type:$codeType, code:$code, redirect_to:$redirectTo})
 
       WITH i, c
 
@@ -377,7 +390,7 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
       return nil, err
     }
 
-    var challenge *Challenge
+    var challenge Challenge
     if result.Next() {
       record := result.Record()
 
@@ -386,13 +399,13 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
       iat := record.GetByIndex(2).(int64)
       exp := record.GetByIndex(3).(int64)
       verified := record.GetByIndex(4).(int64)
-      ttl := record.GetByIndex(5).(int)
+      ttl := record.GetByIndex(5).(int64)
       codeType := record.GetByIndex(6).(string)
       code := record.GetByIndex(7).(string)
       redirectTo := record.GetByIndex(8).(string)
       sub := record.GetByIndex(9).(string)
 
-      challenge = &Challenge{
+      challenge = Challenge{
         OtpChallenge: otpChallenge,
         Subject: sub,
         Audience: aud,
@@ -411,13 +424,19 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
     if err = result.Err(); err != nil {
       return nil, err
     }
+
+    // TODO: Check if neo returned empty set
+
     return challenge, nil
   })
 
   if err != nil {
-    return nil, err
+    return Challenge{}, false, err
   }
-  return obj.(*Challenge), nil
+  if obj != nil {
+    return obj.(Challenge), true, nil
+  }
+  return Challenge{}, false, nil
 }
 
 func UpdateTotp(driver neo4j.Driver, identity Identity) (Identity, error) {
@@ -873,31 +892,30 @@ func DeleteIdentity(driver neo4j.Driver, identity Identity) (Identity, error) {
 }
 
 // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
-func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) {
+func FetchIdentity(driver neo4j.Driver, sub string) (Identity, bool, error) {
   var err error
   var session neo4j.Session
-  var ids interface{}
+  var obj interface{}
 
   session, err = driver.Session(neo4j.AccessModeRead);
   if err != nil {
-    return nil, err
+    return Identity{}, false, err
   }
   defer session.Close()
 
-  ids, err = session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err = session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
 
     cypher := `
       MATCH (i:Identity {sub: $sub})
       RETURN i.sub, i.password, i.name, i.email, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
-      ORDER BY i.sub
     `
     params := map[string]interface{}{"sub": sub}
     if result, err = tx.Run(cypher, params); err != nil {
-      return nil, err
+      return Identity{}, err
     }
 
-    var identities []Identity
+    var identity Identity
     if result.Next() {
       record := result.Record()
 
@@ -916,7 +934,7 @@ func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) 
       otpDeleteCode := record.GetByIndex(8).(string)
       otpDeleteCodeExpire := record.GetByIndex(9).(int64)
 
-      identity := Identity{
+      identity = Identity{
         Id: sub,
         Name: name,
         Email: email,
@@ -928,19 +946,18 @@ func FetchIdentitiesForSub(driver neo4j.Driver, sub string) ([]Identity, error) 
         OtpDeleteCode: otpDeleteCode,
         OtpDeleteCodeExpire: otpDeleteCodeExpire,
       }
-      identities = append(identities, identity)
     }
 
     // Check if we encountered any error during record streaming
     if err = result.Err(); err != nil {
-      return nil, err
+      return Identity{}, err
     }
-    return identities, nil
+    return identity, nil
   })
   if err != nil {
-    return nil, err
+    return Identity{}, false, err
   }
-  return ids.([]Identity), nil
+  return obj.(Identity), true, nil
 }
 
 type SMTPSender struct {

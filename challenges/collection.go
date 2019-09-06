@@ -19,7 +19,7 @@ type OtpChallengeResponse struct {
   Audience     string `json:"aud" binding:"required"`
   IssuedAt     int64  `json:"iat" binding:"required"`
   ExpiresAt    int64  `json:"exp" binding:"required"`
-  TTL          int    `json:"ttl" binding:"required"`
+  TTL          int64  `json:"ttl" binding:"required"`
   RedirectTo   string `json:"redirect_to" binding:"required"`
   CodeType     string `json:"code_type" binding:"required"`
   Code         string `json:"code" binding:"required"`
@@ -28,7 +28,7 @@ type OtpChallengeResponse struct {
 type OtpChallengeCreateRequest struct {
   Subject     string `json:"sub" binding:"required"`
   Audience     string `json:"aud" binding:"required"`
-  TTL          int    `json:"ttl" binding:"required"`
+  TTL          int64  `json:"ttl" binding:"required"`
   RedirectTo   string `json:"redirect_to" binding:"required"`
   CodeType     string `json:"code_type" binding:"required"`
   Code         string `json:"code" binding:"required"`
@@ -51,7 +51,7 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
       return;
     }
 
-    challenge, err := idp.FetchChallenge(env.Driver, otpChallengeRequest.OtpChallenge)
+    challenge, exists, err := idp.FetchChallenge(env.Driver, otpChallengeRequest.OtpChallenge)
     if err != nil {
       log.WithFields(logrus.Fields{
         "otp_challenge": otpChallengeRequest.OtpChallenge,
@@ -61,7 +61,7 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
       return
     }
 
-    if challenge != nil {
+    if exists == true {
       c.JSON(http.StatusOK, OtpChallengeResponse{
         OtpChallenge: challenge.OtpChallenge,
         Subject: challenge.Subject,
@@ -111,7 +111,7 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       }
     }
 
-    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Subject)
+    identity, exists, err := idp.FetchIdentity(env.Driver, input.Subject)
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": input.Subject,
@@ -121,7 +121,7 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       return;
     }
 
-    if identities == nil {
+    if exists == false {
       log.WithFields(logrus.Fields{
         "id": input.Subject,
       }).Debug("Identity not found")
@@ -129,17 +129,6 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       c.Abort()
       return;
     }
-
-    if len(identities) > 1 {
-      log.WithFields(logrus.Fields{
-        "id": input.Subject,
-      }).Debug("Found to many identities")
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Found to many Identity"})
-      c.Abort()
-      return;
-    }
-
-    identity := identities[0];
 
     aChallenge := idp.Challenge{
       Subject: input.Subject,
@@ -149,7 +138,7 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       CodeType: input.CodeType,
       Code: hashedCode,
     }
-    challenge, err := idp.CreateChallengeForIdentity(env.Driver, identity, aChallenge)
+    challenge, exists, err := idp.CreateChallengeForIdentity(env.Driver, identity, aChallenge)
     if err != nil {
       log.WithFields(logrus.Fields{
         "sub": input.Subject, "aud":input.Audience, "ttl": input.TTL, "redirect_to": input.RedirectTo, "code": hashedCode, "code_type": input.CodeType,
@@ -159,7 +148,7 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       return
     }
 
-    if challenge != nil {
+    if exists == true {
       c.JSON(http.StatusOK, OtpChallengeResponse{
         OtpChallenge: challenge.OtpChallenge,
         Subject: challenge.Subject,
