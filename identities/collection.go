@@ -329,7 +329,7 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       log.WithFields(logrus.Fields{
         "id": updatedIdentity.Id,
         "file": templateFile,
-      }).Debug("Failed to send delete mail")
+      }).Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
       c.Abort()
       return
