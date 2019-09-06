@@ -36,7 +36,7 @@ func PutTotp(env *environment.State, route environment.Route) gin.HandlerFunc {
       return
     }
 
-    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
+    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -44,9 +44,7 @@ func PutTotp(env *environment.State, route environment.Route) gin.HandlerFunc {
       return;
     }
 
-    if identities != nil {
-
-      identity := identities[0]; // FIXME do not return a list of identities!
+    if exists == true {
 
       encryptedSecret, err := idp.Encrypt(input.TotpSecret, config.GetString("totp.cryptkey"))
       if err != nil {

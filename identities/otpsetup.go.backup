@@ -36,7 +36,7 @@ func PostOtpSetup(env *environment.State, route environment.Route) gin.HandlerFu
       return
     }
 
-    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id)
+    identities, err := idp.FetchIdentity(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})

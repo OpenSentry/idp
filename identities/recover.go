@@ -44,7 +44,7 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id) // FIXME do not return a list of identities!
+    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id) // FIXME do not return a list of identities!
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -52,14 +52,11 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    if identities == nil {
+    if exists == false {
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
       c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       return;
     }
-
-    // Found identity prepare to send recover email
-    identity := identities[0];
 
     sender := idp.SMTPSender{
       Name: config.GetString("recover.sender.name"),
