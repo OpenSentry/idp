@@ -5,6 +5,7 @@ import (
   "text/template"
   "io/ioutil"
   "bytes"
+  "errors"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -52,32 +53,25 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
       "func": "GetCollection",
     })
 
-    id, _ := c.GetQuery("id") // From input
+    id, _ := c.GetQuery("id")
 
-    s, _ := c.Get("sub") // From access token
+    s, _ := c.Get("sub") // Middleware delivers access_token.id_token.sub
     subject := s.(string)
 
-    if id == "" && subject == "" {
-      c.JSON(http.StatusNotFound, gin.H{
-        "error": "Not found",
-      })
+    valid, err := sanityCheckSubject(subject, id)
+    if err != nil {
+      c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
       c.Abort()
-      return;
+      return
     }
 
-    if subject != "" && id != "" && subject != id {
-      c.JSON(http.StatusForbidden, gin.H{
-        "error": "Not allowed. Hint: access token does not match id parameter.",
-      })
+    if valid == false {
+      c.JSON(http.StatusForbidden, gin.H{"error": "Access token subject does not match requested Identity"})
       c.Abort()
-      return;
+      return
     }
 
-    if subject == "" && id != "" {
-      subject = id
-    }
-
-    identityList, err := idp.FetchIdentitiesForSub(env.Driver, subject)
+    identity, exists, err := idp.FetchIdentity(env.Driver, id)
     if err != nil {
       log.WithFields(logrus.Fields{"sub": subject}).Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Identity"})
@@ -85,17 +79,16 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
       return
     }
 
-    if len(identityList) > 0 {
-      n := identityList[0]
-      if subject == n.Id {
-        c.JSON(http.StatusOK, IdentitiesResponse{
-          Id: n.Id,
-          Name: n.Name,
-          Email: n.Email,
-          Password: n.Password,
-        })
-        return
-      }
+    if exists == true {
+      c.JSON(http.StatusOK, IdentitiesResponse{
+        Id: identity.Id,
+        Name: identity.Name,
+        Email: identity.Email,
+        Password: identity.Password,
+        TotpRequired: identity.TotpRequired,
+        TotpSecret: identity.TotpSecret,
+      })
+      return
     }
 
     // Deny by default
@@ -221,9 +214,23 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    log.WithFields(logrus.Fields{"fixme":1}).Debug("Match that access_token.sub matches requested id to delete");
+    s, _ := c.Get("sub") // Middleware delivers access_token.id_token.sub
+    subject := s.(string)
 
-    identities, err := idp.FetchIdentitiesForSub(env.Driver, input.Id) // FIXME do not return a list of identities!
+    valid, err := sanityCheckSubject(subject, input.Id)
+    if err != nil {
+      c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    if valid == false {
+      c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
+      c.Abort()
+      return
+    }
+
+    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -231,14 +238,11 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    if identities == nil {
+    if exists == false {
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
       c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       return;
     }
-
-    // Found identity prepare to send recover email
-    identity := identities[0];
 
     sender := idp.SMTPSender{
       Name: config.GetString("delete.sender.name"),
@@ -342,4 +346,15 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
     c.JSON(http.StatusOK, deleteResponse)
   }
   return gin.HandlerFunc(fn)
+}
+
+// Does access_token.id_token.sub match requested Identity.sub
+func sanityCheckSubject(sub string, id string) (bool, error) {
+  if sub == "" && id == "" {
+    return false, errors.New("Not allowed. Hint: Subject should not be empty")
+  }
+  if sub != id {
+    return false, errors.New("Not allowed. Hint: Access token does not match id parameter")
+  }
+  return true, nil
 }
