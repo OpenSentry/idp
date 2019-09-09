@@ -7,19 +7,8 @@ import (
 
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
+  . "github.com/charmixer/idp/models"
 )
-
-type DeleteVerificationRequest struct {
-  Id               string `json:"id" binding:"required"`
-  VerificationCode string `json:"verification_code" binding:"required"`
-  RedirectTo       string `json:"redirect_to" binding:"required"`
-}
-
-type DeleteVerificationResponse struct {
-  Id         string `json:"id" binding:"required"`
-  Verified   bool   `json:"verified" binding:"required"`
-  RedirectTo string `json:"redirect_to" binding:"required"`
-}
 
 func PostDeleteVerification(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
@@ -29,7 +18,7 @@ func PostDeleteVerification(env *environment.State, route environment.Route) gin
       "func": "PostDeleteVerification",
     })
 
-    var input DeleteVerificationRequest
+    var input IdentitiesDeleteVerificationRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -37,13 +26,13 @@ func PostDeleteVerification(env *environment.State, route environment.Route) gin
       return
     }
 
-    denyResponse := DeleteVerificationResponse{
+    denyResponse := IdentitiesDeleteVerificationResponse{
       Id: input.Id,
       Verified: false,
       RedirectTo: "",
     }
 
-    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
+    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Identity"})
@@ -87,7 +76,7 @@ func PostDeleteVerification(env *environment.State, route environment.Route) gin
         return
       }
 
-      acceptResponse := DeleteVerificationResponse{
+      acceptResponse := IdentitiesDeleteVerificationResponse{
         Id: updatedIdentity.Id,
         Verified: true,
         RedirectTo: input.RedirectTo,

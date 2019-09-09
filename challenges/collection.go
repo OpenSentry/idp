@@ -111,7 +111,7 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       }
     }
 
-    identity, exists, err := idp.FetchIdentity(env.Driver, input.Subject)
+    identity, exists, err := idp.FetchIdentityBySubject(env.Driver, input.Subject)
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": input.Subject,
