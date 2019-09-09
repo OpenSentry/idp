@@ -39,15 +39,16 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
     }
 
     // Inspect access token for subject
-    s, _ := c.Get("sub") // Middleware delivers access_token.id_token.sub
+    /*s, _ := c.Get("sub") // Middleware delivers access_token.id_token.sub
     subject := s.(string)
+    log.WithFields(logrus.Fields{"sub": subject}).Debug("Found subject in access token")
 
     // Sanity check. Require subject from access token
     if subject == "" {
       c.JSON(http.StatusForbidden, gin.H{"error": "Missing subject in access_token"})
       c.Abort()
       return
-    }
+    }*/
 
     var identity idp.Identity
     var exists bool
@@ -89,19 +90,12 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
 
     }
 
-    // Sanity check. Identity exists
-    if exists == false {
-      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      c.Abort()
-      return
-    }
-
     // Sanity check. Access token subject and Identity.Subject must match.
-    if subject != identity.Id {
-      c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed. Hint: Access token subject and Identity.Id does not match"})
-      c.Abort()
-      return
-    }
+    //if subject != identity.Id {
+    //  c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed. Hint: Access token subject and Identity.Id does not match"})
+    //  c.Abort()
+    //  return
+    //}
 
     if exists == true {
       c.JSON(http.StatusOK, IdentitiesReadResponse{ marshalIdentityToIdentityResponse(identity) })
