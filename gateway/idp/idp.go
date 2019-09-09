@@ -4,10 +4,7 @@ import (
   "crypto/aes"
   "crypto/cipher"
   "crypto/rand"
-  //"crypto/hmac"
-  //"crypto/sha256"
   "encoding/base64"
-  //"encoding/hex"
   "errors"
   "io"
   "net"
@@ -20,7 +17,6 @@ import (
   "golang.org/x/crypto/bcrypt"
   "github.com/neo4j/neo4j-go-driver/neo4j"
   "github.com/pquerna/otp/totp"
-  //"github.com/dgrijalva/jwt-go"
 )
 
 type Identity struct {
@@ -28,6 +24,7 @@ type Identity struct {
   Name                 string `json:"name"`
   Email                string `json:"email"`
   Password             string `json:"password"`
+  AllowLogin           bool   `json:"allow_login"`
   TotpRequired         bool   `json:"totp_required"`
   TotpSecret           string `json:"totp_secret"`
   OtpRecoverCode       string `json:"otp_recover_code"`
@@ -242,15 +239,15 @@ func FetchChallenge(driver neo4j.Driver, otpChallenge string) (Challenge, bool, 
       record := result.Record()
 
       otpChallenge := record.GetByIndex(0).(string)
-      aud := record.GetByIndex(1).(string)
-      iat := record.GetByIndex(2).(int64)
-      exp := record.GetByIndex(3).(int64)
-      verified := record.GetByIndex(4).(int64)
-      ttl := record.GetByIndex(5).(int64)
-      codeType := record.GetByIndex(6).(string)
-      code := record.GetByIndex(7).(string)
-      redirectTo := record.GetByIndex(8).(string)
-      sub := record.GetByIndex(9).(string)
+      aud          := record.GetByIndex(1).(string)
+      iat          := record.GetByIndex(2).(int64)
+      exp          := record.GetByIndex(3).(int64)
+      verified     := record.GetByIndex(4).(int64)
+      ttl          := record.GetByIndex(5).(int64)
+      codeType     := record.GetByIndex(6).(string)
+      code         := record.GetByIndex(7).(string)
+      redirectTo   := record.GetByIndex(8).(string)
+      sub          := record.GetByIndex(9).(string)
 
       challenge = Challenge{
         OtpChallenge: otpChallenge,
@@ -312,15 +309,15 @@ func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, bool,
       record := result.Record()
 
       otpChallenge := record.GetByIndex(0).(string)
-      aud := record.GetByIndex(1).(string)
-      iat := record.GetByIndex(2).(int64)
-      exp := record.GetByIndex(3).(int64)
-      verified := record.GetByIndex(4).(int64)
-      ttl := record.GetByIndex(5).(int64)
-      codeType := record.GetByIndex(6).(string)
-      code := record.GetByIndex(7).(string)
-      redirectTo := record.GetByIndex(8).(string)
-      sub := record.GetByIndex(9).(string)
+      aud          := record.GetByIndex(1).(string)
+      iat          := record.GetByIndex(2).(int64)
+      exp          := record.GetByIndex(3).(int64)
+      verified     := record.GetByIndex(4).(int64)
+      ttl          := record.GetByIndex(5).(int64)
+      codeType     := record.GetByIndex(6).(string)
+      code         := record.GetByIndex(7).(string)
+      redirectTo   := record.GetByIndex(8).(string)
+      sub          := record.GetByIndex(9).(string)
 
       challenge = Challenge{
         OtpChallenge: otpChallenge,
@@ -395,15 +392,15 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
       record := result.Record()
 
       otpChallenge := record.GetByIndex(0).(string)
-      aud := record.GetByIndex(1).(string)
-      iat := record.GetByIndex(2).(int64)
-      exp := record.GetByIndex(3).(int64)
-      verified := record.GetByIndex(4).(int64)
-      ttl := record.GetByIndex(5).(int64)
-      codeType := record.GetByIndex(6).(string)
-      code := record.GetByIndex(7).(string)
-      redirectTo := record.GetByIndex(8).(string)
-      sub := record.GetByIndex(9).(string)
+      aud          := record.GetByIndex(1).(string)
+      iat          := record.GetByIndex(2).(int64)
+      exp          := record.GetByIndex(3).(int64)
+      verified     := record.GetByIndex(4).(int64)
+      ttl          := record.GetByIndex(5).(int64)
+      codeType     := record.GetByIndex(6).(string)
+      code         := record.GetByIndex(7).(string)
+      redirectTo   := record.GetByIndex(8).(string)
+      sub          := record.GetByIndex(9).(string)
 
       challenge = Challenge{
         OtpChallenge: otpChallenge,
@@ -439,6 +436,77 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
   return Challenge{}, false, nil
 }
 
+func UpdateAllowLogin(driver neo4j.Driver, identity Identity) (Identity, error) {
+  var err error
+  var session neo4j.Session
+  var id interface{}
+
+  session, err = driver.Session(neo4j.AccessModeWrite);
+  if err != nil {
+    return Identity{}, err
+  }
+  defer session.Close()
+
+  id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+    cypher := `
+      MATCH (i:Identity {sub:$sub}) SET i.allow_login=$allowLogin
+      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+    `
+    params := map[string]interface{}{"sub": identity.Id, "allowLogin": identity.AllowLogin}
+    if result, err = tx.Run(cypher, params); err != nil {
+      return Identity{}, err
+    }
+
+    var ret Identity
+    if result.Next() {
+      record := result.Record()
+
+      // NOTE: This means the statment sequence of the RETURN (possible order by)
+      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
+      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
+      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
+      sub                  := record.GetByIndex(0).(string)
+      password             := record.GetByIndex(1).(string)
+      name                 := record.GetByIndex(2).(string)
+      email                := record.GetByIndex(3).(string)
+      allowLogin           := record.GetByIndex(4).(bool)
+      totpRequired         := record.GetByIndex(5).(bool)
+      totpSecret           := record.GetByIndex(6).(string)
+      otpRecoverCode       := record.GetByIndex(7).(string)
+      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
+      otpDeleteCode        := record.GetByIndex(9).(string)
+      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
+
+      identity := Identity{
+        Id: sub,
+        Name: name,
+        Email: email,
+        AllowLogin: allowLogin,
+        Password: password,
+        TotpRequired: totpRequired,
+        TotpSecret: totpSecret,
+        OtpRecoverCode: otpRecoverCode,
+        OtpRecoderCodeExpire: otpRecoverCodeExpire,
+        OtpDeleteCode: otpDeleteCode,
+        OtpDeleteCodeExpire: otpDeleteCodeExpire,
+      }
+      ret = identity
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+    return ret, nil
+  })
+
+  if err != nil {
+    return Identity{}, err
+  }
+  return id.(Identity), nil
+}
+
 func UpdateTotp(driver neo4j.Driver, identity Identity) (Identity, error) {
   var err error
   var session neo4j.Session
@@ -454,7 +522,7 @@ func UpdateTotp(driver neo4j.Driver, identity Identity) (Identity, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) SET i.totp_required=$required, i.totp_secret=$secret
-      RETURN i.sub, i.password, i.name, i.email, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": identity.Id, "required": identity.TotpRequired, "secret": identity.TotpSecret}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -469,21 +537,23 @@ func UpdateTotp(driver neo4j.Driver, identity Identity) (Identity, error) {
       // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
       // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
       // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub := record.GetByIndex(0).(string)
-      password := record.GetByIndex(1).(string)
-      name := record.GetByIndex(2).(string)
-      email := record.GetByIndex(3).(string)
-      totpRequired := record.GetByIndex(4).(bool)
-      totpSecret := record.GetByIndex(5).(string)
-      otpRecoverCode := record.GetByIndex(6).(string)
-      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
-      otpDeleteCode := record.GetByIndex(8).(string)
-      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
+      sub                  := record.GetByIndex(0).(string)
+      password             := record.GetByIndex(1).(string)
+      name                 := record.GetByIndex(2).(string)
+      email                := record.GetByIndex(3).(string)
+      allowLogin           := record.GetByIndex(4).(bool)
+      totpRequired         := record.GetByIndex(5).(bool)
+      totpSecret           := record.GetByIndex(6).(string)
+      otpRecoverCode       := record.GetByIndex(7).(string)
+      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
+      otpDeleteCode        := record.GetByIndex(9).(string)
+      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
 
       identity := Identity{
         Id: sub,
         Name: name,
         Email: email,
+        AllowLogin: allowLogin,
         Password: password,
         TotpRequired: totpRequired,
         TotpSecret: totpSecret,
@@ -523,7 +593,7 @@ func UpdateOtpDeleteCode(driver neo4j.Driver, identity Identity) (Identity, erro
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) SET i.otp_delete_code=$code, i.otp_delete_code_expire=$expire
-      RETURN i.sub, i.password, i.name, i.email, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": identity.Id, "code": identity.OtpDeleteCode, "expire": identity.OtpDeleteCodeExpire}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -538,21 +608,23 @@ func UpdateOtpDeleteCode(driver neo4j.Driver, identity Identity) (Identity, erro
       // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
       // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
       // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub := record.GetByIndex(0).(string)
-      password := record.GetByIndex(1).(string)
-      name := record.GetByIndex(2).(string)
-      email := record.GetByIndex(3).(string)
-      totpRequired := record.GetByIndex(4).(bool)
-      totpSecret := record.GetByIndex(5).(string)
-      otpRecoverCode := record.GetByIndex(6).(string)
-      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
-      otpDeleteCode := record.GetByIndex(8).(string)
-      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
+      sub                  := record.GetByIndex(0).(string)
+      password             := record.GetByIndex(1).(string)
+      name                 := record.GetByIndex(2).(string)
+      email                := record.GetByIndex(3).(string)
+      allowLogin           := record.GetByIndex(4).(bool)
+      totpRequired         := record.GetByIndex(5).(bool)
+      totpSecret           := record.GetByIndex(6).(string)
+      otpRecoverCode       := record.GetByIndex(7).(string)
+      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
+      otpDeleteCode        := record.GetByIndex(9).(string)
+      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
 
       identity := Identity{
         Id: sub,
         Name: name,
         Email: email,
+        AllowLogin: allowLogin,
         Password: password,
         TotpRequired: totpRequired,
         TotpSecret: totpSecret,
@@ -592,7 +664,7 @@ func UpdateOtpRecoverCode(driver neo4j.Driver, identity Identity) (Identity, err
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) SET i.otp_recover_code=$code, i.otp_recover_code_expire=$expire
-      RETURN i.sub, i.password, i.name, i.email, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": identity.Id, "code": identity.OtpRecoverCode, "expire": identity.OtpRecoderCodeExpire}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -607,21 +679,23 @@ func UpdateOtpRecoverCode(driver neo4j.Driver, identity Identity) (Identity, err
       // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
       // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
       // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub := record.GetByIndex(0).(string)
-      password := record.GetByIndex(1).(string)
-      name := record.GetByIndex(2).(string)
-      email := record.GetByIndex(3).(string)
-      totpRequired := record.GetByIndex(4).(bool)
-      totpSecret := record.GetByIndex(5).(string)
-      otpRecoverCode := record.GetByIndex(6).(string)
-      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
-      otpDeleteCode := record.GetByIndex(8).(string)
-      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
+      sub                  := record.GetByIndex(0).(string)
+      password             := record.GetByIndex(1).(string)
+      name                 := record.GetByIndex(2).(string)
+      email                := record.GetByIndex(3).(string)
+      allowLogin           := record.GetByIndex(4).(bool)
+      totpRequired         := record.GetByIndex(5).(bool)
+      totpSecret           := record.GetByIndex(6).(string)
+      otpRecoverCode       := record.GetByIndex(7).(string)
+      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
+      otpDeleteCode        := record.GetByIndex(9).(string)
+      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
 
       identity := Identity{
         Id: sub,
         Name: name,
         Email: email,
+        AllowLogin: allowLogin,
         Password: password,
         TotpRequired: totpRequired,
         TotpSecret: totpSecret,
@@ -661,7 +735,7 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) SET i.password=$password
-      RETURN i.sub, i.password, i.name, i.email, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": identity.Id, "password": identity.Password}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -676,21 +750,23 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
       // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
       // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
       // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub := record.GetByIndex(0).(string)
-      password := record.GetByIndex(1).(string)
-      name := record.GetByIndex(2).(string)
-      email := record.GetByIndex(3).(string)
-      totpRequired := record.GetByIndex(4).(bool)
-      totpSecret := record.GetByIndex(5).(string)
-      otpRecoverCode := record.GetByIndex(6).(string)
-      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
-      otpDeleteCode := record.GetByIndex(8).(string)
-      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
+      sub                  := record.GetByIndex(0).(string)
+      password             := record.GetByIndex(1).(string)
+      name                 := record.GetByIndex(2).(string)
+      email                := record.GetByIndex(3).(string)
+      allowLogin           := record.GetByIndex(4).(bool)
+      totpRequired         := record.GetByIndex(5).(bool)
+      totpSecret           := record.GetByIndex(6).(string)
+      otpRecoverCode       := record.GetByIndex(7).(string)
+      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
+      otpDeleteCode        := record.GetByIndex(9).(string)
+      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
 
       identity := Identity{
         Id: sub,
         Name: name,
         Email: email,
+        AllowLogin: allowLogin,
         Password: password,
         TotpRequired: totpRequired,
         TotpSecret: totpSecret,
@@ -729,8 +805,8 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
   ids, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      CREATE (i:Identity {sub:$sub, password:$password, name:$name, email:$email, totp_required:false, totp_secret:"", otp_recover_code:"", otp_recover_code_expire:0, otp_delete_code:"", otp_delete_code_expire:0})
-      RETURN i.sub, i.password, i.name, i.email, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      CREATE (i:Identity {sub:$sub, password:$password, name:$name, email:$email, allow_login:true, totp_required:false, totp_secret:"", otp_recover_code:"", otp_recover_code_expire:0, otp_delete_code:"", otp_delete_code_expire:0})
+      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": identity.Id, "password": identity.Password, "name": identity.Name, "email": identity.Email}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -745,21 +821,23 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
       // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
       // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
       // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub := record.GetByIndex(0).(string)
-      password := record.GetByIndex(1).(string)
-      name := record.GetByIndex(2).(string)
-      email := record.GetByIndex(3).(string)
-      totpRequired := record.GetByIndex(4).(bool)
-      totpSecret := record.GetByIndex(5).(string)
-      otpRecoverCode := record.GetByIndex(6).(string)
-      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
-      otpDeleteCode := record.GetByIndex(8).(string)
-      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
+      sub                  := record.GetByIndex(0).(string)
+      password             := record.GetByIndex(1).(string)
+      name                 := record.GetByIndex(2).(string)
+      email                := record.GetByIndex(3).(string)
+      allowLogin           := record.GetByIndex(4).(bool)
+      totpRequired         := record.GetByIndex(5).(bool)
+      totpSecret           := record.GetByIndex(6).(string)
+      otpRecoverCode       := record.GetByIndex(7).(string)
+      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
+      otpDeleteCode        := record.GetByIndex(9).(string)
+      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
 
       identity := Identity{
         Id: sub,
         Name: name,
         Email: email,
+        AllowLogin: allowLogin,
         Password: password,
         TotpRequired: totpRequired,
         TotpSecret: totpSecret,
@@ -801,7 +879,7 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) WITH i SET i.name=$name, i.email=$email
-      RETURN i.sub, i.password, i.name, i.email, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": identity.Id, "name": identity.Name, "email": identity.Email}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -816,21 +894,23 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
       // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
       // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
       // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub := record.GetByIndex(0).(string)
-      password := record.GetByIndex(1).(string)
-      name := record.GetByIndex(2).(string)
-      email := record.GetByIndex(3).(string)
-      totpRequired := record.GetByIndex(4).(bool)
-      totpSecret := record.GetByIndex(5).(string)
-      otpRecoverCode := record.GetByIndex(6).(string)
-      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
-      otpDeleteCode := record.GetByIndex(8).(string)
-      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
+      sub                  := record.GetByIndex(0).(string)
+      password             := record.GetByIndex(1).(string)
+      name                 := record.GetByIndex(2).(string)
+      email                := record.GetByIndex(3).(string)
+      allowLogin           := record.GetByIndex(4).(bool)
+      totpRequired         := record.GetByIndex(5).(bool)
+      totpSecret           := record.GetByIndex(6).(string)
+      otpRecoverCode       := record.GetByIndex(7).(string)
+      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
+      otpDeleteCode        := record.GetByIndex(9).(string)
+      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
 
       identity := Identity{
         Id: sub,
         Name: name,
         Email: email,
+        AllowLogin: allowLogin,
         Password: password,
         TotpRequired: totpRequired,
         TotpSecret: totpSecret,
@@ -908,7 +988,7 @@ func FetchIdentity(driver neo4j.Driver, sub string) (Identity, bool, error) {
 
     cypher := `
       MATCH (i:Identity {sub: $sub})
-      RETURN i.sub, i.password, i.name, i.email, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": sub}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -923,21 +1003,23 @@ func FetchIdentity(driver neo4j.Driver, sub string) (Identity, bool, error) {
       // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
       // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
       // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub := record.GetByIndex(0).(string)
-      password := record.GetByIndex(1).(string)
-      name := record.GetByIndex(2).(string)
-      email := record.GetByIndex(3).(string)
-      totpRequired := record.GetByIndex(4).(bool)
-      totpSecret := record.GetByIndex(5).(string)
-      otpRecoverCode := record.GetByIndex(6).(string)
-      otpRecoverCodeExpire := record.GetByIndex(7).(int64)
-      otpDeleteCode := record.GetByIndex(8).(string)
-      otpDeleteCodeExpire := record.GetByIndex(9).(int64)
+      sub                  := record.GetByIndex(0).(string)
+      password             := record.GetByIndex(1).(string)
+      name                 := record.GetByIndex(2).(string)
+      email                := record.GetByIndex(3).(string)
+      allowLogin           := record.GetByIndex(4).(bool)
+      totpRequired         := record.GetByIndex(5).(bool)
+      totpSecret           := record.GetByIndex(6).(string)
+      otpRecoverCode       := record.GetByIndex(7).(string)
+      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
+      otpDeleteCode        := record.GetByIndex(9).(string)
+      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
 
       identity = Identity{
         Id: sub,
         Name: name,
         Email: email,
+        AllowLogin: allowLogin,
         Password: password,
         TotpRequired: totpRequired,
         TotpSecret: totpSecret,
