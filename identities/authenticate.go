@@ -28,6 +28,14 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
+    denyResponse := IdentitiesAuthenticateResponse{
+      Id: input.Id,
+      NotFound: false,
+      Authenticated: false,
+      TotpRequired: false,
+      RedirectTo: "",
+    }
+
     // Create a new HTTP client to perform the request, to prevent serialization
     hydraClient := hydra.NewHydraClient(env.HydraConfig)
 
@@ -46,7 +54,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       "subject": hydraLoginResponse.Subject,
     }).Debug("PostAuthenticate.Hydra.GetLogin.Response")
 
-    if hydraLoginResponse.Skip {
+    if hydraLoginResponse.Skip == true {
 
       hydraLoginAcceptRequest := hydra.LoginAcceptRequest{
         Subject: hydraLoginResponse.Subject,
@@ -79,14 +87,6 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       c.JSON(http.StatusOK, acceptResponse)
       c.Abort()
       return
-    }
-
-    denyResponse := IdentitiesAuthenticateResponse{
-      Id: input.Id,
-      NotFound: false,
-      Authenticated: false,
-      TotpRequired: false,
-      RedirectTo: "",
     }
 
     // Found otp_challenge check if verified.

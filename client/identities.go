@@ -4,6 +4,7 @@ import (
   "net/http"
   "bytes"
   "encoding/json"
+  "fmt"
 )
 
 type IdentitiesResponse struct {
@@ -24,11 +25,10 @@ type IdentitiesResponse struct {
 // CRUD
 
 type IdentitiesCreateRequest struct {
-  Id       string `json:"id" binding:"required"`
   Password string `json:"password" binding:"required"`
-  Subject  string `json:"sub" binding:"required"`
-  Name     string `json:"name,omitempty"`
+  Subject  string `json:"sub"`
   Email    string `json:"email,omitempty"`
+  Name     string `json:"name,omitempty"`
 }
 
 type IdentitiesCreateResponse struct {
@@ -99,17 +99,17 @@ type IdentitiesTotpResponse struct {
 
 type IdentitiesAuthenticateRequest struct {
   Challenge    string `json:"challenge" binding:"required"`
-  Id           string `json:"id"`
-  Subject      string `json:"sub"`
-  Password     string `json:"password"`
-  OtpChallenge string `json:"otp_challenge"`
+  Id           string `json:"id,omitempty"`
+  Password     string `json:"password,omitempty"`
+  OtpChallenge string `json:"otp_challenge,omitempty"`
 }
 
+// We try and limit the amount of information returned by the endpoint.
 type IdentitiesAuthenticateResponse struct {
   Id            string `json:"id" binding:"required"`
+  TotpRequired  bool   `json:"totp_required" binding:"required"`
   NotFound      bool   `json:"not_found" binding:"required"`
   Authenticated bool   `json:"authenticated" binding:"required"`
-  TotpRequired  bool   `json:"totp_required" binding:"required"`
   RedirectTo    string `json:"redirect_to" binding:"required"`
 }
 
