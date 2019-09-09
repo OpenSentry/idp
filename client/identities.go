@@ -4,7 +4,6 @@ import (
   "net/http"
   "bytes"
   "encoding/json"
-  "fmt"
 )
 
 type IdentitiesResponse struct {
