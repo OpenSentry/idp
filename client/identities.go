@@ -35,9 +35,9 @@ type IdentitiesCreateResponse struct {
 }
 
 type IdentitiesReadRequest struct {
-  Id string `form:"id" json:"id"`
-  Subject string `form:"email" json:"id"`
-  Email string `form:"email" json:"email"`
+  Id      string `form:"id"    json:"id"`
+  Subject string `form:"sub"   json:"sub"`
+  Email   string `form:"email" json:"email"`
 }
 
 type IdentitiesReadResponse struct {
@@ -172,7 +172,15 @@ func ReadIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesRe
 
   // TODO: Can we marshal this somehow?
   query := req.URL.Query()
-  query.Add("id", request.Id)
+  if request.Id != "" {
+    query.Add("id", request.Id)
+  }
+  if request.Subject != "" {
+    query.Add("sub", request.Subject)
+  }
+  if request.Email != "" {
+    query.Add("email", request.Subject)
+  }
   req.URL.RawQuery = query.Encode()
 
   res, err := client.Do(req)

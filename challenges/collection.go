@@ -10,7 +10,7 @@ import (
 )
 
 type OtpChallengeRequest struct {
-  OtpChallenge string `form:"otp_challenge" json:"otp_challenge,omitempty" binding:"required"`
+  OtpChallenge string `form:"otp_challenge" json:"otp_challenge" binding:"required"`
 }
 
 type OtpChallengeResponse struct {
