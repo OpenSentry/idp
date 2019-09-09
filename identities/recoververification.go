@@ -7,20 +7,8 @@ import (
 
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
+  . "github.com/charmixer/idp/models"
 )
-
-type RecoverVerificationRequest struct {
-  Id               string `json:"id" binding:"required"`
-  VerificationCode string `json:"verification_code" binding:"required"`
-  Password         string `json:"password" binding:"required"`
-  RedirectTo       string `json:"redirect_to" binding:"required"`
-}
-
-type RecoverVerificationResponse struct {
-  Id         string `json:"id" binding:"required"`
-  Verified   bool   `json:"verified" binding:"required"`
-  RedirectTo string `json:"redirect_to" binding:"required"`
-}
 
 func PostRecoverVerification(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
@@ -30,7 +18,7 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
       "func": "PostRecoverVerification",
     })
 
-    var input RecoverVerificationRequest
+    var input IdentitiesRecoverVerificationRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -38,13 +26,13 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
       return
     }
 
-    denyResponse := RecoverVerificationResponse{
+    denyResponse := IdentitiesRecoverVerificationResponse{
       Id: input.Id,
       Verified: false,
       RedirectTo: "",
     }
 
-    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
+    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid id"})
@@ -94,7 +82,7 @@ func PostRecoverVerification(env *environment.State, route environment.Route) gi
         return
       }
 
-      acceptResponse := RecoverVerificationResponse{
+      acceptResponse := IdentitiesRecoverVerificationResponse{
         Id: updatedIdentity.Id,
         Verified: true,
         RedirectTo: input.RedirectTo,

@@ -5,39 +5,14 @@ import (
   "text/template"
   "io/ioutil"
   "bytes"
-  "errors"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
+  . "github.com/charmixer/idp/models"
 )
-
-type IdentitiesRequest struct {
-  Id            string          `json:"id" binding:"required"`
-  Name          string          `json:"name"`
-  Email         string          `json:"email"`
-  Password      string          `json:"password"`
-}
-
-type IdentitiesResponse struct {
-  Id            string          `json:"id" binding:"required"`
-  Password      string          `json:"password" binding:"required"`
-  Name          string          `json:"name"`
-  Email         string          `json:"email"`
-  TotpRequired  bool            `json:"totp_required"`
-  TotpSecret    string          `json:"totp_secret"`
-}
-
-type DeleteRequest struct {
-  Id              string            `json:"id" binding:"required"`
-}
-
-type DeleteResponse struct {
-  Id              string          `json:"id" binding:"required"`
-  RedirectTo      string          `json:"redirect_to" binding:"required"`
-}
 
 type DeleteTemplateData struct {
   Name string
@@ -53,48 +28,85 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
       "func": "GetCollection",
     })
 
-    id, _ := c.GetQuery("id")
+    var err error
 
+    var request IdentitiesReadRequest
+    if err = c.Bind(&request); err != nil {
+      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+      c.Abort()
+    	return
+    }
+
+    // Inspect access token for subject
     s, _ := c.Get("sub") // Middleware delivers access_token.id_token.sub
     subject := s.(string)
 
-    valid, err := sanityCheckSubject(subject, id)
-    if err != nil {
-      c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+    // Sanity check. Require subject from access token
+    if subject == "" {
+      c.JSON(http.StatusForbidden, gin.H{"error": "Missing subject in access_token"})
       c.Abort()
       return
     }
 
-    if valid == false {
-      c.JSON(http.StatusForbidden, gin.H{"error": "Access token subject does not match requested Identity"})
+    var identity idp.Identity
+    var exists bool
+
+    if request.Id == "" {
+
+      // Look for identity id using either subject or email
+      if request.Subject != "" {
+        identity, exists, err = idp.FetchIdentityBySubject(env.Driver, request.Subject)
+        if err != nil {
+          log.WithFields(logrus.Fields{"sub": request.Subject}).Debug(err.Error())
+          c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+          c.Abort()
+          return
+        }
+      }
+
+      if identity.Id == "" && request.Email != "" {
+        identity, exists, err = idp.FetchIdentityByEmail(env.Driver, request.Email)
+        if err != nil {
+          log.WithFields(logrus.Fields{"email": request.Email}).Debug(err.Error())
+          c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+          c.Abort()
+          return
+        }
+      }
+
+    } else {
+
+      identity, exists, err = idp.FetchIdentityById(env.Driver, request.Id)
+      if err != nil {
+        log.WithFields(logrus.Fields{"id": request.Id}).Debug(err.Error())
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        c.Abort()
+        return
+      }
+
+    }
+
+    // Sanity check. Identity exists
+    if identity.Id == "" {
+      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       c.Abort()
       return
     }
 
-    identity, exists, err := idp.FetchIdentity(env.Driver, id)
-    if err != nil {
-      log.WithFields(logrus.Fields{"sub": subject}).Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Identity"})
+    // Sanity check. Access token subject and Identity.Subject must match.
+    if subject != identity.Id {
+      c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed. Hint: Access token subject and Identity.Id does not match"})
       c.Abort()
       return
     }
 
     if exists == true {
-      c.JSON(http.StatusOK, IdentitiesResponse{
-        Id: identity.Id,
-        Name: identity.Name,
-        Email: identity.Email,
-        Password: identity.Password,
-        TotpRequired: identity.TotpRequired,
-        TotpSecret: identity.TotpSecret,
-      })
+      c.JSON(http.StatusOK, IdentitiesReadResponse{ marshalIdentityToIdentityResponse(identity) })
       return
     }
 
     // Deny by default
-    c.JSON(http.StatusNotFound, gin.H{
-      "error": "Not found",
-    })
+    c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
     c.Abort()
   }
   return gin.HandlerFunc(fn)
@@ -108,7 +120,7 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       "func": "PostCollection",
     })
 
-    var input IdentitiesRequest
+    var input IdentitiesCreateRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -116,11 +128,14 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
       return
     }
 
-    log.WithFields(logrus.Fields{"id":input.Id}).Debug("Creating identity")
-    log.Debug(env.BannedUsernames[input.Id])
+    if input.Subject == "" {
+      c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sub"})
+      c.Abort()
+      return
+    }
 
-    if env.BannedUsernames[input.Id] == true {
-      c.JSON(http.StatusNotFound, gin.H{"error": "Id is bannned"})
+    if env.BannedUsernames[input.Subject] == true {
+      c.JSON(http.StatusForbidden, gin.H{"error": "Subject is banned"})
       c.Abort()
       return
     }
@@ -134,25 +149,19 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
 
     newIdentity := idp.Identity{
       Id: input.Id,
+      Subject: input.Subject,
       Name: input.Name,
       Email: input.Email,
       Password: hashedPassword,
     }
-    identityList, err := idp.CreateIdentities(env.Driver, newIdentity)
+    identity, err := idp.CreateIdentity(env.Driver, newIdentity)
     if err != nil {
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
       c.Abort()
       return
     }
 
-    n := identityList[0]
-
-    c.JSON(http.StatusOK, IdentitiesResponse{
-      Id: n.Id,
-      Name: n.Name,
-      Email: n.Email,
-      Password: n.Password,
-    })
+    c.JSON(http.StatusOK, IdentitiesCreateResponse{ marshalIdentityToIdentityResponse(identity) })
   }
   return gin.HandlerFunc(fn)
 }
@@ -166,10 +175,35 @@ func PutCollection(env *environment.State, route environment.Route) gin.HandlerF
       "func": "PutCollection",
     })
 
-    var input IdentitiesRequest
+    var input IdentitiesUpdateRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    // Inspect access token for subject
+    s, _ := c.Get("sub") // Middleware delivers access_token.id_token.sub
+    subject := s.(string)
+
+    // Sanity check. Require subject from access token
+    if subject == "" {
+      c.JSON(http.StatusForbidden, gin.H{"error": "Missing subject in access_token"})
+      c.Abort()
+      return
+    }
+
+    // Sanity check. Identity exists
+    if input.Id == "" {
+      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
+      c.Abort()
+      return
+    }
+
+    // Sanity check. Access token subject and Identity.Subject must match.
+    if subject != input.Id {
+      c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed. Hint: Access token subject and Identity.Id does not match"})
       c.Abort()
       return
     }
@@ -179,21 +213,14 @@ func PutCollection(env *environment.State, route environment.Route) gin.HandlerF
       Name: input.Name,
       Email: input.Email,
     }
-    identityList, err := idp.UpdateIdentities(env.Driver, updateIdentity)
+    identity, err := idp.UpdateIdentity(env.Driver, updateIdentity)
     if err != nil {
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
       c.Abort()
       return
     }
 
-    n := identityList[0]
-
-    c.JSON(http.StatusOK, IdentitiesResponse{
-      Id: n.Id,
-      Name: n.Name,
-      Email: n.Email,
-      Password: n.Password,
-    })
+    c.JSON(http.StatusOK, IdentitiesUpdateResponse{ marshalIdentityToIdentityResponse(identity) })
   }
   return gin.HandlerFunc(fn)
 }
@@ -206,7 +233,7 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       "func": "DeleteCollection",
     })
 
-    var input DeleteRequest
+    var input IdentitiesDeleteRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -214,23 +241,33 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
+    // Inspect access token for subject
     s, _ := c.Get("sub") // Middleware delivers access_token.id_token.sub
     subject := s.(string)
 
-    valid, err := sanityCheckSubject(subject, input.Id)
-    if err != nil {
-      c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+    // Sanity check. Require subject from access token
+    if subject == "" {
+      c.JSON(http.StatusForbidden, gin.H{"error": "Missing subject in access_token"})
       c.Abort()
       return
     }
 
-    if valid == false {
-      c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
+    // Sanity check. Identity exists
+    if input.Id == "" {
+      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
+      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       c.Abort()
       return
     }
 
-    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
+    // Sanity check. Access token subject and Identity.Subject must match.
+    if subject != input.Id {
+      c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed. Hint: Access token subject and Identity.Id does not match"})
+      c.Abort()
+      return
+    }
+
+    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -335,7 +372,7 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    deleteResponse := DeleteResponse{
+    deleteResponse := IdentitiesDeleteResponse{
       Id: updatedIdentity.Id,
       RedirectTo: deleteChallenge.RedirectTo,
     }
@@ -348,13 +385,19 @@ func DeleteCollection(env *environment.State, route environment.Route) gin.Handl
   return gin.HandlerFunc(fn)
 }
 
-// Does access_token.id_token.sub match requested Identity.sub
-func sanityCheckSubject(sub string, id string) (bool, error) {
-  if sub == "" && id == "" {
-    return false, errors.New("Not allowed. Hint: Subject should not be empty")
+func marshalIdentityToIdentityResponse(identity idp.Identity) *IdentitiesResponse {
+  return &IdentitiesResponse{
+    Id:                   identity.Id,
+    Subject:              identity.Subject,
+    Password:             identity.Password,
+    Name:                 identity.Name,
+    Email:                identity.Email,
+    AllowLogin:           identity.AllowLogin,
+    TotpRequired:         identity.TotpRequired,
+    TotpSecret:           identity.TotpSecret,
+    OtpRecoverCode:       identity.OtpRecoverCode,
+    OtpRecoverCodeExpire: identity.OtpRecoverCodeExpire,
+    OtpDeleteCode:        identity.OtpDeleteCode,
+    OtpDeleteCodeExpire:  identity.OtpDeleteCodeExpire,
   }
-  if sub != id {
-    return false, errors.New("Not allowed. Hint: Access token does not match id parameter")
-  }
-  return true, nil
 }

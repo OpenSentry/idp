@@ -9,22 +9,8 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
+  . "github.com/charmixer/idp/models"
 )
-
-type AuthenticateRequest struct {
-  Id              string            `json:"id"`
-  Password        string            `json:"password"`
-  Challenge       string            `json:"challenge" binding:"required"`
-  OtpChallenge    string            `json:"otp_challenge"`
-}
-
-type AuthenticateResponse struct {
-  Id              string            `json:"id" binding:"required"`
-  NotFound        bool              `json:"not_found" binding:"required"`
-  Authenticated   bool              `json:"authenticated" binding:"required"`
-  TotpRequired    bool              `json:"totp_required" binding:"required"`
-  RedirectTo      string            `json:"redirect_to" binding:"required"`
-}
 
 func PostAuthenticate(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
@@ -34,7 +20,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       "func": "PostAuthenticate",
     })
 
-    var input AuthenticateRequest
+    var input IdentitiesAuthenticateRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -74,7 +60,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
         "redirect_to": hydraLoginAcceptResponse.RedirectTo,
       }).Debug("PostAuthenticate.Hydra.AcceptLogin.Response")
 
-      acceptResponse := AuthenticateResponse{
+      acceptResponse := IdentitiesAuthenticateResponse{
         Id: hydraLoginResponse.Subject,
         Authenticated: true,
         NotFound: false,
@@ -95,7 +81,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       return
     }
 
-    denyResponse := AuthenticateResponse{
+    denyResponse := IdentitiesAuthenticateResponse{
       Id: input.Id,
       NotFound: false,
       Authenticated: false,
@@ -160,7 +146,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
           "redirect_to": hydraLoginAcceptResponse.RedirectTo,
         }).Debug("PostAuthenticate.Hydra.AcceptLogin.Response")
 
-        acceptResponse := AuthenticateResponse{
+        acceptResponse := IdentitiesAuthenticateResponse{
           Id: hydraLoginResponse.Subject,
           Authenticated: true,
           NotFound: false,
@@ -203,7 +189,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       return;
     }
 
-    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
+    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       log.WithFields(logrus.Fields{
@@ -231,7 +217,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       valid, _ := idp.ValidatePassword(identity.Password, input.Password)
       if valid == true {
 
-        acceptResponse := AuthenticateResponse{
+        acceptResponse := IdentitiesAuthenticateResponse{
           Id: identity.Id,
           NotFound: false,
           Authenticated: true,

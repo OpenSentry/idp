@@ -8,13 +8,8 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
+  . "github.com/charmixer/idp/models"
 )
-
-type TotpRequest struct {
-  Id          string `json:"id" binding:"required"`
-  TotpRequired bool   `json:"totp_required,omitempty" binding:"required"`
-  TotpSecret   string `json:"totp_secret,omitempty" binding:"required"`
-}
 
 type TotpResponse struct {
   Id string `json:"id" binding:"required"`
@@ -28,7 +23,7 @@ func PutTotp(env *environment.State, route environment.Route) gin.HandlerFunc {
       "func": "PostTotp",
     })
 
-    var input TotpRequest
+    var input IdentitiesTotpRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -36,7 +31,7 @@ func PutTotp(env *environment.State, route environment.Route) gin.HandlerFunc {
       return
     }
 
-    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
+    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -65,7 +60,7 @@ func PutTotp(env *environment.State, route environment.Route) gin.HandlerFunc {
         return;
       }
 
-      c.JSON(http.StatusOK, TotpResponse{ Id: updatedIdentity.Id })
+      c.JSON(http.StatusOK, IdentitiesReadResponse{ marshalIdentityToIdentityResponse(updatedIdentity) })
       return
     }
 
