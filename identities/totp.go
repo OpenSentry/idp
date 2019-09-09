@@ -8,7 +8,7 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
-  . "github.com/charmixer/idp/models"
+  . "github.com/charmixer/idp/client"
 )
 
 type TotpResponse struct {
