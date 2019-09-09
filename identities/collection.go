@@ -32,6 +32,7 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
 
     var request IdentitiesReadRequest
     if err = c.Bind(&request); err != nil {
+      log.Debug(err.Error())
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
     	return
@@ -50,6 +51,8 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
 
     var identity idp.Identity
     var exists bool
+
+    log.WithFields(logrus.Fields{"id":request.Id, "subject":request.Subject, "email":request.Email}).Debug("Received read:identity request")
 
     if request.Id == "" {
 
@@ -87,7 +90,7 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
     }
 
     // Sanity check. Identity exists
-    if identity.Id == "" {
+    if exists == false {
       c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       c.Abort()
       return
