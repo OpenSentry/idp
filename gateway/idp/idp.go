@@ -20,44 +20,104 @@ import (
 )
 
 type Identity struct {
-  Id                   string `json:"id" binding:"required"`
-  Name                 string `json:"name"`
-  Email                string `json:"email"`
-  Password             string `json:"password"`
-  AllowLogin           bool   `json:"allow_login"`
-  TotpRequired         bool   `json:"totp_required"`
-  TotpSecret           string `json:"totp_secret"`
-  OtpRecoverCode       string `json:"otp_recover_code"`
-  OtpRecoderCodeExpire int64  `json:"otp_recover_code_expire"`
-  OtpDeleteCode        string `json:"otp_delete_code"`
-  OtpDeleteCodeExpire  int64  `json:"otp_delete_code_expire"`
+  Id                   string
+  Subject              string
+  Name                 string
+  Email                string
+  Password             string
+  AllowLogin           bool
+  TotpRequired         bool
+  TotpSecret           string
+  OtpRecoverCode       string
+  OtpRecoverCodeExpire int64
+  OtpDeleteCode        string
+  OtpDeleteCodeExpire  int64
 }
 
 type Challenge struct {
-  OtpChallenge string `json:"otp_challenge"`
-  Subject      string `json:"sub"`
-  Audience     string `json:"aud"`
-  IssuedAt     int64  `json:"iat"`
-  ExpiresAt    int64  `json:"exp"`
-  TTL          int64  `json:"ttl"`
-  RedirectTo   string `json:"redirect_to"`
-  CodeType     string `json:"code_type"`
-  Code         string `json:"code"`
-  Verified     int64  `json:"verified"`
+  OtpChallenge string
+  Subject      string
+  Audience     string
+  IssuedAt     int64
+  ExpiresAt    int64
+  TTL          int64
+  RedirectTo   string
+  CodeType     string
+  Code         string
+  Verified     int64
 }
 
 type RecoverChallenge struct {
-  Id               string `json:"id" binding:"required"`
-  VerificationCode string `json:"verification_code" binding:"required"`
-  Expire           int64  `json:"expire" binding:"required"`
-  RedirectTo       string `json:"redirect_to" binding:"required"`
+  Id               string
+  VerificationCode string
+  Expire           int64
+  RedirectTo       string
 }
 
 type DeleteChallenge struct {
-  Id               string `json:"id" binding:"required"`
-  VerificationCode string `json:"verification_code" binding:"required"`
-  Expire           int64  `json:"expire" binding:"required"`
-  RedirectTo       string `json:"redirect_to" binding:"required"`
+  Id               string
+  VerificationCode string
+  Expire           int64
+  RedirectTo       string
+}
+
+func marshalRecordToIdentity(record neo4j.Record) (Identity) {
+  // NOTE: This means the statment sequence of the RETURN (possible order by)
+  // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
+  // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
+  // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
+
+  sub                  := record.GetByIndex(0).(string)
+  password             := record.GetByIndex(1).(string)
+  name                 := record.GetByIndex(2).(string)
+  email                := record.GetByIndex(3).(string)
+  allowLogin           := record.GetByIndex(4).(bool)
+  totpRequired         := record.GetByIndex(5).(bool)
+  totpSecret           := record.GetByIndex(6).(string)
+  otpRecoverCode       := record.GetByIndex(7).(string)
+  otpRecoverCodeExpire := record.GetByIndex(8).(int64)
+  otpDeleteCode        := record.GetByIndex(9).(string)
+  otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
+
+  return Identity{
+    Id: sub,
+    Name: name,
+    Email: email,
+    AllowLogin: allowLogin,
+    Password: password,
+    TotpRequired: totpRequired,
+    TotpSecret: totpSecret,
+    OtpRecoverCode: otpRecoverCode,
+    OtpRecoverCodeExpire: otpRecoverCodeExpire,
+    OtpDeleteCode: otpDeleteCode,
+    OtpDeleteCodeExpire: otpDeleteCodeExpire,
+  }
+}
+
+func marshalRecordToChallenge(record neo4j.Record) (Challenge) {
+  otpChallenge := record.GetByIndex(0).(string)
+  aud          := record.GetByIndex(1).(string)
+  iat          := record.GetByIndex(2).(int64)
+  exp          := record.GetByIndex(3).(int64)
+  verified     := record.GetByIndex(4).(int64)
+  ttl          := record.GetByIndex(5).(int64)
+  codeType     := record.GetByIndex(6).(string)
+  code         := record.GetByIndex(7).(string)
+  redirectTo   := record.GetByIndex(8).(string)
+  sub          := record.GetByIndex(9).(string)
+
+  return Challenge{
+    OtpChallenge: otpChallenge,
+    Subject: sub,
+    Audience: aud,
+    IssuedAt: iat,
+    ExpiresAt: exp,
+    Verified: verified,
+    TTL: ttl,
+    RedirectTo: redirectTo,
+    CodeType: codeType,
+    Code: code,
+  }
 }
 
 func ValidatePassword(storedPassword string, password string) (bool, error) {
@@ -211,56 +271,31 @@ func decrypt(ciphertext []byte, key []byte) ([]byte, error) {
   return gcm.Open(nil, nonce, ciphertext, nil)
 }
 
-func FetchChallenge(driver neo4j.Driver, otpChallenge string) (Challenge, bool, error) {
+func FetchChallenge(driver neo4j.Driver, challenge string) (Challenge, bool, error) {
   var err error
-  var session neo4j.Session
-  var obj interface{}
 
-  session, err = driver.Session(neo4j.AccessModeRead);
+  session, err := driver.Session(neo4j.AccessModeRead);
   if err != nil {
     return Challenge{}, false, err
   }
   defer session.Close()
 
-  obj, err = session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
 
     cypher := `
-      MATCH (c:Challenge {otp_challenge:$otpChallenge})<-[:REQUESTED]-(i:Identity) WHERE c.exp > datetime().epochSeconds
+      MATCH (c:Challenge {otp_challenge:$challenge})<-[:REQUESTED]-(i:Identity) WHERE c.exp > datetime().epochSeconds
       RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.sub
     `
-    params := map[string]interface{}{"otpChallenge": otpChallenge}
+    params := map[string]interface{}{"challenge": challenge}
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
     }
 
-    var challenge Challenge
+    var ret Challenge
     if result.Next() {
       record := result.Record()
-
-      otpChallenge := record.GetByIndex(0).(string)
-      aud          := record.GetByIndex(1).(string)
-      iat          := record.GetByIndex(2).(int64)
-      exp          := record.GetByIndex(3).(int64)
-      verified     := record.GetByIndex(4).(int64)
-      ttl          := record.GetByIndex(5).(int64)
-      codeType     := record.GetByIndex(6).(string)
-      code         := record.GetByIndex(7).(string)
-      redirectTo   := record.GetByIndex(8).(string)
-      sub          := record.GetByIndex(9).(string)
-
-      challenge = Challenge{
-        OtpChallenge: otpChallenge,
-        Subject: sub,
-        Audience: aud,
-        IssuedAt: iat,
-        ExpiresAt: exp,
-        Verified: verified,
-        TTL: ttl,
-        RedirectTo: redirectTo,
-        CodeType: codeType,
-        Code: code,
-      }
+      ret = marshalRecordToChallenge(record)
     }
 
     // Check if we encountered any error during record streaming
@@ -270,7 +305,7 @@ func FetchChallenge(driver neo4j.Driver, otpChallenge string) (Challenge, bool, 
 
     // TODO: Check if neo returned empty set
 
-    return challenge, nil
+    return ret, nil
   })
 
   if err != nil {
@@ -284,53 +319,28 @@ func FetchChallenge(driver neo4j.Driver, otpChallenge string) (Challenge, bool, 
 
 func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, bool, error) {
   var err error
-  var session neo4j.Session
-  var obj interface{}
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+  session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
     return Challenge{}, false, err
   }
   defer session.Close()
 
-  obj, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      MATCH (c:Challenge {otp_challenge:$otpChallenge})<-[:REQUESTED]-(i:Identity) SET c.verified = datetime().epochSeconds
+      MATCH (c:Challenge {otp_challenge:$challenge})<-[:REQUESTED]-(i:Identity) SET c.verified = datetime().epochSeconds
       RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.sub
     `
-    params := map[string]interface{}{"otpChallenge": challenge.OtpChallenge}
+    params := map[string]interface{}{"challenge": challenge.OtpChallenge}
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
     }
 
-    var challenge Challenge
+    var ret Challenge
     if result.Next() {
       record := result.Record()
-
-      otpChallenge := record.GetByIndex(0).(string)
-      aud          := record.GetByIndex(1).(string)
-      iat          := record.GetByIndex(2).(int64)
-      exp          := record.GetByIndex(3).(int64)
-      verified     := record.GetByIndex(4).(int64)
-      ttl          := record.GetByIndex(5).(int64)
-      codeType     := record.GetByIndex(6).(string)
-      code         := record.GetByIndex(7).(string)
-      redirectTo   := record.GetByIndex(8).(string)
-      sub          := record.GetByIndex(9).(string)
-
-      challenge = Challenge{
-        OtpChallenge: otpChallenge,
-        Subject: sub,
-        Audience: aud,
-        IssuedAt: iat,
-        ExpiresAt: exp,
-        Verified: verified,
-        TTL: ttl,
-        RedirectTo: redirectTo,
-        CodeType: codeType,
-        Code: code,
-      }
+      ret = marshalRecordToChallenge(record)
     }
 
     // Check if we encountered any error during record streaming
@@ -340,7 +350,7 @@ func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, bool,
 
     // TODO: Check if neo returned empty set
 
-    return challenge, nil
+    return ret, nil
   })
 
   if err != nil {
@@ -352,18 +362,18 @@ func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, bool,
   return Challenge{}, false, nil
 }
 
+
+
 func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challenge Challenge) (Challenge, bool, error) {
   var err error
-  var session neo4j.Session
-  var obj interface{}
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+  session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
     return Challenge{}, false, err
   }
   defer session.Close()
 
-  obj, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub})
@@ -387,34 +397,10 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
       return nil, err
     }
 
-    var challenge Challenge
+    var ret Challenge
     if result.Next() {
       record := result.Record()
-
-      otpChallenge := record.GetByIndex(0).(string)
-      aud          := record.GetByIndex(1).(string)
-      iat          := record.GetByIndex(2).(int64)
-      exp          := record.GetByIndex(3).(int64)
-      verified     := record.GetByIndex(4).(int64)
-      ttl          := record.GetByIndex(5).(int64)
-      codeType     := record.GetByIndex(6).(string)
-      code         := record.GetByIndex(7).(string)
-      redirectTo   := record.GetByIndex(8).(string)
-      sub          := record.GetByIndex(9).(string)
-
-      challenge = Challenge{
-        OtpChallenge: otpChallenge,
-        Subject: sub,
-        Audience: aud,
-        IssuedAt: iat,
-        ExpiresAt: exp,
-        Verified: verified,
-        TTL: ttl,
-        RedirectTo: redirectTo,
-        CodeType: codeType,
-        Code: code,
-      }
-
+      ret = marshalRecordToChallenge(record)
     }
 
     // Check if we encountered any error during record streaming
@@ -424,7 +410,7 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
 
     // TODO: Check if neo returned empty set
 
-    return challenge, nil
+    return ret, nil
   })
 
   if err != nil {
@@ -438,16 +424,14 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
 
 func UpdateAllowLogin(driver neo4j.Driver, identity Identity) (Identity, error) {
   var err error
-  var session neo4j.Session
-  var id interface{}
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+  session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
     return Identity{}, err
   }
   defer session.Close()
 
-  id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) SET i.allow_login=$allowLogin
@@ -461,37 +445,7 @@ func UpdateAllowLogin(driver neo4j.Driver, identity Identity) (Identity, error) 
     var ret Identity
     if result.Next() {
       record := result.Record()
-
-      // NOTE: This means the statment sequence of the RETURN (possible order by)
-      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
-      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
-      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub                  := record.GetByIndex(0).(string)
-      password             := record.GetByIndex(1).(string)
-      name                 := record.GetByIndex(2).(string)
-      email                := record.GetByIndex(3).(string)
-      allowLogin           := record.GetByIndex(4).(bool)
-      totpRequired         := record.GetByIndex(5).(bool)
-      totpSecret           := record.GetByIndex(6).(string)
-      otpRecoverCode       := record.GetByIndex(7).(string)
-      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
-      otpDeleteCode        := record.GetByIndex(9).(string)
-      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
-
-      identity := Identity{
-        Id: sub,
-        Name: name,
-        Email: email,
-        AllowLogin: allowLogin,
-        Password: password,
-        TotpRequired: totpRequired,
-        TotpSecret: totpSecret,
-        OtpRecoverCode: otpRecoverCode,
-        OtpRecoderCodeExpire: otpRecoverCodeExpire,
-        OtpDeleteCode: otpDeleteCode,
-        OtpDeleteCodeExpire: otpDeleteCodeExpire,
-      }
-      ret = identity
+      ret = marshalRecordToIdentity(record)
     }
 
     // Check if we encountered any error during record streaming
@@ -504,21 +458,19 @@ func UpdateAllowLogin(driver neo4j.Driver, identity Identity) (Identity, error) 
   if err != nil {
     return Identity{}, err
   }
-  return id.(Identity), nil
+  return obj.(Identity), nil
 }
 
 func UpdateTotp(driver neo4j.Driver, identity Identity) (Identity, error) {
   var err error
-  var session neo4j.Session
-  var id interface{}
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+  session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
     return Identity{}, err
   }
   defer session.Close()
 
-  id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) SET i.totp_required=$required, i.totp_secret=$secret
@@ -532,37 +484,7 @@ func UpdateTotp(driver neo4j.Driver, identity Identity) (Identity, error) {
     var ret Identity
     if result.Next() {
       record := result.Record()
-
-      // NOTE: This means the statment sequence of the RETURN (possible order by)
-      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
-      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
-      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub                  := record.GetByIndex(0).(string)
-      password             := record.GetByIndex(1).(string)
-      name                 := record.GetByIndex(2).(string)
-      email                := record.GetByIndex(3).(string)
-      allowLogin           := record.GetByIndex(4).(bool)
-      totpRequired         := record.GetByIndex(5).(bool)
-      totpSecret           := record.GetByIndex(6).(string)
-      otpRecoverCode       := record.GetByIndex(7).(string)
-      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
-      otpDeleteCode        := record.GetByIndex(9).(string)
-      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
-
-      identity := Identity{
-        Id: sub,
-        Name: name,
-        Email: email,
-        AllowLogin: allowLogin,
-        Password: password,
-        TotpRequired: totpRequired,
-        TotpSecret: totpSecret,
-        OtpRecoverCode: otpRecoverCode,
-        OtpRecoderCodeExpire: otpRecoverCodeExpire,
-        OtpDeleteCode: otpDeleteCode,
-        OtpDeleteCodeExpire: otpDeleteCodeExpire,
-      }
-      ret = identity
+      ret = marshalRecordToIdentity(record)
     }
 
     // Check if we encountered any error during record streaming
@@ -575,21 +497,19 @@ func UpdateTotp(driver neo4j.Driver, identity Identity) (Identity, error) {
   if err != nil {
     return Identity{}, err
   }
-  return id.(Identity), nil
+  return obj.(Identity), nil
 }
 
 func UpdateOtpDeleteCode(driver neo4j.Driver, identity Identity) (Identity, error) {
   var err error
-  var session neo4j.Session
-  var id interface{}
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+  session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
     return Identity{}, err
   }
   defer session.Close()
 
-  id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) SET i.otp_delete_code=$code, i.otp_delete_code_expire=$expire
@@ -603,37 +523,7 @@ func UpdateOtpDeleteCode(driver neo4j.Driver, identity Identity) (Identity, erro
     var ret Identity
     if result.Next() {
       record := result.Record()
-
-      // NOTE: This means the statment sequence of the RETURN (possible order by)
-      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
-      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
-      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub                  := record.GetByIndex(0).(string)
-      password             := record.GetByIndex(1).(string)
-      name                 := record.GetByIndex(2).(string)
-      email                := record.GetByIndex(3).(string)
-      allowLogin           := record.GetByIndex(4).(bool)
-      totpRequired         := record.GetByIndex(5).(bool)
-      totpSecret           := record.GetByIndex(6).(string)
-      otpRecoverCode       := record.GetByIndex(7).(string)
-      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
-      otpDeleteCode        := record.GetByIndex(9).(string)
-      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
-
-      identity := Identity{
-        Id: sub,
-        Name: name,
-        Email: email,
-        AllowLogin: allowLogin,
-        Password: password,
-        TotpRequired: totpRequired,
-        TotpSecret: totpSecret,
-        OtpRecoverCode: otpRecoverCode,
-        OtpRecoderCodeExpire: otpRecoverCodeExpire,
-        OtpDeleteCode: otpDeleteCode,
-        OtpDeleteCodeExpire: otpDeleteCodeExpire,
-      }
-      ret = identity
+      ret = marshalRecordToIdentity(record)
     }
 
     // Check if we encountered any error during record streaming
@@ -646,27 +536,25 @@ func UpdateOtpDeleteCode(driver neo4j.Driver, identity Identity) (Identity, erro
   if err != nil {
     return Identity{}, err
   }
-  return id.(Identity), nil
+  return obj.(Identity), nil
 }
 
 func UpdateOtpRecoverCode(driver neo4j.Driver, identity Identity) (Identity, error) {
   var err error
-  var session neo4j.Session
-  var id interface{}
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+  session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
     return Identity{}, err
   }
   defer session.Close()
 
-  id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) SET i.otp_recover_code=$code, i.otp_recover_code_expire=$expire
       RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
-    params := map[string]interface{}{"sub": identity.Id, "code": identity.OtpRecoverCode, "expire": identity.OtpRecoderCodeExpire}
+    params := map[string]interface{}{"sub": identity.Id, "code": identity.OtpRecoverCode, "expire": identity.OtpRecoverCodeExpire}
     if result, err = tx.Run(cypher, params); err != nil {
       return Identity{}, err
     }
@@ -674,37 +562,7 @@ func UpdateOtpRecoverCode(driver neo4j.Driver, identity Identity) (Identity, err
     var ret Identity
     if result.Next() {
       record := result.Record()
-
-      // NOTE: This means the statment sequence of the RETURN (possible order by)
-      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
-      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
-      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub                  := record.GetByIndex(0).(string)
-      password             := record.GetByIndex(1).(string)
-      name                 := record.GetByIndex(2).(string)
-      email                := record.GetByIndex(3).(string)
-      allowLogin           := record.GetByIndex(4).(bool)
-      totpRequired         := record.GetByIndex(5).(bool)
-      totpSecret           := record.GetByIndex(6).(string)
-      otpRecoverCode       := record.GetByIndex(7).(string)
-      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
-      otpDeleteCode        := record.GetByIndex(9).(string)
-      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
-
-      identity := Identity{
-        Id: sub,
-        Name: name,
-        Email: email,
-        AllowLogin: allowLogin,
-        Password: password,
-        TotpRequired: totpRequired,
-        TotpSecret: totpSecret,
-        OtpRecoverCode: otpRecoverCode,
-        OtpRecoderCodeExpire: otpRecoverCodeExpire,
-        OtpDeleteCode: otpDeleteCode,
-        OtpDeleteCodeExpire: otpDeleteCodeExpire,
-      }
-      ret = identity
+      ret = marshalRecordToIdentity(record)
     }
 
     // Check if we encountered any error during record streaming
@@ -717,21 +575,19 @@ func UpdateOtpRecoverCode(driver neo4j.Driver, identity Identity) (Identity, err
   if err != nil {
     return Identity{}, err
   }
-  return id.(Identity), nil
+  return obj.(Identity), nil
 }
 
 func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
   var err error
-  var session neo4j.Session
-  var id interface{}
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+  session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
     return Identity{}, err
   }
   defer session.Close()
 
-  id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) SET i.password=$password
@@ -745,37 +601,7 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
     var ret Identity
     if result.Next() {
       record := result.Record()
-
-      // NOTE: This means the statment sequence of the RETURN (possible order by)
-      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
-      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
-      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub                  := record.GetByIndex(0).(string)
-      password             := record.GetByIndex(1).(string)
-      name                 := record.GetByIndex(2).(string)
-      email                := record.GetByIndex(3).(string)
-      allowLogin           := record.GetByIndex(4).(bool)
-      totpRequired         := record.GetByIndex(5).(bool)
-      totpSecret           := record.GetByIndex(6).(string)
-      otpRecoverCode       := record.GetByIndex(7).(string)
-      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
-      otpDeleteCode        := record.GetByIndex(9).(string)
-      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
-
-      identity := Identity{
-        Id: sub,
-        Name: name,
-        Email: email,
-        AllowLogin: allowLogin,
-        Password: password,
-        TotpRequired: totpRequired,
-        TotpSecret: totpSecret,
-        OtpRecoverCode: otpRecoverCode,
-        OtpRecoderCodeExpire: otpRecoverCodeExpire,
-        OtpDeleteCode: otpDeleteCode,
-        OtpDeleteCodeExpire: otpDeleteCodeExpire,
-      }
-      ret = identity
+      ret = marshalRecordToIdentity(record)
     }
 
     // Check if we encountered any error during record streaming
@@ -788,21 +614,19 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
   if err != nil {
     return Identity{}, err
   }
-  return id.(Identity), nil
+  return obj.(Identity), nil
 }
 
-func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error) {
+func CreateIdentity(driver neo4j.Driver, identity Identity) (Identity, error) {
   var err error
-  var session neo4j.Session
-  var ids interface{}
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+  session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
-    return nil, err
+    return Identity{}, err
   }
   defer session.Close()
 
-  ids, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
       CREATE (i:Identity {sub:$sub, password:$password, name:$name, email:$email, allow_login:true, totp_required:false, totp_secret:"", otp_recover_code:"", otp_recover_code_expire:0, otp_delete_code:"", otp_delete_code_expire:0})
@@ -813,69 +637,37 @@ func CreateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
       return nil, err
     }
 
-    var identities []Identity
+    var ret Identity
     if result.Next() {
       record := result.Record()
-
-      // NOTE: This means the statment sequence of the RETURN (possible order by)
-      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
-      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
-      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub                  := record.GetByIndex(0).(string)
-      password             := record.GetByIndex(1).(string)
-      name                 := record.GetByIndex(2).(string)
-      email                := record.GetByIndex(3).(string)
-      allowLogin           := record.GetByIndex(4).(bool)
-      totpRequired         := record.GetByIndex(5).(bool)
-      totpSecret           := record.GetByIndex(6).(string)
-      otpRecoverCode       := record.GetByIndex(7).(string)
-      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
-      otpDeleteCode        := record.GetByIndex(9).(string)
-      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
-
-      identity := Identity{
-        Id: sub,
-        Name: name,
-        Email: email,
-        AllowLogin: allowLogin,
-        Password: password,
-        TotpRequired: totpRequired,
-        TotpSecret: totpSecret,
-        OtpRecoverCode: otpRecoverCode,
-        OtpRecoderCodeExpire: otpRecoverCodeExpire,
-        OtpDeleteCode: otpDeleteCode,
-        OtpDeleteCodeExpire: otpDeleteCodeExpire,
-      }
-      identities = append(identities, identity)
+      ret = marshalRecordToIdentity(record)
     }
 
     // Check if we encountered any error during record streaming
     if err = result.Err(); err != nil {
       return nil, err
     }
-    return identities, nil
+    return ret, nil
   })
 
   if err != nil {
-    return nil, err
+    return Identity{}, err
   }
-  return ids.([]Identity), nil
+  return obj.(Identity), nil
 }
 
-// NOTE: This can update eveything but the Identity.sub and Identity.password
+// NOTE: This can update everything that is _NOT_ sensitive to the authentication process like Identity.Password
 //       To change the password see recover for that.
-func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error) {
+func UpdateIdentity(driver neo4j.Driver, identity Identity) (Identity, error) {
   var err error
-  var session neo4j.Session
-  var ids interface{}
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+  session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
-    return nil, err
+    return Identity{}, err
   }
   defer session.Close()
 
-  ids, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) WITH i SET i.name=$name, i.email=$email
@@ -886,67 +678,35 @@ func UpdateIdentities(driver neo4j.Driver, identity Identity) ([]Identity, error
       return nil, err
     }
 
-    var identities []Identity
+    var ret Identity
     if result.Next() {
       record := result.Record()
-
-      // NOTE: This means the statment sequence of the RETURN (possible order by)
-      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
-      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
-      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub                  := record.GetByIndex(0).(string)
-      password             := record.GetByIndex(1).(string)
-      name                 := record.GetByIndex(2).(string)
-      email                := record.GetByIndex(3).(string)
-      allowLogin           := record.GetByIndex(4).(bool)
-      totpRequired         := record.GetByIndex(5).(bool)
-      totpSecret           := record.GetByIndex(6).(string)
-      otpRecoverCode       := record.GetByIndex(7).(string)
-      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
-      otpDeleteCode        := record.GetByIndex(9).(string)
-      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
-
-      identity := Identity{
-        Id: sub,
-        Name: name,
-        Email: email,
-        AllowLogin: allowLogin,
-        Password: password,
-        TotpRequired: totpRequired,
-        TotpSecret: totpSecret,
-        OtpRecoverCode: otpRecoverCode,
-        OtpRecoderCodeExpire: otpRecoverCodeExpire,
-        OtpDeleteCode: otpDeleteCode,
-        OtpDeleteCodeExpire: otpDeleteCodeExpire,
-      }
-      identities = append(identities, identity)
+      ret = marshalRecordToIdentity(record)
     }
 
     // Check if we encountered any error during record streaming
     if err = result.Err(); err != nil {
       return nil, err
     }
-    return identities, nil
+    return ret, nil
   })
 
   if err != nil {
-    return nil, err
+    return Identity{}, err
   }
-  return ids.([]Identity), nil
+  return obj.(Identity), nil
 }
 
 func DeleteIdentity(driver neo4j.Driver, identity Identity) (Identity, error) {
   var err error
-  var session neo4j.Session
-  var id interface{}
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+  session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
     return Identity{}, err
   }
   defer session.Close()
 
-  id, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {sub:$sub}) DETACH DELETE i
@@ -968,22 +728,97 @@ func DeleteIdentity(driver neo4j.Driver, identity Identity) (Identity, error) {
   if err != nil {
     return Identity{}, err
   }
-  return id.(Identity), nil
+  return obj.(Identity), nil
 }
 
-// https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
-func FetchIdentity(driver neo4j.Driver, sub string) (Identity, bool, error) {
+func FetchIdentityById(driver neo4j.Driver, id string) (Identity, bool, error) {
   var err error
-  var session neo4j.Session
-  var obj interface{}
 
-  session, err = driver.Session(neo4j.AccessModeRead);
+  session, err := driver.Session(neo4j.AccessModeRead);
   if err != nil {
     return Identity{}, false, err
   }
   defer session.Close()
 
-  obj, err = session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  obj, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+
+    cypher := `
+      MATCH (i:Identity {id: $id})
+      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+    `
+    params := map[string]interface{}{"id": id}
+    if result, err = tx.Run(cypher, params); err != nil {
+      return Identity{}, err
+    }
+
+    var identity Identity
+    if result.Next() {
+      record := result.Record()
+      identity = marshalRecordToIdentity(record)
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return Identity{}, err
+    }
+    return identity, nil
+  })
+  if err != nil {
+    return Identity{}, false, err
+  }
+  return obj.(Identity), true, nil
+}
+
+func FetchIdentityByEmail(driver neo4j.Driver, email string) (Identity, bool, error) {
+  var err error
+
+  session, err := driver.Session(neo4j.AccessModeRead);
+  if err != nil {
+    return Identity{}, false, err
+  }
+  defer session.Close()
+
+  obj, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+
+    cypher := `
+      MATCH (i:Identity {email: $email})
+      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+    `
+    params := map[string]interface{}{"email": email}
+    if result, err = tx.Run(cypher, params); err != nil {
+      return Identity{}, err
+    }
+
+    var identity Identity
+    if result.Next() {
+      record := result.Record()
+      identity = marshalRecordToIdentity(record)
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return Identity{}, err
+    }
+    return identity, nil
+  })
+  if err != nil {
+    return Identity{}, false, err
+  }
+  return obj.(Identity), true, nil
+}
+
+func FetchIdentityBySubject(driver neo4j.Driver, sub string) (Identity, bool, error) {
+  var err error
+
+  session, err := driver.Session(neo4j.AccessModeRead);
+  if err != nil {
+    return Identity{}, false, err
+  }
+  defer session.Close()
+
+  obj, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
 
     cypher := `
@@ -998,36 +833,7 @@ func FetchIdentity(driver neo4j.Driver, sub string) (Identity, bool, error) {
     var identity Identity
     if result.Next() {
       record := result.Record()
-
-      // NOTE: This means the statment sequence of the RETURN (possible order by)
-      // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
-      // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
-      // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-      sub                  := record.GetByIndex(0).(string)
-      password             := record.GetByIndex(1).(string)
-      name                 := record.GetByIndex(2).(string)
-      email                := record.GetByIndex(3).(string)
-      allowLogin           := record.GetByIndex(4).(bool)
-      totpRequired         := record.GetByIndex(5).(bool)
-      totpSecret           := record.GetByIndex(6).(string)
-      otpRecoverCode       := record.GetByIndex(7).(string)
-      otpRecoverCodeExpire := record.GetByIndex(8).(int64)
-      otpDeleteCode        := record.GetByIndex(9).(string)
-      otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
-
-      identity = Identity{
-        Id: sub,
-        Name: name,
-        Email: email,
-        AllowLogin: allowLogin,
-        Password: password,
-        TotpRequired: totpRequired,
-        TotpSecret: totpSecret,
-        OtpRecoverCode: otpRecoverCode,
-        OtpRecoderCodeExpire: otpRecoverCodeExpire,
-        OtpDeleteCode: otpDeleteCode,
-        OtpDeleteCodeExpire: otpDeleteCodeExpire,
-      }
+      identity = marshalRecordToIdentity(record)
     }
 
     // Check if we encountered any error during record streaming
@@ -1041,6 +847,8 @@ func FetchIdentity(driver neo4j.Driver, sub string) (Identity, bool, error) {
   }
   return obj.(Identity), true, nil
 }
+
+// EMAIL BEGIN
 
 type SMTPSender struct {
   Name string

@@ -11,16 +11,8 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
+  . "github.com/charmixer/idp/models"
 )
-
-type RecoverRequest struct {
-  Id              string            `json:"id" binding:"required"`
-}
-
-type RecoverResponse struct {
-  Id              string          `json:"id" binding:"required"`
-  RedirectTo      string          `json:"redirect_to" binding:"required"`
-}
 
 type RecoverTemplateData struct {
   Name string
@@ -36,7 +28,7 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       "func": "PostRecover",
     })
 
-    var input RecoverRequest
+    var input IdentitiesRecoverRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -44,7 +36,7 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id) // FIXME do not return a list of identities!
+    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -90,7 +82,7 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
     n := idp.Identity{
       Id: identity.Id,
       OtpRecoverCode: hashedCode,
-      OtpRecoderCodeExpire: recoverChallenge.Expire,
+      OtpRecoverCodeExpire: recoverChallenge.Expire,
     }
     updatedIdentity, err := idp.UpdateOtpRecoverCode(env.Driver, n)
     if err != nil {
@@ -149,7 +141,7 @@ func PostRecover(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    recoverResponse := RecoverResponse{
+    recoverResponse := IdentitiesRecoverResponse{
       Id: updatedIdentity.Id,
       RedirectTo: recoverChallenge.RedirectTo,
     }

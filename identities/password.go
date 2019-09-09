@@ -7,16 +7,8 @@ import (
 
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
+  . "github.com/charmixer/idp/models"
 )
-
-type PasswordRequest struct {
-  Id              string            `json:"id" binding:"required"`
-  Password        string            `json:"password" binding:"required"`
-}
-
-type PasswordResponse struct {
-  Id              string            `json:"id" binding:"required"`
-}
 
 func PutPassword(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
@@ -26,7 +18,7 @@ func PutPassword(env *environment.State, route environment.Route) gin.HandlerFun
       "func": "PostPassword",
     })
 
-    var input PasswordRequest
+    var input IdentitiesPasswordRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -34,7 +26,7 @@ func PutPassword(env *environment.State, route environment.Route) gin.HandlerFun
       return
     }
 
-    identity, exists, err := idp.FetchIdentity(env.Driver, input.Id)
+    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -69,7 +61,7 @@ func PutPassword(env *environment.State, route environment.Route) gin.HandlerFun
         return;
       }
 
-      c.JSON(http.StatusOK, gin.H{"id": updatedIdentity.Id})
+      c.JSON(http.StatusOK, IdentitiesReadResponse{ marshalIdentityToIdentityResponse(updatedIdentity) })
       return
     }
 
