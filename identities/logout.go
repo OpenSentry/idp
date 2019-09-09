@@ -8,15 +8,8 @@ import (
 
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
+  . "github.com/charmixer/idp/client"
 )
-
-type LogoutRequest struct {
-  Challenge       string            `json:"challenge" binding:"required"`
-}
-
-type LogoutResponse struct {
-  RedirectTo string `json:"redirect_to" binding:"required"`
-}
 
 func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
@@ -26,7 +19,7 @@ func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc
       "func": "PostLogout",
     })
 
-    var input LogoutRequest
+    var input IdentitiesLogoutRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -47,7 +40,7 @@ func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc
       return
     }
 
-    logoutResponse := LogoutResponse{
+    logoutResponse := IdentitiesLogoutResponse{
       RedirectTo: hydraLogoutAcceptResponse.RedirectTo,
     }
 
