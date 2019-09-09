@@ -226,8 +226,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
       return;
     }
 
-    log.WithFields(logrus.Fields{"fixme": 1}).Debug("Use NoLogin boolean on Identity to check if we want to login.")
-    if identity.Id != "" {
+    if identity.AllowLogin == true {
 
       valid, _ := idp.ValidatePassword(identity.Password, input.Password)
       if valid == true {
