@@ -66,21 +66,22 @@ func marshalRecordToIdentity(record neo4j.Record) (Identity) {
   // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
   // If results are consumed in the same order as they are produced, records merely pass through the buffer; if they are consumed out of order, the buffer will be utilized to retain records until
   // they are consumed by the application. For large results, this may require a significant amount of memory and impact performance. For this reason, it is recommended to consume results in order wherever possible.
-
-  sub                  := record.GetByIndex(0).(string)
-  password             := record.GetByIndex(1).(string)
-  name                 := record.GetByIndex(2).(string)
-  email                := record.GetByIndex(3).(string)
-  allowLogin           := record.GetByIndex(4).(bool)
-  totpRequired         := record.GetByIndex(5).(bool)
-  totpSecret           := record.GetByIndex(6).(string)
-  otpRecoverCode       := record.GetByIndex(7).(string)
-  otpRecoverCodeExpire := record.GetByIndex(8).(int64)
-  otpDeleteCode        := record.GetByIndex(9).(string)
-  otpDeleteCodeExpire  := record.GetByIndex(10).(int64)
+  id                   := record.GetByIndex(0).(string)
+  sub                  := record.GetByIndex(1).(string)
+  password             := record.GetByIndex(2).(string)
+  name                 := record.GetByIndex(3).(string)
+  email                := record.GetByIndex(4).(string)
+  allowLogin           := record.GetByIndex(5).(bool)
+  totpRequired         := record.GetByIndex(6).(bool)
+  totpSecret           := record.GetByIndex(7).(string)
+  otpRecoverCode       := record.GetByIndex(8).(string)
+  otpRecoverCodeExpire := record.GetByIndex(9).(int64)
+  otpDeleteCode        := record.GetByIndex(10).(string)
+  otpDeleteCodeExpire  := record.GetByIndex(11).(int64)
 
   return Identity{
-    Id: sub,
+    Id: id,
+    Subject: sub,
     Name: name,
     Email: email,
     AllowLogin: allowLogin,
@@ -285,7 +286,7 @@ func FetchChallenge(driver neo4j.Driver, challenge string) (Challenge, bool, err
 
     cypher := `
       MATCH (c:Challenge {otp_challenge:$challenge})<-[:REQUESTED]-(i:Identity) WHERE c.exp > datetime().epochSeconds
-      RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.sub
+      RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.id
     `
     params := map[string]interface{}{"challenge": challenge}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -330,7 +331,7 @@ func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, bool,
     var result neo4j.Result
     cypher := `
       MATCH (c:Challenge {otp_challenge:$challenge})<-[:REQUESTED]-(i:Identity) SET c.verified = datetime().epochSeconds
-      RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.sub
+      RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.id
     `
     params := map[string]interface{}{"challenge": challenge.OtpChallenge}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -376,17 +377,17 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
   obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      MATCH (i:Identity {sub:$sub})
+      MATCH (i:Identity {id:$id})
       CREATE (i)-[:REQUESTED]->(c:Challenge {otp_challenge:randomUUID(), aud:$aud, iat:datetime().epochSeconds, exp:datetime().epochSeconds + $ttl, verified:0, ttl:$ttl, code_type:$codeType, code:$code, redirect_to:$redirectTo})
 
       WITH i, c
 
       MATCH (i)-[:REQUESTED]->(d:Challenge) WHERE d.exp <= datetime().epochSeconds DETACH DELETE d
 
-      RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.sub
+      RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.id
     `
     params := map[string]interface{}{
-      "sub": identity.Id,
+      "id": identity.Id,
       "aud": challenge.Audience,
       "ttl": challenge.TTL,
       "codeType": challenge.CodeType,
@@ -435,7 +436,7 @@ func UpdateAllowLogin(driver neo4j.Driver, identity Identity) (Identity, error) 
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {id:$id}) SET i.allow_login=$allowLogin
-      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.id, i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"id": identity.Id, "allowLogin": identity.AllowLogin}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -474,7 +475,7 @@ func UpdateTotp(driver neo4j.Driver, identity Identity) (Identity, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {id:$id}) SET i.totp_required=$required, i.totp_secret=$secret
-      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.id, i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"id": identity.Id, "required": identity.TotpRequired, "secret": identity.TotpSecret}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -513,7 +514,7 @@ func UpdateOtpDeleteCode(driver neo4j.Driver, identity Identity) (Identity, erro
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {id:$id}) SET i.otp_delete_code=$code, i.otp_delete_code_expire=$expire
-      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.id, i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"id": identity.Id, "code": identity.OtpDeleteCode, "expire": identity.OtpDeleteCodeExpire}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -552,7 +553,7 @@ func UpdateOtpRecoverCode(driver neo4j.Driver, identity Identity) (Identity, err
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {id:$id}) SET i.otp_recover_code=$code, i.otp_recover_code_expire=$expire
-      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.id, i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"id": identity.Id, "code": identity.OtpRecoverCode, "expire": identity.OtpRecoverCodeExpire}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -591,7 +592,7 @@ func UpdatePassword(driver neo4j.Driver, identity Identity) (Identity, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {id:$id}) SET i.password=$password
-      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.id, i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"id": identity.Id, "password": identity.Password}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -630,7 +631,7 @@ func CreateIdentity(driver neo4j.Driver, identity Identity) (Identity, error) {
     var result neo4j.Result
     cypher := `
       CREATE (i:Identity {id:randomUUID(), sub:$sub, password:$password, name:$name, email:$email, allow_login:true, totp_required:false, totp_secret:"", otp_recover_code:"", otp_recover_code_expire:0, otp_delete_code:"", otp_delete_code_expire:0})
-      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.id, i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": identity.Subject, "password": identity.Password, "name": identity.Name, "email": identity.Email}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -671,7 +672,7 @@ func UpdateIdentity(driver neo4j.Driver, identity Identity) (Identity, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {id:$id}) WITH i SET i.name=$name, i.email=$email
-      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.id, i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"id": identity.Id, "name": identity.Name, "email": identity.Email}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -745,7 +746,7 @@ func FetchIdentityById(driver neo4j.Driver, id string) (Identity, bool, error) {
 
     cypher := `
       MATCH (i:Identity {id: $id})
-      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.id, i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"id": id}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -784,7 +785,7 @@ func FetchIdentityByEmail(driver neo4j.Driver, email string) (Identity, bool, er
 
     cypher := `
       MATCH (i:Identity {email: $email})
-      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.id, i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"email": email}
     if result, err = tx.Run(cypher, params); err != nil {
@@ -823,7 +824,7 @@ func FetchIdentityBySubject(driver neo4j.Driver, sub string) (Identity, bool, er
 
     cypher := `
       MATCH (i:Identity {sub: $sub})
-      RETURN i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
+      RETURN i.id, i.sub, i.password, i.name, i.email, i.allow_login, i.totp_required, i.totp_secret, i.otp_recover_code, i.otp_recover_code_expire, i.otp_delete_code, i.otp_delete_code_expire
     `
     params := map[string]interface{}{"sub": sub}
     if result, err = tx.Run(cypher, params); err != nil {
