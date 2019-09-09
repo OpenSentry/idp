@@ -267,9 +267,6 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
             return
           }
 
-log.Debug("WTF WTF WTF")
-log.Debug(challenge)
-
           if exists == false {
             log.WithFields(logrus.Fields{
               "challenge": input.Challenge,
