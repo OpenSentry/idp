@@ -148,7 +148,6 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
     }
 
     newIdentity := idp.Identity{
-      Id: input.Id,
       Subject: input.Subject,
       Name: input.Name,
       Email: input.Email,
