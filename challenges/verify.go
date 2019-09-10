@@ -62,7 +62,7 @@ func PostVerify(env *environment.State, route environment.Route) gin.HandlerFunc
       return
     }
 
-    identity, exists, err := idp.FetchIdentityBySubject(env.Driver, challenge.Subject)
+    identity, exists, err := idp.FetchIdentityById(env.Driver, challenge.Subject)
     if err != nil {
       log.WithFields(logrus.Fields{
         "otp_challenge": challenge.OtpChallenge,
