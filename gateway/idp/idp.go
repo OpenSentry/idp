@@ -378,11 +378,11 @@ func CreateChallengeForIdentity(driver neo4j.Driver, identity Identity, challeng
     var result neo4j.Result
     cypher := `
       MATCH (i:Identity {id:$id})
-      CREATE (i)-[:REQUESTED]->(c:Challenge {otp_challenge:randomUUID(), aud:$aud, iat:datetime().epochSeconds, exp:datetime().epochSeconds + $ttl, verified:0, ttl:$ttl, code_type:$codeType, code:$code, redirect_to:$redirectTo})
+      MERGE (i)-[:REQUESTED]->(c:Challenge {otp_challenge:randomUUID(), aud:$aud, iat:datetime().epochSeconds, exp:datetime().epochSeconds + $ttl, verified:0, ttl:$ttl, code_type:$codeType, code:$code, redirect_to:$redirectTo})
 
       WITH i, c
 
-      MATCH (i)-[:REQUESTED]->(d:Challenge) WHERE d.exp <= datetime().epochSeconds DETACH DELETE d
+      OPTIONAL MATCH (i)-[:REQUESTED]->(d:Challenge) WHERE id(c) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
 
       RETURN c.otp_challenge, c.aud, c.iat, c.exp, c.verified, c.ttl, c.code_type, c.code, c.redirect_to, i.id
     `

@@ -237,7 +237,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
             RedirectTo: redirectTo, // When challenge is verified where should the verify controller redirect to and append otp_challenge=
             Audience: "https://id.localhost/api/authenticate",
           }
-          challenge, exists, err := idp.CreateChallengeForIdentity(env.Driver, identity, aChallenge)
+          otpChallenge, exists, err := idp.CreateChallengeForIdentity(env.Driver, identity, aChallenge)
           if err != nil {
             log.Debug(err.Error())
             log.WithFields(logrus.Fields{
@@ -266,7 +266,7 @@ func PostAuthenticate(env *environment.State, route environment.Route) gin.Handl
           }
 
           // config.GetString("idpui.public.url") + config.GetString("idpui.public.url.endpoints.verify")
-          acceptResponse.RedirectTo = "/verify?otp_challenge=" + challenge.OtpChallenge
+          acceptResponse.RedirectTo = "/verify?otp_challenge=" + otpChallenge.OtpChallenge
 
         } else {
           hydraLoginAcceptRequest := hydra.LoginAcceptRequest{
