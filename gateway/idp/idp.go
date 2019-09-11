@@ -121,6 +121,15 @@ func marshalRecordToChallenge(record neo4j.Record) (Challenge) {
   }
 }
 
+type Invitation struct {
+  InviterId string
+  Id string
+}
+
+func CreateInvitation(identity Identity, invite Invitation) (Invitation, error) {
+  return Invitation{}, nil
+}
+
 func ValidatePassword(storedPassword string, password string) (bool, error) {
   err := bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(password))
   if err != nil {
