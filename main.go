@@ -7,6 +7,7 @@ import (
   "os"
   "time"
   "bufio"
+  "io/ioutil"
   "golang.org/x/net/context"
   "golang.org/x/oauth2"
   "golang.org/x/oauth2/clientcredentials"
@@ -17,6 +18,7 @@ import (
   "github.com/neo4j/neo4j-go-driver/neo4j"
   hydra "github.com/charmixer/hydra/client"
   "github.com/pborman/getopt"
+  "github.com/dgrijalva/jwt-go"
 
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
@@ -148,12 +150,39 @@ func main() {
     return
   }
 
+  // Load private and public key for signing jwt tokens.
+  signBytes, err := ioutil.ReadFile(config.GetString("serve.tls.key.path"))
+  if err != nil {
+    log.WithFields(appFields).Panic(err.Error())
+    return
+  }
+
+  signKey, err := jwt.ParseRSAPrivateKeyFromPEM(signBytes)
+  if err != nil {
+    log.WithFields(appFields).Panic(err.Error())
+    return
+  }
+
+  verifyBytes, err := ioutil.ReadFile(config.GetString("serve.tls.cert.path"))
+  if err != nil {
+    log.WithFields(appFields).Panic(err.Error())
+    return
+  }
+
+  verifyKey, err := jwt.ParseRSAPublicKeyFromPEM(verifyBytes)
+  if err != nil {
+    log.WithFields(appFields).Panic(err.Error())
+    return
+  }
+
   // Setup app state variables. Can be used in handler functions by doing closures see exchangeAuthorizationCodeCallback
   env := &environment.State{
     Provider: provider,
     HydraConfig: hydraConfig,
     Driver: driver,
     BannedUsernames: bannedUsernames,
+    IssuerSignKey: signKey,
+    IssuerVerifyKey: verifyKey,
   }
 
   //if *optServe {
@@ -179,6 +208,7 @@ func serve(env *environment.State) {
     "/identities/recover":             environment.Route{URL: "/identities/recover",             LogId: "idpui://identities/recover"},
     "/identities/recoververification": environment.Route{URL: "/identities/recoververification", LogId: "idpui://identities/recoververification"},
     "/identities/deleteverification":  environment.Route{URL: "/identities/deleteverification",  LogId: "idpui://identities/deleteverification"},
+    "/identities/invite":              environment.Route{URL: "/identities/invite",              LogId: "idpui://identities/invite"},
   }
 
   r := gin.New() // Clean gin to take control with logging.
@@ -217,6 +247,8 @@ func serve(env *environment.State) {
 
   r.POST(routes["/identities/recover"].URL, authorizationRequired(env, routes["/identities/recover"], "recover:identity"), identities.PostRecover(env, routes["/identities/recover"]))
   r.POST(routes["/identities/recoververification"].URL, authorizationRequired(env, routes["/identities/recoververification"], "authenticate:identity"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
+
+  r.POST(routes["/identities/invite"].URL, authorizationRequired(env, routes["/identities/invite"], "invite:identity"), identities.PostInvite(env, routes["/identities/invite"]))
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }

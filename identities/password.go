@@ -66,7 +66,7 @@ func PutPassword(env *environment.State, route environment.Route) gin.HandlerFun
     }
 
     // Deny by default
-    log.Info("Identity '"+input.Id+"' not found")
+    log.WithFields(logrus.Fields{"id": input.Id}).Info("Identity not found")
     c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
   }
   return gin.HandlerFunc(fn)
