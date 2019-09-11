@@ -1,6 +1,7 @@
 package environment
 
 import (
+  "crypto/rsa"
   "golang.org/x/oauth2/clientcredentials"
   oidc "github.com/coreos/go-oidc"
   "github.com/neo4j/neo4j-go-driver/neo4j"
@@ -18,6 +19,8 @@ type State struct {
   HydraConfig *clientcredentials.Config
   Driver   neo4j.Driver
   BannedUsernames map[string]bool
+  IssuerSignKey *rsa.PrivateKey
+  IssuerVerifyKey *rsa.PublicKey
 }
 
 type Route struct {

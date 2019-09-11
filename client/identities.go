@@ -142,6 +142,37 @@ type IdentitiesLogoutResponse struct {
   RedirectTo string `json:"redirect_to" binding:"required"`
 }
 
+type IdentitiesInviteRequest struct {
+  InviterId string `json:"inviter_id" binding:"required"`
+  Id string `json:"id" binding:"required"`
+  GrantedScopes []string `json:"granted_scopes"`
+  PleaseFollow []string `json:"please_follow"`
+}
+
+type IdentitiesInviteResponse struct {
+  Invitation string `json:"invitation" binding:"required"`
+}
+
+func CreateInvitation(client *IdpClient, inviteUrl string, request *IdentitiesInviteRequest) (*IdentitiesInviteResponse, error) {
+  var response IdentitiesInviteResponse
+
+  body, err := json.Marshal(request)
+  if err != nil {
+    return nil, err
+  }
+
+  result, err := callService(client, "POST", inviteUrl, bytes.NewBuffer(body))
+  if err != nil {
+    return nil, err
+  }
+
+  err = json.Unmarshal(result, &response)
+  if err != nil {
+    return nil, err
+  }
+  return &response, nil
+}
+
 func CreateIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesCreateRequest) (*IdentitiesCreateResponse, error) {
   var response IdentitiesCreateResponse
 
