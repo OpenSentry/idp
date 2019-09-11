@@ -61,6 +61,13 @@ type DeleteChallenge struct {
   RedirectTo       string
 }
 
+type Invitation struct {
+  Id string
+  Email string
+  GrantedScopes []string
+  PleaseFollow []string
+}
+
 func marshalRecordToIdentity(record neo4j.Record) (Identity) {
   // NOTE: This means the statment sequence of the RETURN (possible order by)
   // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
@@ -119,11 +126,6 @@ func marshalRecordToChallenge(record neo4j.Record) (Challenge) {
     CodeType: codeType,
     Code: code,
   }
-}
-
-type Invitation struct {
-  InviterId string
-  Id string
 }
 
 func CreateInvitation(identity Identity, invite Invitation) (Invitation, error) {
