@@ -103,7 +103,7 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
     }
 
     // Deny by default
-    c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
+    c.JSON(http.StatusOK, gin.H{})
     c.Abort()
   }
   return gin.HandlerFunc(fn)

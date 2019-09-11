@@ -143,8 +143,8 @@ type IdentitiesLogoutResponse struct {
 }
 
 type IdentitiesInviteRequest struct {
-  InviterId string `json:"inviter_id" binding:"required"`
   Id string `json:"id" binding:"required"`
+  Email string `json:"email" binding:"required"`
   GrantedScopes []string `json:"granted_scopes"`
   PleaseFollow []string `json:"please_follow"`
 }
