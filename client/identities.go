@@ -154,7 +154,7 @@ type IdentitiesInviteResponse struct {
   Id string `json:"id" binding:"required"`
 }
 
-func CreateInvitation(client *IdpClient, inviteUrl string, request *IdentitiesInviteRequest) (*IdentitiesInviteResponse, error) {
+func CreateInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteRequest) (*IdentitiesInviteResponse, error) {
   var response IdentitiesInviteResponse
 
   body, err := json.Marshal(request)
