@@ -5,10 +5,9 @@ import (
   "text/template"
   "io/ioutil"
   "bytes"
-  "time"
+  "strings"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  "github.com/dgrijalva/jwt-go"
 
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
@@ -16,16 +15,27 @@ import (
   . "github.com/charmixer/idp/client"
 )
 
-type InviteClaims struct {
-	OnBehalfOf string `json:"on_behalf_of"`
-	jwt.StandardClaims
+type Scope struct {
+  Name string
+  Title string
+  Description string
+}
+
+type Follow struct {
+  Id string
+  Name string
+  Introduction string
+  PublicProfileUrl string
 }
 
 type InviteTemplateData struct {
+  IdentityProvider string
   OnBehalfOf string
   Email string
-  Link string
+  InvitationUrl string
   InvitationToken string
+  Scopes []Scope
+  Follows []Follow
 }
 
 func PostInvite(env *environment.State, route environment.Route) gin.HandlerFunc {
@@ -54,41 +64,63 @@ func PostInvite(env *environment.State, route environment.Route) gin.HandlerFunc
 
     if exists == true {
 
-      anInvitation := idp.Invitation{
-        Id: identity.Id,
+      log.WithFields(logrus.Fields{"fixme": 1}).Debug("Call aap to check if scopes exists")
+      var scopes []Scope
+      for _, scope := range input.GrantedScopes {
+        scopes = append(scopes, Scope{
+          Name: scope,
+          Title: "A scope",
+          Description: "Se alt det du kan",
+        })
+      }
+
+      // Find all identities requested to be followed, ignore non existing ones.
+      var followIdentities []string
+      var follows []Follow
+      for _, identityId := range input.PleaseFollow {
+
+        followIdentity, exists, err := idp.FetchIdentityById(env.Driver, identityId)
+        if err != nil {
+          log.Debug(err.Error())
+          c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+          c.Abort()
+          return;
+        }
+
+        if exists == true {
+          followIdentities = append(followIdentities, followIdentity.Id)
+          follows = append(follows, Follow{
+            Id: followIdentity.Id,
+            Name: followIdentity.Name,
+            Introduction: "Jeg er en spændende person eller en client eller en resource server",
+            PublicProfileUrl: "https://id.localhost/profile?id" + followIdentity.Id,
+          })
+        }
+
+      }
+
+      log.WithFields(logrus.Fields{"fixme": 1}).Debug("Put invite expiration into config")
+      var expiresInSeconds int64 = 60*60*24 // 24 hours
+      inviteRequest := idp.Invite{
         Email: input.Email,
+        GrantedScopes: strings.Join(input.GrantedScopes, " "),
+        FollowIdentities: strings.Join(followIdentities, " "),
+        ExpiresInSeconds: expiresInSeconds,
       }
-      invitation, err := idp.CreateInvitation(identity, anInvitation)
+      invite, err := idp.CreateInvite(env.Driver, identity, inviteRequest)
       if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
-        return
-      }
-
-      // Create JWT invite token. Beware not to put sensitive data into these as it is publicly visible.
-      // Iff data is secret, then persist an annonymous token in db instead and use that as token.
-	    expirationTime := time.Now().Add(1 * time.Hour) // FIXME: config invite expire time
-      claims := &InviteClaims{
-        OnBehalfOf: invitation.Id,
-		    StandardClaims: jwt.StandardClaims{
-          Issuer: config.GetString("idp.public.issuer"),
-          Audience: config.GetString("idp.public.issuer"),
-          Subject: invitation.Email,
-          ExpiresAt: expirationTime.Unix(),
-        },
-	    }
-
-      token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-      jwtInvitation, err := token.SignedString(env.IssuerSignKey)
-      if err != nil {
+        log.WithFields(logrus.Fields{
+          "id": identity.Id,
+          "email": inviteRequest.Email,
+        }).Debug(err.Error())
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         c.Abort()
         return
       }
 
       sender := idp.SMTPSender{
-        Name: config.GetString("invite.sender.name"),
-        Email: config.GetString("invite.sender.email"),
+        Name: config.GetString("provider.name"),
+        Email: config.GetString("provider.email"),
       }
 
       smtpConfig := idp.SMTPConfig{
@@ -115,10 +147,12 @@ func PostInvite(env *environment.State, route environment.Route) gin.HandlerFunc
       t := template.Must(template.New(emailTemplateFile).Parse(string(tplEmail)))
 
       data := InviteTemplateData{
-        OnBehalfOf: identity.Name,
-        Email: input.Email,
-        Link: config.GetString("invite.link") + "?invitation=" + jwtInvitation,
-        InvitationToken: jwtInvitation,
+        OnBehalfOf: invite.InviterId,
+        Email: invite.Email,
+        IdentityProvider: config.GetString("provider.name"),
+        InvitationUrl: config.GetString("invite.url"),
+        Scopes: scopes,
+        Follows: follows,
       }
 
       var tpl bytes.Buffer
@@ -146,12 +180,13 @@ func PostInvite(env *environment.State, route environment.Route) gin.HandlerFunc
       }
 
       response := IdentitiesInviteResponse{
-        Invitation: jwtInvitation,
+        Id: invite.Id,
       }
       log.WithFields(logrus.Fields{
-        "invitation": response.Invitation,
+        "id": response.Id,
       }).Debug("Invite send")
       c.JSON(http.StatusOK, response)
+      return
     }
 
     // Deny by default

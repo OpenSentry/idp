@@ -61,13 +61,6 @@ type DeleteChallenge struct {
   RedirectTo       string
 }
 
-type Invitation struct {
-  Id string
-  Email string
-  GrantedScopes []string
-  PleaseFollow []string
-}
-
 func marshalRecordToIdentity(record neo4j.Record) (Identity) {
   // NOTE: This means the statment sequence of the RETURN (possible order by)
   // https://neo4j.com/docs/driver-manual/current/cypher-values/index.html
@@ -128,8 +121,101 @@ func marshalRecordToChallenge(record neo4j.Record) (Challenge) {
   }
 }
 
-func CreateInvitation(identity Identity, invite Invitation) (Invitation, error) {
-  return Invitation{}, nil
+type Invite struct {
+  Id string
+  Email string
+  Username string
+  GrantedScopes string
+  FollowIdentities string
+  ExpiresInSeconds int64
+  IssuedAt int64
+  ExpiresAt int64
+  InviterId string
+}
+
+func marshalRecordToInvite(record neo4j.Record) (Invite) {
+  id               := record.GetByIndex(0).(string)
+  email            := record.GetByIndex(1).(string)
+  username         := record.GetByIndex(2).(string)
+  grantedScopes    := record.GetByIndex(3).(string)
+  followIdentities := record.GetByIndex(4).(string)
+  iat              := record.GetByIndex(5).(int64)
+  ttl              := record.GetByIndex(6).(int64)
+  exp              := record.GetByIndex(7).(int64)
+  inviterId       := record.GetByIndex(8).(string)
+
+  return Invite{
+    Id: id,
+    Email: email,
+    Username: username,
+    GrantedScopes: grantedScopes,
+    FollowIdentities: followIdentities,
+    ExpiresInSeconds: ttl,
+    IssuedAt: iat,
+    ExpiresAt: exp,
+    InviterId: inviterId,
+  }
+}
+
+func FetchInviteById(driver neo4j.Driver, id string) (Invite, error) {
+  return Invite{}, nil
+}
+
+func CreateInvite(driver neo4j.Driver, identity Identity, invite Invite) (Invite, error) {
+  var err error
+
+  session, err := driver.Session(neo4j.AccessModeWrite);
+  if err != nil {
+    return Invite{}, err
+  }
+  defer session.Close()
+
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+    cypher := `
+      MATCH (i:Identity {id:$id})
+      MERGE (i)-[:CREATED]->(inv:Invite {id:randomUUID(), email:$email, username:$username, granted_scopes:$grantedScopes, follow_identities:$followIdentities, iat:datetime().epochSeconds, exp:datetime().epochSeconds + $ttl, ttl:$ttl})
+
+      WITH i, inv
+
+      OPTIONAL MATCH (n:Identity {email:$email})
+      MERGE (n)-[:IS_INVITED]-(inv)
+
+      WITH i, inv, n
+
+      OPTIONAL MATCH (i)-[:CREATED]->(d:Invite) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
+
+      RETURN inv.id, inv.email, inv.username, inv.granted_scopes, inv.follow_identities, inv.iat, inv.ttl, inv.exp, i.id
+    `
+    params := map[string]interface{}{
+      "id": identity.Id,
+      "email": invite.Email,
+      "username": invite.Username,
+      "grantedScopes": invite.GrantedScopes,
+      "followIdentities": invite.FollowIdentities,
+      "ttl": invite.ExpiresInSeconds,
+    }
+    if result, err = tx.Run(cypher, params); err != nil {
+      return nil, err
+    }
+
+    var ret Invite
+    if result.Next() {
+      record := result.Record()
+      ret = marshalRecordToInvite(record)
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+    return ret, nil
+  })
+
+  if err != nil {
+    return Invite{}, err
+  }
+  return obj.(Invite), nil
 }
 
 func ValidatePassword(storedPassword string, password string) (bool, error) {
@@ -776,10 +862,14 @@ func FetchIdentityById(driver neo4j.Driver, id string) (Identity, bool, error) {
     }
     return identity, nil
   })
+
   if err != nil {
     return Identity{}, false, err
   }
-  return obj.(Identity), true, nil
+  if obj != nil {
+    return obj.(Identity), true, nil
+  }
+  return Identity{}, false, nil
 }
 
 func FetchIdentityByEmail(driver neo4j.Driver, email string) (Identity, bool, error) {
@@ -815,10 +905,14 @@ func FetchIdentityByEmail(driver neo4j.Driver, email string) (Identity, bool, er
     }
     return identity, nil
   })
+
   if err != nil {
     return Identity{}, false, err
   }
-  return obj.(Identity), true, nil
+  if obj != nil {
+    return obj.(Identity), true, nil
+  }
+  return Identity{}, false, nil
 }
 
 func FetchIdentityBySubject(driver neo4j.Driver, sub string) (Identity, bool, error) {
@@ -854,10 +948,14 @@ func FetchIdentityBySubject(driver neo4j.Driver, sub string) (Identity, bool, er
     }
     return identity, nil
   })
+
   if err != nil {
     return Identity{}, false, err
   }
-  return obj.(Identity), true, nil
+  if obj != nil {
+    return obj.(Identity), true, nil
+  }
+  return Identity{}, false, nil
 }
 
 // EMAIL BEGIN

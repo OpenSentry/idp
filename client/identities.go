@@ -145,12 +145,13 @@ type IdentitiesLogoutResponse struct {
 type IdentitiesInviteRequest struct {
   Id string `json:"id" binding:"required"`
   Email string `json:"email" binding:"required"`
+  Username string `json:"username,omitempty"`
   GrantedScopes []string `json:"granted_scopes"`
   PleaseFollow []string `json:"please_follow"`
 }
 
 type IdentitiesInviteResponse struct {
-  Invitation string `json:"invitation" binding:"required"`
+  Id string `json:"id" binding:"required"`
 }
 
 func CreateInvitation(client *IdpClient, inviteUrl string, request *IdentitiesInviteRequest) (*IdentitiesInviteResponse, error) {
