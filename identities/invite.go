@@ -38,6 +38,108 @@ type InviteTemplateData struct {
   Follows []Follow
 }
 
+func GetInvite(env *environment.State, route environment.Route) gin.HandlerFunc {
+  fn := func(c *gin.Context) {
+
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "func": "GetInvite",
+    })
+
+    var err error
+
+    var request IdentitiesInviteReadRequest
+    if err = c.Bind(&request); err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    invite, exists, err := idp.FetchInviteById(env.Driver, request.Id)
+    if err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+      c.Abort()
+      return;
+    }
+
+    if exists == true {
+
+      response := IdentitiesInviteReadResponse{
+        IdentitiesInviteResponse: &IdentitiesInviteResponse{
+          Id: invite.Id,
+          Email: invite.Email,
+        },
+      }
+      c.JSON(http.StatusOK, response)
+      return
+
+    }
+
+    // Deny by default
+    log.WithFields(logrus.Fields{"id": request.Id}).Info("Invite not found")
+    c.JSON(http.StatusNotFound, gin.H{"error": "Invite not found"})
+
+  }
+  return gin.HandlerFunc(fn)
+}
+
+func PutInvite(env *environment.State, route environment.Route) gin.HandlerFunc {
+  fn := func(c *gin.Context) {
+
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "func": "PutInvite",
+    })
+
+    var input IdentitiesInviteUpdateRequest
+    err := c.BindJSON(&input)
+    if err != nil {
+      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+      c.Abort()
+      return
+    }
+
+    invite, exists, err := idp.FetchInviteById(env.Driver, input.Id)
+    if err != nil {
+      log.Debug(err.Error())
+      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+      c.Abort()
+      return;
+    }
+
+    if exists == true {
+
+      // Created granted relations as specified in the invite
+      // Create follow relations as specified in the invite
+      accept, err := idp.AcceptInvite(env.Driver, invite)
+      if err != nil {
+        log.Debug(err.Error())
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        c.Abort()
+        return;
+      }
+
+      response := IdentitiesInviteUpdateResponse{
+        IdentitiesInviteResponse: &IdentitiesInviteResponse{
+          Id: accept.Id,
+        },
+      }
+      log.WithFields(logrus.Fields{
+        "id": accept.Id,
+      }).Debug("Invite accepted")
+      c.JSON(http.StatusOK, response)
+      return
+    }
+
+    // Deny by default
+    log.WithFields(logrus.Fields{"id": input.Id}).Info("Invite not found")
+    c.JSON(http.StatusNotFound, gin.H{"error": "Invite not found"})
+  }
+  return gin.HandlerFunc(fn)
+}
+
 func PostInvite(env *environment.State, route environment.Route) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
@@ -46,7 +148,7 @@ func PostInvite(env *environment.State, route environment.Route) gin.HandlerFunc
       "func": "PostInvite",
     })
 
-    var input IdentitiesInviteRequest
+    var input IdentitiesInviteCreateRequest
     err := c.BindJSON(&input)
     if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -147,7 +249,7 @@ func PostInvite(env *environment.State, route environment.Route) gin.HandlerFunc
       t := template.Must(template.New(emailTemplateFile).Parse(string(tplEmail)))
 
       data := InviteTemplateData{
-        OnBehalfOf: invite.InviterId,
+        OnBehalfOf: invite.InviterIdentityId,
         Email: invite.Email,
         IdentityProvider: config.GetString("provider.name"),
         InvitationUrl: config.GetString("invite.url"),
@@ -179,8 +281,10 @@ func PostInvite(env *environment.State, route environment.Route) gin.HandlerFunc
         return
       }
 
-      response := IdentitiesInviteResponse{
-        Id: invite.Id,
+      response := IdentitiesInviteCreateResponse{
+        IdentitiesInviteResponse: &IdentitiesInviteResponse{
+          Id: invite.Id,  
+        },
       }
       log.WithFields(logrus.Fields{
         "id": response.Id,
