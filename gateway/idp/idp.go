@@ -144,7 +144,12 @@ func marshalRecordToInvite(record neo4j.Record) (Invite) {
   ttl              := record.GetByIndex(6).(int64)
   exp              := record.GetByIndex(7).(int64)
   inviterId        := record.GetByIndex(8).(string)
-  InvitedId        := record.GetByIndex(9).(string)
+
+  var invitedId string = ""
+  __invitedId        := record.GetByIndex(9)
+  if __invitedId != nil {
+    invitedId = __invitedId.(string)
+  }
 
   return Invite{
     Id: id,
@@ -156,7 +161,7 @@ func marshalRecordToInvite(record neo4j.Record) (Invite) {
     IssuedAt: iat,
     ExpiresAt: exp,
     InviterIdentityId: inviterId,
-    InvitedIdentityId: InvitedId,
+    InvitedIdentityId: invitedId,
   }
 }
 
