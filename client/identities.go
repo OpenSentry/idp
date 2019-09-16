@@ -21,6 +21,19 @@ type IdentitiesResponse struct {
   OtpDeleteCodeExpire  int64  `json:"otp_delete_code_expire" binding:"required"`
 }
 
+type IdentitiesInviteResponse struct {
+  Id string `json:"id" binding:"required"`
+  Email string `json:"email" binding:"required"`
+  Username string `json:"username" binding:"required"`
+  GrantedScopes string `json:"granted_scopes" binding:"required"`
+  FollowIdentities string `json:"follow_identities" binding:"required"`
+  TTL int64 `json:"ttl" binding:"required"`
+  IssuedAt int64 `json:"iat" binding:"required"`
+  ExpiresAt int64 `json:"exp" binding:"required"`
+  InviterId string `json:"inviter_id" binding:"required"`
+  InvitedId string `json:"invited_id" binding:"required"`
+}
+
 // CRUD
 
 type IdentitiesCreateRequest struct {
@@ -142,20 +155,93 @@ type IdentitiesLogoutResponse struct {
   RedirectTo string `json:"redirect_to" binding:"required"`
 }
 
-type IdentitiesInviteRequest struct {
+type IdentitiesInviteCreateRequest struct {
   Id string `json:"id" binding:"required"`
   Email string `json:"email" binding:"required"`
-  Username string `json:"username,omitempty"`
+  Username string `json:"username"`
   GrantedScopes []string `json:"granted_scopes"`
   PleaseFollow []string `json:"please_follow"`
+  TTL int64 `json:"ttl"`
 }
 
-type IdentitiesInviteResponse struct {
+// FIXME: Måske skal bulk read ligge i invites.go collection mappen og client
+// OG identities/invite kan så kun bruge InviterId = access token subject
+// så ligger bulk kaldene på collection og single kalde på token (aka. bulk = client_id token, single = authorization code flow token)
+
+type IdentitiesInviteCreateResponse struct {
+  *IdentitiesInviteResponse
+}
+
+type IdentitiesInviteUpdateRequest struct {
   Id string `json:"id" binding:"required"`
 }
 
-func CreateInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteRequest) (*IdentitiesInviteResponse, error) {
-  var response IdentitiesInviteResponse
+type IdentitiesInviteUpdateResponse struct {
+  *IdentitiesInviteResponse
+}
+
+type IdentitiesInviteReadRequest struct {
+  Id string `json:"id" binding:"required"`
+}
+
+type IdentitiesInviteReadResponse struct {
+  *IdentitiesInviteResponse
+}
+
+func ReadInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteReadRequest) (*IdentitiesInviteReadResponse, error) {
+  var response IdentitiesInviteReadResponse
+
+  req, err := http.NewRequest("GET", inviteUrl, nil)
+  if err != nil {
+    return nil, err
+  }
+
+  // TODO: Can we marshal this somehow?
+  query := req.URL.Query()
+  if request.Id != "" {
+    query.Add("id", request.Id)
+  }
+  req.URL.RawQuery = query.Encode()
+
+  res, err := client.Do(req)
+  if err != nil {
+    return nil, err
+  }
+
+  result, err := parseResponse(res)
+  if err != nil {
+    return nil, err
+  }
+
+  err = json.Unmarshal(result, &response)
+  if err != nil {
+    return nil, err
+  }
+  return &response, nil
+}
+
+func UpdateInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteUpdateRequest) (*IdentitiesInviteUpdateResponse, error) {
+  var response IdentitiesInviteUpdateResponse
+
+  body, err := json.Marshal(request)
+  if err != nil {
+    return nil, err
+  }
+
+  result, err := callService(client, "PUT", inviteUrl, bytes.NewBuffer(body))
+  if err != nil {
+    return nil, err
+  }
+
+  err = json.Unmarshal(result, &response)
+  if err != nil {
+    return nil, err
+  }
+  return &response, nil
+}
+
+func CreateInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteCreateRequest) (*IdentitiesInviteCreateResponse, error) {
+  var response IdentitiesInviteCreateResponse
 
   body, err := json.Marshal(request)
   if err != nil {
