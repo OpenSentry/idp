@@ -12,7 +12,7 @@ import (
   . "github.com/charmixer/idp/client"
 )
 
-func PostAuthenticate(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PostAuthenticate(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)

@@ -38,7 +38,7 @@ type InviteTemplateData struct {
   Follows []Follow
 }
 
-func GetInvite(env *environment.State, route environment.Route) gin.HandlerFunc {
+func GetInvite(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
@@ -141,7 +141,7 @@ func PutInvite(env *environment.State, route environment.Route) gin.HandlerFunc 
   return gin.HandlerFunc(fn)
 }
 
-func PostInvite(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PostInvite(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)

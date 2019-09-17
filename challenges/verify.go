@@ -21,7 +21,7 @@ type VerifyResponse struct {
   RedirectTo   string `json:"redirect_to" binding:"required"`
 }
 
-func PostVerify(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PostVerify(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
