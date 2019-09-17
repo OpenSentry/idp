@@ -11,7 +11,7 @@ import (
   . "github.com/charmixer/idp/client"
 )
 
-func PostLogout(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PostLogout(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
