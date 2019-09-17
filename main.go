@@ -20,6 +20,7 @@ import (
   "github.com/charmixer/idp/migration"
   "github.com/charmixer/idp/identities"
   "github.com/charmixer/idp/challenges"
+  "github.com/charmixer/idp/invites"
 )
 
 const app = "idp"
@@ -210,14 +211,14 @@ func serve(env *environment.State) {
 
   hydraInstrospectUrl := config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.introspect")
 
-  r.GET( "/challenges", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.GetCollection(env) )
-  r.POST( "/challenges", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.PostCollection(env) )
+  r.GET(  "/challenges", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.GetChallenges(env) )
+  r.POST( "/challenges", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.PostChallenges(env) )
   r.POST( "/challenges/verify", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.PostVerify(env) )
 
-  r.GET( "/identities",    utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "read:identity"), identities.GetCollection(env) )
-  r.POST( "/identities",   utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostCollection(env) )
-  r.PUT( "/identities",    utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "update:identity"), identities.PutCollection(env) )
-  r.DELETE( "/identities", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "delete:identity"), identities.DeleteCollection(env) )
+  r.GET(    "/identities",    utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "read:identity"), identities.GetIdentities(env) )
+  r.POST(   "/identities",   utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostIdentities(env) )
+  r.PUT(    "/identities",    utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "update:identity"), identities.PutIdentities(env) )
+  r.DELETE( "/identities", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "delete:identity"), identities.DeleteIdentities(env) )
 
   r.POST( "/identities/deleteverification", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "delete:identity"), identities.PostDeleteVerification(env) )
 
@@ -231,7 +232,10 @@ func serve(env *environment.State) {
   r.POST( "/identities/recover", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "recover:identity"), identities.PostRecover(env) )
   r.POST( "/identities/recoververification", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostRecoverVerification(env) )
 
-  r.POST( "/identities/invite", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "invite:identity"), identities.PostInvite(env) )
+  r.POST( "/identities/invite", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "invite:identity"), invites.PostInvites(env) )
+
+  r.GET(  "/invites", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "read:invite"), invites.GetInvites(env) )
+  r.POST( "/invites", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "create:invite"), invites.PostInvites(env) )
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }

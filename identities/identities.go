@@ -20,12 +20,12 @@ type DeleteTemplateData struct {
   Sender string
 }
 
-func GetCollection(env *environment.State) gin.HandlerFunc {
+func GetIdentities(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "GetCollection",
+      "func": "GetIdentities",
     })
 
     var err error
@@ -105,12 +105,12 @@ func GetCollection(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PostCollection(env *environment.State) gin.HandlerFunc {
+func PostIdentities(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PostCollection",
+      "func": "PostIdentities",
     })
 
     var input IdentitiesCreateRequest
@@ -153,13 +153,13 @@ func PostCollection(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PutCollection(env *environment.State) gin.HandlerFunc {
+func PutIdentities(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     // Warning: Do not log user passwords!
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PutCollection",
+      "func": "PutIdentities",
     })
 
     var input IdentitiesUpdateRequest
@@ -208,12 +208,12 @@ func PutCollection(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func DeleteCollection(env *environment.State) gin.HandlerFunc {
+func DeleteIdentities(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "DeleteCollection",
+      "func": "DeleteIdentities",
     })
 
     var input IdentitiesDeleteRequest
@@ -344,7 +344,7 @@ func DeleteCollection(env *environment.State) gin.HandlerFunc {
       Body: tpl.String(),
     }
 
-    _, err = idp.SendAnEmailForIdentity(smtpConfig, updatedIdentity, anEmail)
+    _, err = idp.SendAnEmailToIdentity(smtpConfig, updatedIdentity, anEmail)
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": updatedIdentity.Id,
