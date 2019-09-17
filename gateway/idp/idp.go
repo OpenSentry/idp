@@ -1113,28 +1113,36 @@ func (a unencryptedAuth) Start(server *smtp.ServerInfo) (string, []byte, error) 
     return a.Auth.Start(&s)
 }
 
-func SendAnEmailForIdentity(smtpConfig SMTPConfig, identity Identity, anEmail AnEmail) (bool, error) {
+func SendAnEmailToAnonymous(smtpConfig SMTPConfig, name string, email string, anEmail AnEmail) (bool, error) {
+  return sendAnEmail(smtpConfig, name, email, anEmail)
+}
+
+func SendAnEmailToIdentity(smtpConfig SMTPConfig, identity Identity, anEmail AnEmail) (bool, error) {
+  return sendAnEmail(smtpConfig, identity.Name, identity.Email, anEmail)
+}
+
+func sendAnEmail(smtpConfig SMTPConfig, name string, email string, anEmail AnEmail) (bool, error) {
 
   from := mail.Address{smtpConfig.Sender.Name, smtpConfig.Sender.Email}
-  to := mail.Address{identity.Name, identity.Email}
+  to := mail.Address{name, email}
 
   subject := anEmail.Subject
   body := anEmail.Body
 
   header := make(map[string]string)
-	header["Return-Path"] = smtpConfig.Sender.ReturnPath
-	header["From"] = from.String()
-	header["To"] = to.String()
-	header["Subject"] = encodeRFC2047(subject)
-	header["MIME-Version"] = "1.0"
-	header["Content-Type"] = "text/plain; charset=\"utf-8\""
-	header["Content-Transfer-Encoding"] = "base64"
+  header["Return-Path"] = smtpConfig.Sender.ReturnPath
+  header["From"] = from.String()
+  header["To"] = to.String()
+  header["Subject"] = encodeRFC2047(subject)
+  header["MIME-Version"] = "1.0"
+  header["Content-Type"] = "text/plain; charset=\"utf-8\""
+  header["Content-Transfer-Encoding"] = "base64"
 
-	message := ""
-	for k, v := range header {
-		message += fmt.Sprintf("%s: %s\r\n", k, v)
-	}
-	message += "\r\n" + base64.StdEncoding.EncodeToString([]byte(body))
+  message := ""
+  for k, v := range header {
+    message += fmt.Sprintf("%s: %s\r\n", k, v)
+  }
+  message += "\r\n" + base64.StdEncoding.EncodeToString([]byte(body))
 
   host, _, _ := net.SplitHostPort(smtpConfig.Host)
 
@@ -1144,7 +1152,7 @@ func SendAnEmailForIdentity(smtpConfig SMTPConfig, identity Identity, anEmail An
 
   /*err := smtp.SendMail(smtpConfig.Host, auth, smtpConfig.Sender.Email, []string{identity.Email}, []byte(message))
   if err != nil {
-  	return false, err
+    return false, err
   }
   return true, nil*/
 

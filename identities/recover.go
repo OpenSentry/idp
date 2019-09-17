@@ -123,7 +123,7 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       Body: tpl.String(),
     }
 
-    _, err = idp.SendAnEmailForIdentity(smtpConfig, updatedIdentity, mail)
+    _, err = idp.SendAnEmailToIdentity(smtpConfig, updatedIdentity, mail)
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": updatedIdentity.Id,
