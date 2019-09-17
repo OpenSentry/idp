@@ -34,7 +34,7 @@ type OtpChallengeCreateRequest struct {
   Code         string `json:"code" binding:"required"`
 }
 
-func GetCollection(env *environment.State) gin.HandlerFunc {
+func GetChallenges(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
@@ -80,7 +80,7 @@ func GetCollection(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PostCollection(env *environment.State) gin.HandlerFunc {
+func PostChallenges(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
