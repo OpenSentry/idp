@@ -10,7 +10,7 @@ import (
   . "github.com/charmixer/idp/client"
 )
 
-func PutPassword(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PutPassword(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)

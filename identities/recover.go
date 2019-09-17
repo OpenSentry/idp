@@ -20,7 +20,7 @@ type RecoverTemplateData struct {
   Sender string
 }
 
-func PostRecover(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PostRecover(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)

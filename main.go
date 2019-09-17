@@ -191,21 +191,6 @@ func main() {
 }
 
 func serve(env *environment.State) {
-  // Setup routes to use, this defines log for debug log
-  routes := map[string]environment.Route{
-    "/challenges":                     environment.Route{URL: "/challenges",                     LogId: "idp://challenges"},
-    "/challenges/verify":              environment.Route{URL: "/challenges/verify",              LogId: "idp://challenges/verify"},
-    "/identities":                     environment.Route{URL: "/identities",                     LogId: "idp://identities"},
-    "/identities/authenticate":        environment.Route{URL: "/identities/authenticate",        LogId: "idpui://identities/authenticate"},
-    "/identities/password":            environment.Route{URL: "/identities/password",            LogId: "idp://identities/password"},
-    "/identities/totp":                environment.Route{URL: "/identities/totp",                LogId: "idp://identities/totp"},
-    "/identities/logout":              environment.Route{URL: "/identities/logout",              LogId: "idpui://identities/logout"},
-    "/identities/revoke":              environment.Route{URL: "/identities/revoke",              LogId: "idpui://identities/revoke"},
-    "/identities/recover":             environment.Route{URL: "/identities/recover",             LogId: "idpui://identities/recover"},
-    "/identities/recoververification": environment.Route{URL: "/identities/recoververification", LogId: "idpui://identities/recoververification"},
-    "/identities/deleteverification":  environment.Route{URL: "/identities/deleteverification",  LogId: "idpui://identities/deleteverification"},
-    "/identities/invite":              environment.Route{URL: "/identities/invite",              LogId: "idpui://identities/invite"},
-  }
 
   r := gin.New() // Clean gin to take control with logging.
   r.Use(gin.Recovery())
@@ -225,28 +210,28 @@ func serve(env *environment.State) {
 
   hydraInstrospectUrl := config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.introspect")
 
-  r.GET(  routes["/challenges"].URL,        utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.GetCollection(env, routes["/challenges"]))
-  r.POST( routes["/challenges"].URL,        utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.PostCollection(env, routes["/challenges"]))
-  r.POST( routes["/challenges/verify"].URL, utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.PostVerify(env, routes["/challenges/verify"]))
+  r.GET( "/challenges", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.GetCollection(env) )
+  r.POST( "/challenges", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.PostCollection(env) )
+  r.POST( "/challenges/verify", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.PostVerify(env) )
 
-  r.GET(routes["/identities"].URL,    utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "read:identity"), identities.GetCollection(env, routes["/identities"]))
-  r.POST(routes["/identities"].URL,   utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostCollection(env, routes["/identities"]))
-  r.PUT(routes["/identities"].URL,    utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "update:identity"), identities.PutCollection(env, routes["/identities"]))
-  r.DELETE(routes["/identities"].URL, utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "delete:identity"), identities.DeleteCollection(env, routes["/identities"]))
+  r.GET( "/identities",    utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "read:identity"), identities.GetCollection(env) )
+  r.POST( "/identities",   utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostCollection(env) )
+  r.PUT( "/identities",    utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "update:identity"), identities.PutCollection(env) )
+  r.DELETE( "/identities", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "delete:identity"), identities.DeleteCollection(env) )
 
-  r.POST(routes["/identities/deleteverification"].URL, utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "delete:identity"), identities.PostDeleteVerification(env, routes["/identities/deleteverification"]))
+  r.POST( "/identities/deleteverification", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "delete:identity"), identities.PostDeleteVerification(env) )
 
-  r.POST(routes["/identities/authenticate"].URL, utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostAuthenticate(env, routes["/identities/authenticate"]))
-  r.PUT(routes["/identities/password"].URL, utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PutPassword(env, routes["/identities/password"]))
+  r.POST( "/identities/authenticate", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostAuthenticate(env) )
+  r.PUT( "/identities/password", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PutPassword(env) )
 
-  r.PUT(routes["/identities/totp"].URL, utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PutTotp(env, routes["/identities/totp"]))
+  r.PUT( "/identities/totp", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PutTotp(env) )
 
-  r.POST(routes["/identities/logout"].URL, utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "logout:identity"), identities.PostLogout(env, routes["/identities/logout"]))
+  r.POST( "/identities/logout", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "logout:identity"), identities.PostLogout(env) )
 
-  r.POST(routes["/identities/recover"].URL, utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "recover:identity"), identities.PostRecover(env, routes["/identities/recover"]))
-  r.POST(routes["/identities/recoververification"].URL, utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostRecoverVerification(env, routes["/identities/recoververification"]))
+  r.POST( "/identities/recover", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "recover:identity"), identities.PostRecover(env) )
+  r.POST( "/identities/recoververification", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostRecoverVerification(env) )
 
-  r.POST(routes["/identities/invite"].URL, utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "invite:identity"), identities.PostInvite(env, routes["/identities/invite"]))
+  r.POST( "/identities/invite", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "invite:identity"), identities.PostInvite(env) )
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }

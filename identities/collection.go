@@ -20,7 +20,7 @@ type DeleteTemplateData struct {
   Sender string
 }
 
-func GetCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
+func GetCollection(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
@@ -109,7 +109,7 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
   return gin.HandlerFunc(fn)
 }
 
-func PostCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PostCollection(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
@@ -162,7 +162,7 @@ func PostCollection(env *environment.State, route environment.Route) gin.Handler
   return gin.HandlerFunc(fn)
 }
 
-func PutCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
+func PutCollection(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     // Warning: Do not log user passwords!
@@ -221,7 +221,7 @@ func PutCollection(env *environment.State, route environment.Route) gin.HandlerF
   return gin.HandlerFunc(fn)
 }
 
-func DeleteCollection(env *environment.State, route environment.Route) gin.HandlerFunc {
+func DeleteCollection(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
