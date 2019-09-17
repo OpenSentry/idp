@@ -1,7 +1,6 @@
 package client
 
 import (
-  "net/http"
   "bytes"
   "encoding/json"
 )
@@ -191,24 +190,12 @@ type IdentitiesInviteReadResponse struct {
 func ReadInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteReadRequest) (*IdentitiesInviteReadResponse, error) {
   var response IdentitiesInviteReadResponse
 
-  req, err := http.NewRequest("GET", inviteUrl, nil)
+  body, err := json.Marshal(request)
   if err != nil {
     return nil, err
   }
 
-  // TODO: Can we marshal this somehow?
-  query := req.URL.Query()
-  if request.Id != "" {
-    query.Add("id", request.Id)
-  }
-  req.URL.RawQuery = query.Encode()
-
-  res, err := client.Do(req)
-  if err != nil {
-    return nil, err
-  }
-
-  result, err := parseResponse(res)
+  result, err := callService(client, "GET", inviteUrl, bytes.NewBuffer(body))
   if err != nil {
     return nil, err
   }
@@ -283,30 +270,12 @@ func CreateIdentity(client *IdpClient, identitiesUrl string, request *Identities
 func ReadIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesReadRequest) (*IdentitiesReadResponse, error) {
   var response IdentitiesReadResponse
 
-  req, err := http.NewRequest("GET", identitiesUrl, nil)
+  body, err := json.Marshal(request)
   if err != nil {
     return nil, err
   }
 
-  // TODO: Can we marshal this somehow?
-  query := req.URL.Query()
-  if request.Id != "" {
-    query.Add("id", request.Id)
-  }
-  if request.Subject != "" {
-    query.Add("sub", request.Subject)
-  }
-  if request.Email != "" {
-    query.Add("email", request.Subject)
-  }
-  req.URL.RawQuery = query.Encode()
-
-  res, err := client.Do(req)
-  if err != nil {
-    return nil, err
-  }
-
-  result, err := parseResponse(res)
+  result, err := callService(client, "GET", identitiesUrl, bytes.NewBuffer(body))
   if err != nil {
     return nil, err
   }

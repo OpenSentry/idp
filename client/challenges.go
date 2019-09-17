@@ -1,7 +1,6 @@
 package client
 
 import (
-  "net/http"
   "bytes"
   "encoding/json"
 )
@@ -57,22 +56,12 @@ type ChallengeVerifyResponse struct {
 func ReadChallenge(client *IdpClient, challengeUrl string, request *ChallengesReadRequest) (*ChallengesReadResponse, error) {
   var response ChallengesReadResponse
 
-  req, err := http.NewRequest("GET", challengeUrl, nil)
+  body, err := json.Marshal(request)
   if err != nil {
     return nil, err
   }
 
-  // TODO: Can we marshal this somehow?
-  query := req.URL.Query()
-  query.Add("otp_challenge", request.OtpChallenge)
-  req.URL.RawQuery = query.Encode()
-
-  res, err := client.Do(req)
-  if err != nil {
-    return nil, err
-  }
-
-  result, err := parseResponse(res)
+  result, err := callService(client, "GET", challengeUrl, bytes.NewBuffer(body))
   if err != nil {
     return nil, err
   }

@@ -49,7 +49,8 @@ func GetInvite(env *environment.State, route environment.Route) gin.HandlerFunc 
     var err error
 
     var request IdentitiesInviteReadRequest
-    if err = c.Bind(&request); err != nil {
+    err = c.BindJSON(&request)
+    if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
@@ -283,7 +284,7 @@ func PostInvite(env *environment.State, route environment.Route) gin.HandlerFunc
 
       response := IdentitiesInviteCreateResponse{
         IdentitiesInviteResponse: &IdentitiesInviteResponse{
-          Id: invite.Id,  
+          Id: invite.Id,
         },
       }
       log.WithFields(logrus.Fields{

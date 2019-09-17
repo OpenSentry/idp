@@ -31,11 +31,11 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
     var err error
 
     var request IdentitiesReadRequest
-    if err = c.Bind(&request); err != nil {
-      log.Debug(err.Error())
+    err = c.BindJSON(&request)
+    if err != nil {
       c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       c.Abort()
-    	return
+      return
     }
 
     // Inspect access token for subject
@@ -103,7 +103,7 @@ func GetCollection(env *environment.State, route environment.Route) gin.HandlerF
     }
 
     // Deny by default
-    c.JSON(http.StatusOK, gin.H{})
+    c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
     c.Abort()
   }
   return gin.HandlerFunc(fn)
