@@ -32,8 +32,7 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
     var input VerifyRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
@@ -48,8 +47,7 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
       log.WithFields(logrus.Fields{
         "otp_challenge": input.OtpChallenge,
       }).Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch OTP challenge"})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
@@ -57,8 +55,7 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
       log.WithFields(logrus.Fields{
         "otp_challenge": input.OtpChallenge,
       }).Debug("Challenge not found")
-      c.JSON(http.StatusNotFound, gin.H{"error": "Challenge not found"})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found"})
       return
     }
 
@@ -68,9 +65,8 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
         "otp_challenge": challenge.OtpChallenge,
         "id": challenge.Subject,
       }).Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Identity"})
-      c.Abort()
-      return;
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
     }
 
     if exists == false {
@@ -78,9 +74,8 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
         "otp_challenge": challenge.OtpChallenge,
         "id": challenge.Subject,
       }).Debug("Identity not found")
-      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      c.Abort()
-      return;
+      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
+      return
     }
 
     var valid bool = false
@@ -91,8 +86,8 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
 
         decryptedSecret, err := idp.Decrypt(identity.TotpSecret, config.GetString("totp.cryptkey"))
         if err != nil {
-          c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-          c.Abort()
+          log.Debug(err.Error())
+          c.AbortWithStatus(http.StatusInternalServerError)
           return
         }
 
@@ -103,9 +98,8 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
           "otp_challenge": challenge.OtpChallenge,
           "id": challenge.Subject,
         }).Debug("TOTP not enabled for Identity")
-        c.JSON(http.StatusNotFound, gin.H{"error": "TOTP not enabled for Identity. Hint: Use a code of digits instead."})
-        c.Abort()
-        return;
+        c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "TOTP not enabled for Identity. Hint: Use a code of digits instead."})
+        return
       }
 
     } else {
@@ -117,10 +111,8 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
     if valid == true {
       verifiedChallenge, exists, err := idp.VerifyChallenge(env.Driver, challenge)
       if err != nil {
-        log.Debug(err.Error())
-        log.WithFields(logrus.Fields{"otp_challenge": challenge.OtpChallenge}).Debug("Set challenge verified failed")
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        log.WithFields(logrus.Fields{"otp_challenge": challenge.OtpChallenge}).Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
@@ -129,9 +121,8 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
           "otp_challenge": challenge.OtpChallenge,
           "id": challenge.Subject,
         }).Debug("Challenge not found")
-        c.JSON(http.StatusNotFound, gin.H{"error": "Challenge not found"})
-        c.Abort()
-        return;
+        c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found"})
+        return
       }
 
       c.JSON(http.StatusOK, VerifyResponse{

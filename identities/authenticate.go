@@ -23,8 +23,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
     var input IdentitiesAuthenticateRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
@@ -42,8 +41,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
     hydraLoginResponse, err := hydra.GetLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.login"), hydraClient, input.Challenge)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
@@ -85,7 +83,6 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
       }).Debug("Authenticated")
 
       c.JSON(http.StatusOK, acceptResponse)
-      c.Abort()
       return
     }
 
@@ -113,7 +110,6 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           "redirect_to": denyResponse.RedirectTo,
         }).Debug("Authentication denied")
         c.JSON(http.StatusOK, denyResponse)
-        c.Abort()
         return;
       }
 
@@ -125,8 +121,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           "totp_required": denyResponse.TotpRequired,
           "redirect_to": denyResponse.RedirectTo,
         }).Debug("Challenge not found, OTP")
-        c.JSON(http.StatusNotFound, gin.H{"error": "Challenge not found, OTP"})
-        c.Abort()
+        c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found, OTP"})
         return
       }
 
@@ -173,6 +168,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         "redirect_to": denyResponse.RedirectTo,
       }).Debug("Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
+      return
     }
 
     // Masked read on challenge that has not been bound to an Identity yet. No need to hit database.
@@ -185,7 +181,6 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         "redirect_to": denyResponse.RedirectTo,
       }).Debug("Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
-      c.Abort()
       return;
     }
 
@@ -200,7 +195,6 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         "redirect_to": denyResponse.RedirectTo,
       }).Debug("Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
-      c.Abort()
       return;
     }
 
@@ -208,7 +202,6 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
       denyResponse.NotFound = true
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
       c.JSON(http.StatusOK, denyResponse)
-      c.Abort()
       return;
     }
 
@@ -248,7 +241,6 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               "redirect_to": denyResponse.RedirectTo,
             }).Debug("Authentication denied")
             c.JSON(http.StatusOK, denyResponse)
-            c.Abort()
             return
           }
 
@@ -260,8 +252,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               "totp_required": denyResponse.TotpRequired,
               "redirect_to": denyResponse.RedirectTo,
             }).Debug("Challenge not found, OTP")
-            c.JSON(http.StatusNotFound, gin.H{"error": "Challenge not found, OTP"})
-            c.Abort()
+            c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found, OTP"})
             return
           }
 

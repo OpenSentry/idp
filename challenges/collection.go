@@ -46,9 +46,8 @@ func GetCollection(env *environment.State) gin.HandlerFunc {
 
     err := c.Bind(&otpChallengeRequest)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
-      return;
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+      return
     }
 
     challenge, exists, err := idp.FetchChallenge(env.Driver, otpChallengeRequest.OtpChallenge)
@@ -56,8 +55,7 @@ func GetCollection(env *environment.State) gin.HandlerFunc {
       log.WithFields(logrus.Fields{
         "otp_challenge": otpChallengeRequest.OtpChallenge,
       }).Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch OTP challenge"})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
@@ -77,8 +75,7 @@ func GetCollection(env *environment.State) gin.HandlerFunc {
     }
 
     // Deny by default
-    c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
-    c.Abort()
+    c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found"})
   }
   return gin.HandlerFunc(fn)
 }
@@ -94,8 +91,7 @@ func PostCollection(env *environment.State) gin.HandlerFunc {
     var input OtpChallengeCreateRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
@@ -105,8 +101,8 @@ func PostCollection(env *environment.State) gin.HandlerFunc {
     } else {
       hashedCode, err = idp.CreatePassword(input.Code)
       if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
     }
@@ -116,18 +112,16 @@ func PostCollection(env *environment.State) gin.HandlerFunc {
       log.WithFields(logrus.Fields{
         "id": input.Subject,
       }).Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch Identity"})
-      c.Abort()
-      return;
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
     }
 
     if exists == false {
       log.WithFields(logrus.Fields{
         "id": input.Subject,
       }).Debug("Identity not found")
-      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      c.Abort()
-      return;
+      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
+      return
     }
 
     aChallenge := idp.Challenge{
@@ -143,8 +137,7 @@ func PostCollection(env *environment.State) gin.HandlerFunc {
       log.WithFields(logrus.Fields{
         "sub": input.Subject, "aud":input.Audience, "ttl": input.TTL, "redirect_to": input.RedirectTo, "code": hashedCode, "code_type": input.CodeType,
       }).Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create challenge"})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
@@ -166,9 +159,8 @@ func PostCollection(env *environment.State) gin.HandlerFunc {
     // Deny by default
     log.WithFields(logrus.Fields{
       "sub": input.Subject, "aud":input.Audience, "ttl": input.TTL, "redirect_to": input.RedirectTo, "code": hashedCode, "code_type": input.CodeType,
-    }).Debug("No challenge created")
-    c.JSON(http.StatusNotFound, gin.H{"error": "No challenge created"})
-    c.Abort()
+    }).Debug("Challenge not created")
+    c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not created"})
   }
   return gin.HandlerFunc(fn)
 }

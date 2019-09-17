@@ -31,23 +31,21 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
     var input IdentitiesRecoverRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
     identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
     if exists == false {
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
-      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      return;
+      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
+      return
     }
 
     sender := idp.SMTPSender{
@@ -66,16 +64,14 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
     recoverChallenge, err := idp.CreateRecoverChallenge(config.GetString("recover.link"), identity, 60 * 5) // Fixme configfy 60*5
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
     hashedCode, err := idp.CreatePassword(recoverChallenge.VerificationCode)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
@@ -87,8 +83,7 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
     updatedIdentity, err := idp.UpdateOtpRecoverCode(env.Driver, n)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
@@ -104,8 +99,7 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       log.WithFields(logrus.Fields{
         "file": recoverTemplateFile,
       }).Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
@@ -120,8 +114,7 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
     var tpl bytes.Buffer
     if err := t.Execute(&tpl, data); err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
@@ -135,9 +128,8 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       log.WithFields(logrus.Fields{
         "id": updatedIdentity.Id,
         "file": recoverTemplateFile,
-      }).Debug("Failed to send recover mail")
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
+      }).Debug(err.Error())
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
