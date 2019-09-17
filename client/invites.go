@@ -7,26 +7,23 @@ import (
 
 type InviteResponse struct {
   Id string `json:"id" binding:"required"`
-  Email string `json:"email" binding:"required"`
-  Username string `json:"username" binding:"required"`
-  GrantedScopes string `json:"granted_scopes" binding:"required"`
-  FollowIdentities string `json:"follow_identities" binding:"required"`
+  InvitedBy string `json:"invited_by" binding:"required"`
   TTL int64 `json:"ttl" binding:"required"`
   IssuedAt int64 `json:"iat" binding:"required"`
   ExpiresAt int64 `json:"exp" binding:"required"`
-  InviterId string `json:"inviter_id" binding:"required"`
-  InvitedId string `json:"invited_id" binding:"required"`
+  Email string `json:"email,omitempty"`
+  Username string `json:"username,omitempty"`
+  Invited string `json:"invited,omitempty"`
 }
 
 // CRUD
 
 type InviteCreateRequest struct {
-  Id string `json:"id" binding:"required"`
-  Email string `json:"email" binding:"required"`
-  Username string `json:"username"`
-  GrantedScopes []string `json:"granted_scopes"`
-  PleaseFollow []string `json:"please_follow"`
-  TTL int64 `json:"ttl"`
+  InvitedBy string `json:"invited_by" binding:"required"`
+  TTL int64 `json:"ttl" binding:"required"`
+  Invited string `json:"invited,omitempty"`
+  Email string `json:"email,omitempty"`
+  Username string `json:"username,omitempty"` // Hint username
 }
 
 type InviteCreateResponse struct {
