@@ -21,17 +21,15 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
     var input IdentitiesPasswordRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
     identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
-      return;
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
     }
 
     if exists == true {
@@ -39,14 +37,14 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
       valid, _ := idp.ValidatePassword(identity.Password, input.Password)
       if valid == true {
         // Nothing to change was the new password is same as current password
-        c.JSON(http.StatusOK, gin.H{"id": identity.Id})
+        c.JSON(http.StatusOK, IdentitiesPasswordResponse{ marshalIdentityToIdentityResponse(identity) })
         return
       }
 
       hashedPassword, err := idp.CreatePassword(input.Password)
       if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
@@ -56,9 +54,8 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
       })
       if err != nil {
         log.Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
-        return;
+        c.AbortWithStatus(http.StatusInternalServerError)
+        return
       }
 
       c.JSON(http.StatusOK, IdentitiesReadResponse{ marshalIdentityToIdentityResponse(updatedIdentity) })
@@ -67,7 +64,7 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
 
     // Deny by default
     log.WithFields(logrus.Fields{"id": input.Id}).Info("Identity not found")
-    c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
+    c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
   }
   return gin.HandlerFunc(fn)
 }

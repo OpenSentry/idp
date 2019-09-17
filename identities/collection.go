@@ -33,8 +33,7 @@ func GetCollection(env *environment.State) gin.HandlerFunc {
     var request IdentitiesReadRequest
     err = c.BindJSON(&request)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
@@ -62,8 +61,7 @@ func GetCollection(env *environment.State) gin.HandlerFunc {
         identity, exists, err = idp.FetchIdentityBySubject(env.Driver, request.Subject)
         if err != nil {
           log.WithFields(logrus.Fields{"sub": request.Subject}).Debug(err.Error())
-          c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-          c.Abort()
+          c.AbortWithStatus(http.StatusInternalServerError)
           return
         }
       }
@@ -72,8 +70,7 @@ func GetCollection(env *environment.State) gin.HandlerFunc {
         identity, exists, err = idp.FetchIdentityByEmail(env.Driver, request.Email)
         if err != nil {
           log.WithFields(logrus.Fields{"email": request.Email}).Debug(err.Error())
-          c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-          c.Abort()
+          c.AbortWithStatus(http.StatusInternalServerError)
           return
         }
       }
@@ -83,8 +80,7 @@ func GetCollection(env *environment.State) gin.HandlerFunc {
       identity, exists, err = idp.FetchIdentityById(env.Driver, request.Id)
       if err != nil {
         log.WithFields(logrus.Fields{"id": request.Id}).Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
@@ -103,7 +99,7 @@ func GetCollection(env *environment.State) gin.HandlerFunc {
     }
 
     // Deny by default
-    c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+    c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
     c.Abort()
   }
   return gin.HandlerFunc(fn)
@@ -120,27 +116,23 @@ func PostCollection(env *environment.State) gin.HandlerFunc {
     var input IdentitiesCreateRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
     if input.Subject == "" {
-      c.JSON(http.StatusBadRequest, gin.H{"error": "Missing sub"})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Missing sub"})
       return
     }
 
     if env.BannedUsernames[input.Subject] == true {
-      c.JSON(http.StatusForbidden, gin.H{"error": "Subject is banned"})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Subject is banned"})
       return
     }
 
     hashedPassword, err := idp.CreatePassword(input.Password)
     if err != nil {
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
@@ -152,8 +144,7 @@ func PostCollection(env *environment.State) gin.HandlerFunc {
     }
     identity, err := idp.CreateIdentity(env.Driver, newIdentity)
     if err != nil {
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": err.Error()})
       return
     }
 
@@ -174,8 +165,7 @@ func PutCollection(env *environment.State) gin.HandlerFunc {
     var input IdentitiesUpdateRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
@@ -185,22 +175,19 @@ func PutCollection(env *environment.State) gin.HandlerFunc {
 
     // Sanity check. Require subject from access token
     if subject == "" {
-      c.JSON(http.StatusForbidden, gin.H{"error": "Missing subject in access_token"})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Missing subject in access_token"})
       return
     }
 
     // Sanity check. Identity exists
     if input.Id == "" {
-      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       return
     }
 
     // Sanity check. Access token subject and Identity.Subject must match.
     if subject != input.Id {
-      c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed. Hint: Access token subject and Identity.Id does not match"})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Not allowed. Hint: Access token subject and Identity.Id does not match"})
       return
     }
 
@@ -211,8 +198,8 @@ func PutCollection(env *environment.State) gin.HandlerFunc {
     }
     identity, err := idp.UpdateIdentity(env.Driver, updateIdentity)
     if err != nil {
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
+      log.Debug(err.Error())
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 

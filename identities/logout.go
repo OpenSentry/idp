@@ -22,8 +22,7 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
     var input IdentitiesLogoutRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
@@ -34,9 +33,8 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
     }
     hydraLogoutAcceptResponse, err := hydra.AcceptLogout(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.logoutAccept"), hydraClient, input.Challenge, hydraLogoutAcceptRequest)
     if err != nil {
-      log.Fatal(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
+      log.Debug(err.Error())
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
