@@ -60,6 +60,17 @@ type Invite struct {
   InvitedIdentityId string
 }
 
+type IdentityInvite struct {
+  Id string
+  TTL int64
+  IssuedAt int64
+  ExpiresAt int64
+  InvitedBy string
+  Email string
+  InvitedIdentityId string
+  Username string
+}
+
 type RecoverChallenge struct {
   Id               string
   VerificationCode string
@@ -131,6 +142,26 @@ func marshalRecordToChallenge(record neo4j.Record) (Challenge) {
     RedirectTo: redirectTo,
     CodeType: codeType,
     Code: code,
+  }
+}
+
+func marshalRecordToIdentityInvite(record neo4j.Record) (IdentityInvite) {
+  id               := record.GetByIndex(0).(string)
+  email            := record.GetByIndex(1).(string)
+  username         := record.GetByIndex(2).(string)
+  ttl              := record.GetByIndex(3).(int64)
+  iat              := record.GetByIndex(4).(int64)
+  exp              := record.GetByIndex(5).(int64)
+  invitedBy        := record.GetByIndex(6).(string)
+
+  return IdentityInvite{
+    Id: id,
+    Email: email,
+    Username: username,
+    TTL: ttl,
+    IssuedAt: iat,
+    ExpiresAt: exp,
+    InvitedBy: invitedBy,
   }
 }
 
@@ -274,6 +305,101 @@ func AcceptInvite(driver neo4j.Driver, invite Invite) (Invite, error) {
     return Invite{}, err
   }
   return obj.(Invite), nil
+}
+
+func CreateIdentityInvite(driver neo4j.Driver, invite IdentityInvite) (IdentityInvite, error) {
+  var err error
+
+  session, err := driver.Session(neo4j.AccessModeWrite);
+  if err != nil {
+    return IdentityInvite{}, err
+  }
+  defer session.Close()
+
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+    cypher := `
+      MATCH (i:Identity {id:$id})
+      MERGE (i)<-[:INVITED_BY]-(inv:Identity:Invite {id:randomUUID(), iat:datetime().epochSeconds, exp:datetime().epochSeconds + $ttl, ttl:$ttl})
+      MERGE (inv)-[:SENT_TO]->(e:Email {email:$email})
+      MERGE (inv)-[:HINT]->(h:Hint {username:$username})
+      RETURN inv.id, e.email, h.username, inv.ttl, inv.iat, inv.exp, i.id
+    `
+    params := map[string]interface{}{
+      "email": invite.Email,
+      "username": invite.Username,
+      "ttl": invite.TTL,
+      "id": invite.InvitedBy,
+    }
+    if result, err = tx.Run(cypher, params); err != nil {
+      return nil, err
+    }
+
+    var ret IdentityInvite
+    if result.Next() {
+      record := result.Record()
+      ret = marshalRecordToIdentityInvite(record)
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+    return ret, nil
+  })
+
+  if err != nil {
+    return IdentityInvite{}, err
+  }
+  return obj.(IdentityInvite), nil
+}
+
+func FetchIdentityInviteById(driver neo4j.Driver, id string) (IdentityInvite, bool, error) {
+  var err error
+
+  session, err := driver.Session(neo4j.AccessModeRead);
+  if err != nil {
+    return IdentityInvite{}, false, err
+  }
+  defer session.Close()
+
+  obj, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+
+    cypher := `
+      MATCH (inv:IdentityInvite {id:$id})-[:INVITED_BY]->(i) WHERE inv.exp > datetime().epochSeconds
+      MATCH (inv)-[:SENT_TO]->(e:Email)
+      MATCH (inv)-[:HINT]->(h:Hint)
+      RETURN inv.id, e.email, h.username, inv.ttl, inv.iat, inv.exp, i.id
+    `
+    params := map[string]interface{}{"id": id}
+    if result, err = tx.Run(cypher, params); err != nil {
+      return nil, err
+    }
+
+    var ret IdentityInvite
+    if result.Next() {
+      record := result.Record()
+      ret = marshalRecordToIdentityInvite(record)
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+
+    // TODO: Check if neo returned empty set
+
+    return ret, nil
+  })
+
+  if err != nil {
+    return IdentityInvite{}, false, err
+  }
+  if obj != nil {
+    return obj.(IdentityInvite), true, nil
+  }
+  return IdentityInvite{}, false, nil
 }
 
 func CreateInvite(driver neo4j.Driver, identity Identity, invite Invite) (Invite, error) {
