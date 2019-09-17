@@ -26,16 +26,14 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
     var input IdentitiesTotpRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
     identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": err.Error()})
       return;
     }
 
@@ -43,8 +41,8 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
 
       encryptedSecret, err := idp.Encrypt(input.TotpSecret, config.GetString("totp.cryptkey"))
       if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
@@ -55,8 +53,7 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
       })
       if err != nil {
         log.Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        c.AbortWithStatus(http.StatusInternalServerError)
         return;
       }
 

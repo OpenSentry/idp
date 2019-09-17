@@ -21,8 +21,7 @@ func PostRecoverVerification(env *environment.State) gin.HandlerFunc {
     var input IdentitiesRecoverVerificationRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
@@ -35,15 +34,13 @@ func PostRecoverVerification(env *environment.State) gin.HandlerFunc {
     identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid id"})
-      c.Abort();
+      c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
     if exists == false {
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
-      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      c.Abort();
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Identity not found"})
       return
     }
 
@@ -56,7 +53,6 @@ func PostRecoverVerification(env *environment.State) gin.HandlerFunc {
         "redirect_to": denyResponse.RedirectTo,
       }).Debug("Recover rejected")
       c.JSON(http.StatusOK, denyResponse)
-      c.Abort();
       return
     }
 
@@ -65,8 +61,8 @@ func PostRecoverVerification(env *environment.State) gin.HandlerFunc {
       // Update the password
       hashedPassword, err := idp.CreatePassword(input.Password)
       if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
@@ -77,8 +73,7 @@ func PostRecoverVerification(env *environment.State) gin.HandlerFunc {
       updatedIdentity, err := idp.UpdatePassword(env.Driver, n)
       if err != nil {
         log.Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Update password failed"})
-        c.Abort();
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 

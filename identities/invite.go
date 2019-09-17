@@ -51,18 +51,15 @@ func GetInvite(env *environment.State) gin.HandlerFunc {
     var request IdentitiesInviteReadRequest
     err = c.BindJSON(&request)
     if err != nil {
-      log.Debug(err.Error())
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
     invite, exists, err := idp.FetchInviteById(env.Driver, request.Id)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
-      return;
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
     }
 
     if exists == true {
@@ -80,8 +77,7 @@ func GetInvite(env *environment.State) gin.HandlerFunc {
 
     // Deny by default
     log.WithFields(logrus.Fields{"id": request.Id}).Info("Invite not found")
-    c.JSON(http.StatusNotFound, gin.H{"error": "Invite not found"})
-
+    c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Invite not found"})
   }
   return gin.HandlerFunc(fn)
 }
@@ -97,17 +93,15 @@ func PutInvite(env *environment.State, route environment.Route) gin.HandlerFunc 
     var input IdentitiesInviteUpdateRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
     invite, exists, err := idp.FetchInviteById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
-      return;
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
     }
 
     if exists == true {
@@ -117,8 +111,7 @@ func PutInvite(env *environment.State, route environment.Route) gin.HandlerFunc 
       accept, err := idp.AcceptInvite(env.Driver, invite)
       if err != nil {
         log.Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        c.AbortWithStatus(http.StatusInternalServerError)
         return;
       }
 
@@ -136,7 +129,7 @@ func PutInvite(env *environment.State, route environment.Route) gin.HandlerFunc 
 
     // Deny by default
     log.WithFields(logrus.Fields{"id": input.Id}).Info("Invite not found")
-    c.JSON(http.StatusNotFound, gin.H{"error": "Invite not found"})
+    c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Invite not found"})
   }
   return gin.HandlerFunc(fn)
 }
@@ -152,17 +145,15 @@ func PostInvite(env *environment.State) gin.HandlerFunc {
     var input IdentitiesInviteCreateRequest
     err := c.BindJSON(&input)
     if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
     identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
-      return;
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
     }
 
     if exists == true {
@@ -185,9 +176,8 @@ func PostInvite(env *environment.State) gin.HandlerFunc {
         followIdentity, exists, err := idp.FetchIdentityById(env.Driver, identityId)
         if err != nil {
           log.Debug(err.Error())
-          c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-          c.Abort()
-          return;
+          c.AbortWithStatus(http.StatusInternalServerError)
+          return
         }
 
         if exists == true {
@@ -216,8 +206,7 @@ func PostInvite(env *environment.State) gin.HandlerFunc {
           "id": identity.Id,
           "email": inviteRequest.Email,
         }).Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
@@ -242,8 +231,7 @@ func PostInvite(env *environment.State) gin.HandlerFunc {
         log.WithFields(logrus.Fields{
           "file": emailTemplateFile,
         }).Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
@@ -261,8 +249,7 @@ func PostInvite(env *environment.State) gin.HandlerFunc {
       var tpl bytes.Buffer
       if err := t.Execute(&tpl, data); err != nil {
         log.Debug(err.Error())
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
@@ -277,8 +264,7 @@ func PostInvite(env *environment.State) gin.HandlerFunc {
           "id": identity.Id,
           "file": emailTemplateFile,
         }).Debug("Failed to send invite mail")
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        c.Abort()
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
@@ -296,7 +282,7 @@ func PostInvite(env *environment.State) gin.HandlerFunc {
 
     // Deny by default
     log.WithFields(logrus.Fields{"id": input.Id}).Info("Identity not found")
-    c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
+    c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
   }
   return gin.HandlerFunc(fn)
 }
