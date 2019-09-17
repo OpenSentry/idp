@@ -27,10 +27,11 @@ func NewIdpClientWithUserAccessToken(config *oauth2.Config, token *oauth2.Token)
 }
 
 func callService(client *IdpClient, method string, url string, data *bytes.Buffer) ([]byte, error) {
-  req, err := http.NewRequest(method, url, data)
+  req, err := http.NewRequest("POST", url, data)
   if err != nil {
     return nil, err
   }
+  req.Header.Set("X-HTTP-Method-Override", method)
 
   res, err := client.Do(req)
   if err != nil {
