@@ -21,6 +21,7 @@ import (
   "github.com/charmixer/idp/endpoints/identities"
   "github.com/charmixer/idp/endpoints/challenges"
   "github.com/charmixer/idp/endpoints/invites"
+  "github.com/charmixer/idp/endpoints/follows"
 )
 
 const app = "idp"
@@ -236,6 +237,8 @@ func serve(env *environment.State) {
 
   r.GET(  "/invites", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "read:invite"), invites.GetInvites(env) )
   r.POST( "/invites", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "create:invite"), invites.PostInvites(env) )
+
+  r.POST( "/follows", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "create:follow"), follows.PostFollows(env) )
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }

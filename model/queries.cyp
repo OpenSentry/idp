@@ -11,7 +11,54 @@ MATCH (i:Identity {sub:$sub})-[:Exposes]->(p:Policy)-[:Grant]->(a:Permission)
 return i, p, a
 
 
-// Create invite
+// Create invite, mnk
+MATCH (i:Identity {id:"a005f0cb-a4b4-4f76-b0c5-e4296aec7047"})
+MERGE (i)<-[:INVITED_BY]-(inv:Identity:Invite {id:randomUUID(), iat:datetime().epochSeconds, exp:datetime().epochSeconds + 300, ttl:300})
+MERGE (inv)-[:HINT]->(u:Username {username:"larn"})
+
+WITH i, inv, u
+
+OPTIONAL MATCH (invited:Identity {email:"larn@fullrate.dk"})
+
+WITH i, inv, u, collect(invited) as invited
+
+FOREACH( n in invited | MERGE (n)-[:IS_INVITED]->(inv) )
+
+WITH i, inv, u
+
+MERGE (inv)-[:SENT_TO]->(e:Email {email:"larn@fullrate.dk"})
+
+RETURN inv.id, e.email, u.username, inv.ttl, inv.iat, inv.exp, i.id
+
+
+
+
+
+MATCH (i:Identity {id:"a005f0cb-a4b4-4f76-b0c5-e4296aec7047"})
+MERGE (i)<-[:INVITED_BY]-(inv:Identity:Invite {id:randomUUID(), iat:datetime().epochSeconds, exp:datetime().epochSeconds + 300, ttl:300})
+MERGE (inv)-[:HINT]->(u:Username {username:""})
+
+WITH i, inv, u
+
+OPTIONAL MATCH (invited:Identity {email:"katrine@frisenette.com"})
+
+WITH i, inv, u, collect(invited) as invited
+
+FOREACH( n in invited | MERGE (n)-[:IS_INVITED]->(inv) )
+
+WITH i, inv, u
+
+MERGE (inv)-[:SENT_TO]->(e:Email {email:"katrine@frisenette.com"})
+
+RETURN inv.id, e.email, u.username, inv.ttl, inv.iat, inv.exp, i.id
+
+
+
+// Now use normal grant functions and follow functions to assign the Identity:Invite with what to apply on invite accept.
+
+
+
+
 MATCH (i:Identity {email:"mnk@fullrate.dk"})
 MERGE (i)-[:INVITES]-(inv:Identity:Invite {id:randomUUID()})-[:SENT_TO]-(:Email {email:"snk@cybertron.dk"})
 
