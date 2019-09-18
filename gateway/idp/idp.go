@@ -60,6 +60,11 @@ type Invite struct {
   InvitedIdentityId string
 }
 
+type Follow struct {
+  Id string
+  FollowIdentity string
+}
+
 type IdentityInvite struct {
   Id string
   TTL int64
@@ -162,6 +167,16 @@ func marshalRecordToIdentityInvite(record neo4j.Record) (IdentityInvite) {
     IssuedAt: iat,
     ExpiresAt: exp,
     InvitedBy: invitedBy,
+  }
+}
+
+func marshalRecordToFollow(record neo4j.Record) (Follow) {
+  from := record.GetByIndex(0).(string)
+  to   := record.GetByIndex(1).(string)
+
+  return Follow{
+    Id: from,
+    FollowIdentity: to,
   }
 }
 
@@ -307,6 +322,51 @@ func AcceptInvite(driver neo4j.Driver, invite Invite) (Invite, error) {
   return obj.(Invite), nil
 }
 
+func CreateFollow(driver neo4j.Driver, from Identity, to Identity) (Follow, error) {
+  var err error
+
+  session, err := driver.Session(neo4j.AccessModeWrite);
+  if err != nil {
+    return Follow{}, err
+  }
+  defer session.Close()
+
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+    cypher := `
+      MATCH (from:Identity {id:$from})
+      MATCH (to:Identity {id:$to})
+      MERGE (from)-[:FOLLOW]->(to)
+      RETURN from.id, to.id
+    `
+    params := map[string]interface{}{
+      "from": from.Id,
+      "to": to.Id,
+    }
+    if result, err = tx.Run(cypher, params); err != nil {
+      return nil, err
+    }
+
+    var ret Follow
+    if result.Next() {
+      record := result.Record()
+      ret = marshalRecordToFollow(record)
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+    return ret, nil
+  })
+
+  if err != nil {
+    return Follow{}, err
+  }
+  return obj.(Follow), nil
+}
+
+
 func CreateIdentityInvite(driver neo4j.Driver, invite IdentityInvite) (IdentityInvite, error) {
   var err error
 
@@ -321,9 +381,21 @@ func CreateIdentityInvite(driver neo4j.Driver, invite IdentityInvite) (IdentityI
     cypher := `
       MATCH (i:Identity {id:$id})
       MERGE (i)<-[:INVITED_BY]-(inv:Identity:Invite {id:randomUUID(), iat:datetime().epochSeconds, exp:datetime().epochSeconds + $ttl, ttl:$ttl})
+      MERGE (inv)-[:HINT]->(u:Username {username:$username})
+
+      WITH i, inv, u
+
+      OPTIONAL MATCH (invited:Identity {email:$email})
+
+      WITH i, inv, u, collect(invited) as invited
+
+      FOREACH( n in invited | MERGE (n)-[:IS_INVITED]->(inv) )
+
+      WITH i, inv, u
+
       MERGE (inv)-[:SENT_TO]->(e:Email {email:$email})
-      MERGE (inv)-[:HINT]->(h:Hint {username:$username})
-      RETURN inv.id, e.email, h.username, inv.ttl, inv.iat, inv.exp, i.id
+
+      RETURN inv.id, e.email, u.username, inv.ttl, inv.iat, inv.exp, i.id
     `
     params := map[string]interface{}{
       "email": invite.Email,
@@ -369,8 +441,8 @@ func FetchIdentityInviteById(driver neo4j.Driver, id string) (IdentityInvite, bo
     cypher := `
       MATCH (inv:IdentityInvite {id:$id})-[:INVITED_BY]->(i) WHERE inv.exp > datetime().epochSeconds
       MATCH (inv)-[:SENT_TO]->(e:Email)
-      MATCH (inv)-[:HINT]->(h:Hint)
-      RETURN inv.id, e.email, h.username, inv.ttl, inv.iat, inv.exp, i.id
+      MATCH (inv)-[:HINT]->(u:Username)
+      RETURN inv.id, e.email, u.username, inv.ttl, inv.iat, inv.exp, i.id
     `
     params := map[string]interface{}{"id": id}
     if result, err = tx.Run(cypher, params); err != nil {
