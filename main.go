@@ -18,9 +18,9 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/migration"
-  "github.com/charmixer/idp/identities"
-  "github.com/charmixer/idp/challenges"
-  "github.com/charmixer/idp/invites"
+  "github.com/charmixer/idp/endpoints/identities"
+  "github.com/charmixer/idp/endpoints/challenges"
+  "github.com/charmixer/idp/endpoints/invites"
 )
 
 const app = "idp"
