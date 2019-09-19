@@ -29,10 +29,11 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
     denyResponse := IdentitiesAuthenticateResponse{
       Id: input.Id,
-      NotFound: false,
       Authenticated: false,
-      TotpRequired: false,
       RedirectTo: "",
+      TotpRequired: false,
+      IsPasswordInvalid: false,
+      IdentityExists: false,
     }
 
     // Create a new HTTP client to perform the request, to prevent serialization
@@ -41,10 +42,10 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
     hydraLoginResponse, err := hydra.GetLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.login"), hydraClient, input.Challenge)
     if err != nil {
       log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
+      logResponse(log, input.Challenge, denyResponse, "Authentication denied")
+      c.JSON(http.StatusOK, denyResponse)
       return
     }
-
     log.WithFields(logrus.Fields{
       "challenge": input.Challenge,
       "skip": hydraLoginResponse.Skip,
@@ -60,28 +61,29 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
       }
 
-      hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
+      hydraLoginAcceptResponse, err := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
+      if err != nil {
+        log.Debug(err.Error())
+        logResponse(log, input.Challenge, denyResponse, "Authentication denied")
+        c.JSON(http.StatusOK, denyResponse)
+        return
+      }
       log.WithFields(logrus.Fields{
         "challenge": input.Challenge,
         "redirect_to": hydraLoginAcceptResponse.RedirectTo,
       }).Debug("PostAuthenticate.Hydra.AcceptLogin.Response")
 
+      log.WithFields(logrus.Fields{"fixme": 1}).Debug("Test if identity still exists in the system")
       acceptResponse := IdentitiesAuthenticateResponse{
         Id: hydraLoginResponse.Subject,
         Authenticated: true,
-        NotFound: false,
-        TotpRequired: false,
         RedirectTo: hydraLoginAcceptResponse.RedirectTo,
+        TotpRequired: false,
+        IsPasswordInvalid: false,
+        IdentityExists: true,
       }
-
-      log.WithFields(logrus.Fields{
-        "challenge": input.Challenge,
-        "id": acceptResponse.Id,
-        "authenticated": acceptResponse.Authenticated,
-        "totp_required": acceptResponse.TotpRequired,
-        "redirect_to": acceptResponse.RedirectTo,
-      }).Debug("Authenticated")
-
+      
+      logResponse(log, input.Challenge, acceptResponse, "Authenticated")
       c.JSON(http.StatusOK, acceptResponse)
       return
     }
@@ -102,26 +104,17 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
       challenge, exists, err := idp.FetchChallenge(env.Driver, input.OtpChallenge)
       if err != nil {
         log.Debug(err.Error())
-        log.WithFields(logrus.Fields{
-          "challenge": input.Challenge,
-          "id": denyResponse.Id,
-          "authenticated": denyResponse.Authenticated,
-          "totp_required": denyResponse.TotpRequired,
-          "redirect_to": denyResponse.RedirectTo,
-        }).Debug("Authentication denied")
+        logResponse(log, input.Challenge, denyResponse, "Authentication denied")
         c.JSON(http.StatusOK, denyResponse)
-        return;
+        return
       }
 
       if exists == false {
         log.WithFields(logrus.Fields{
-          "challenge": input.Challenge,
-          "id": denyResponse.Id,
-          "authenticated": denyResponse.Authenticated,
-          "totp_required": denyResponse.TotpRequired,
-          "redirect_to": denyResponse.RedirectTo,
-        }).Debug("Challenge not found, OTP")
-        c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found, OTP"})
+          "otp_challenge": input.OtpChallenge,
+        }).Debug("OTP Challenge not found")
+        logResponse(log, input.Challenge, denyResponse, "Authentication denied")
+        c.JSON(http.StatusOK, denyResponse)
         return
       }
 
@@ -135,51 +128,41 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           Remember: true,
           RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
         }
-        hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
+        hydraLoginAcceptResponse, err := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
+        if err != nil {
+          log.Debug(err.Error())
+          c.AbortWithStatus(http.StatusInternalServerError)
+          return
+        }
         log.WithFields(logrus.Fields{
           "challenge": input.Challenge,
           "redirect_to": hydraLoginAcceptResponse.RedirectTo,
         }).Debug("PostAuthenticate.Hydra.AcceptLogin.Response")
 
+        log.WithFields(logrus.Fields{"fixme": 1}).Debug("Test if identity still exists in the system and if totp is still required")
         acceptResponse := IdentitiesAuthenticateResponse{
           Id: hydraLoginResponse.Subject,
           Authenticated: true,
-          NotFound: false,
-          TotpRequired: true, // FIXME: Lookup identity to figure out?
           RedirectTo: hydraLoginAcceptResponse.RedirectTo,
+          TotpRequired: true,
+          IsPasswordInvalid: false,
+          IdentityExists: true,
         }
 
-        log.WithFields(logrus.Fields{
-          "challenge": input.Challenge,
-          "id": acceptResponse.Id,
-          "authenticated": acceptResponse.Authenticated,
-          "totp_required": acceptResponse.TotpRequired,
-          "redirect_to": acceptResponse.RedirectTo,
-        }).Debug("Authenticated")
+        logResponse(log, input.Challenge, acceptResponse, "Authenticated")
         c.JSON(http.StatusOK, acceptResponse)
         return
       }
 
       // Deny by default
-      log.WithFields(logrus.Fields{
-        "id": denyResponse.Id,
-        "authenticated": denyResponse.Authenticated,
-        "totp_required": denyResponse.TotpRequired,
-        "redirect_to": denyResponse.RedirectTo,
-      }).Debug("Authentication denied")
+      logResponse(log, input.Challenge, denyResponse, "Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
       return
     }
 
     // Masked read on challenge that has not been bound to an Identity yet. No need to hit database.
     if input.Challenge != "" && input.Id == "" {
-      log.WithFields(logrus.Fields{
-        "challenge": input.Challenge,
-        "id": denyResponse.Id,
-        "authenticated": denyResponse.Authenticated,
-        "totp_required": denyResponse.TotpRequired,
-        "redirect_to": denyResponse.RedirectTo,
-      }).Debug("Authentication denied")
+      logResponse(log, input.Challenge, denyResponse, "Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
       return;
     }
@@ -187,22 +170,17 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
     identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
     if err != nil {
       log.Debug(err.Error())
-      log.WithFields(logrus.Fields{
-        "challenge": input.Challenge,
-        "id": denyResponse.Id,
-        "authenticated": denyResponse.Authenticated,
-        "totp_required": denyResponse.TotpRequired,
-        "redirect_to": denyResponse.RedirectTo,
-      }).Debug("Authentication denied")
+      logResponse(log, input.Challenge, denyResponse, "Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
       return;
     }
 
     if exists == false {
-      denyResponse.NotFound = true
+      denyResponse.IdentityExists = false
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
+      logResponse(log, input.Challenge, denyResponse, "Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
-      return;
+      return
     }
 
     if identity.AllowLogin == true {
@@ -212,16 +190,18 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
         acceptResponse := IdentitiesAuthenticateResponse{
           Id: identity.Id,
-          NotFound: false,
           Authenticated: true,
-          TotpRequired: identity.TotpRequired,
           RedirectTo: "",
+          TotpRequired: identity.TotpRequired,
+          IsPasswordInvalid: false,
+          IdentityExists: true,
         }
 
         if identity.TotpRequired == true {
           // Do not call hydra yet we need totp authentication aswell. Create a totp request instaed.
 
-          redirectTo := "https://id.localhost/authenticate?login_challenge=" + input.Challenge
+          log.WithFields(logrus.Fields{"fixme": 1}).Debug("Move idpui redirect into config")
+          redirectTo := "https://id.localhost/login?login_challenge=" + input.Challenge
 
           aChallenge := idp.Challenge{
             TTL: 300, // 5 min
@@ -233,13 +213,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           otpChallenge, exists, err := idp.CreateChallengeForIdentity(env.Driver, identity, aChallenge)
           if err != nil {
             log.Debug(err.Error())
-            log.WithFields(logrus.Fields{
-              "challenge": input.Challenge,
-              "id": denyResponse.Id,
-              "authenticated": denyResponse.Authenticated,
-              "totp_required": denyResponse.TotpRequired,
-              "redirect_to": denyResponse.RedirectTo,
-            }).Debug("Authentication denied")
+            logResponse(log, input.Challenge, denyResponse, "Authentication denied")
             c.JSON(http.StatusOK, denyResponse)
             return
           }
@@ -257,6 +231,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           }
 
           // config.GetString("idpui.public.url") + config.GetString("idpui.public.url.endpoints.verify")
+          log.WithFields(logrus.Fields{"fixme": 1}).Debug("Move idpui redirect into config")
           acceptResponse.RedirectTo = "/verify?otp_challenge=" + otpChallenge.OtpChallenge
 
         } else {
@@ -265,34 +240,46 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             Remember: true,
             RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
           }
-          hydraLoginAcceptResponse := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
+          hydraLoginAcceptResponse, err := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, input.Challenge, hydraLoginAcceptRequest)
+          if err != nil {
+            log.Debug(err.Error())
+            c.AbortWithStatus(http.StatusInternalServerError)
+            return
+          }
           log.WithFields(logrus.Fields{
             "challenge": input.Challenge,
             "redirect_to": hydraLoginAcceptResponse.RedirectTo,
           }).Debug("PostAuthenticate.Hydra.AcceptLogin.Response")
+
           acceptResponse.RedirectTo = hydraLoginAcceptResponse.RedirectTo
         }
 
-        log.WithFields(logrus.Fields{
-          "challenge": input.Challenge,
-          "id": acceptResponse.Id,
-          "authenticated": acceptResponse.Authenticated,
-          "totp_required": acceptResponse.TotpRequired,
-          "redirect_to": acceptResponse.RedirectTo,
-        }).Debug("Authenticated")
+        logResponse(log, input.Challenge, acceptResponse, "Authenticated")
         c.JSON(http.StatusOK, acceptResponse)
         return
+      } else {
+
+        denyResponse.IsPasswordInvalid = true
+
       }
+
     }
 
     // Deny by default
-    log.WithFields(logrus.Fields{
-      "id": denyResponse.Id,
-      "authenticated": denyResponse.Authenticated,
-      "totp_required": denyResponse.TotpRequired,
-      "redirect_to": denyResponse.RedirectTo,
-    }).Debug("Authentication denied")
+    logResponse(log, input.Challenge, denyResponse, "Authentication denied")
     c.JSON(http.StatusOK, denyResponse)
   }
   return gin.HandlerFunc(fn)
+}
+
+func logResponse(log *logrus.Entry, challenge string, response IdentitiesAuthenticateResponse, msg string) {
+  log.WithFields(logrus.Fields{
+    "challenge": challenge,
+    "id": response.Id,
+    "authenticated": response.Authenticated,
+    "redirect_to": response.RedirectTo,
+    "totp_required": response.TotpRequired,
+    "is_password_invalid": response.IsPasswordInvalid,
+    "identity_exists": response.IdentityExists,
+  }).Debug(msg)
 }

@@ -37,6 +37,7 @@ func callService(client *IdpClient, method string, url string, data *bytes.Buffe
   if err != nil {
     return nil, err
   }
+  defer res.Body.Close()
 
   return parseResponse(res)
 }

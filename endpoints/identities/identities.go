@@ -52,8 +52,6 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
     var identity idp.Identity
     var exists bool
 
-    log.WithFields(logrus.Fields{"id":request.Id, "subject":request.Subject, "email":request.Email}).Debug("Received read:identity request")
-
     if request.Id == "" {
 
       // Look for identity id using either subject or email
@@ -99,6 +97,7 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
     }
 
     // Deny by default
+    log.WithFields(logrus.Fields{"id": request.Id, "subject": request.Subject, "email": request.Email}).Debug("Identity not found")
     c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
     c.Abort()
   }

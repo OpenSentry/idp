@@ -13,6 +13,7 @@ import (
   "github.com/neo4j/neo4j-go-driver/neo4j"
   "github.com/pborman/getopt"
   "github.com/dgrijalva/jwt-go"
+  "fmt"
 
   "github.com/charmixer/idp/utils"
   "github.com/charmixer/idp/config"
@@ -192,13 +193,27 @@ func main() {
 
 }
 
+func requestBeforeAuth() gin.HandlerFunc {
+  return func(c *gin.Context) {
+		fmt.Println(c.Request)
+		c.Next()
+	}
+}
+
+func requestAfterAuth() gin.HandlerFunc {
+  return func(c *gin.Context) {
+		fmt.Println(c.Request)
+		c.Next()
+	}
+}
+
 func serve(env *environment.State) {
 
   r := gin.New() // Clean gin to take control with logging.
   r.Use(gin.Recovery())
   r.Use(utils.ProcessMethodOverride(r))
   r.Use(utils.RequestId())
-  r.Use(utils.RequestLogger(environment.LogKey, environment.RequestIdKey, appFields))
+  r.Use(utils.RequestLogger(environment.LogKey, environment.RequestIdKey, log, appFields))
 
   // ## QTNA - Questions that need answering before granting access to a protected resource
   // 1. Is the user or client authenticated? Answered by the process of obtaining an access token.
