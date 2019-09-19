@@ -117,11 +117,13 @@ type IdentitiesAuthenticateRequest struct {
 
 // We try and limit the amount of information returned by the endpoint.
 type IdentitiesAuthenticateResponse struct {
-  Id            string `json:"id" binding:"required"`
-  TotpRequired  bool   `json:"totp_required" binding:"required"`
-  NotFound      bool   `json:"not_found" binding:"required"`
-  Authenticated bool   `json:"authenticated" binding:"required"`
-  RedirectTo    string `json:"redirect_to" binding:"required"`
+  Id                 string `json:"id" binding:"required"`
+  Authenticated      bool   `json:"authenticated" binding:"required"`
+  RedirectTo         string `json:"redirect_to" binding:"required"`
+  TotpRequired       bool   `json:"totp_required" binding:"required"`
+
+  IsPasswordInvalid  bool `json:"is_password_invalid" binding:"required"`
+  IdentityExists     bool `json:"identity_exists" binding:"required"`
 }
 
 type IdentitiesRecoverRequest struct {
