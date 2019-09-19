@@ -25,6 +25,13 @@ type JsonError struct {
   Error     string `json:"error" binding:"required"`
 }
 
+type AuthorizationConfig struct {
+  LogKey             string
+  AccessTokenKey     string
+  HydraConfig        *clientcredentials.Config
+  HydraIntrospectUrl string
+}
+
 func GenerateRandomBytes(n int) ([]byte, error) {
 	b := make([]byte, n)
 	_, err := rand.Read(b)
@@ -303,14 +310,14 @@ func AuthenticationRequired(logKey string, accessTokenKey string) gin.HandlerFun
   return gin.HandlerFunc(fn)
 }
 
-func AuthorizationRequired(logKey string, accessTokenKey string, hydraConfig *clientcredentials.Config, hydraInstrospectUrl string, requiredScopes ...string) gin.HandlerFunc {
+func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
-    log := c.MustGet(logKey).(*logrus.Entry)
+    log := c.MustGet(aconf.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{"func": "AuthorizationRequired"})
 
     // This is required to be here but should be garantueed by the authenticationRequired function.
-    t, accessTokenExists := c.Get(accessTokenKey)
+    t, accessTokenExists := c.Get(aconf.AccessTokenKey)
     if accessTokenExists == false {
       c.AbortWithStatusJSON(http.StatusForbidden, JsonError{ErrorCode: ERROR_MISSING_BEARER_TOKEN, Error: "No access token found. Hint: Is bearer token missing?"})
 			return
@@ -322,7 +329,7 @@ func AuthorizationRequired(logKey string, accessTokenKey string, hydraConfig *cl
 
     // See #3 of QTNA
     // log.WithFields(logrus.Fields{"fixme": 1, "qtna": 3}).Debug("Missing check if access token is granted the required scopes")
-    hydraClient := hydra.NewHydraClient(hydraConfig)
+    hydraClient := hydra.NewHydraClient(aconf.HydraConfig)
 
     log.WithFields(logrus.Fields{"token": accessToken.AccessToken}).Debug("Introspecting token")
 
@@ -330,7 +337,7 @@ func AuthorizationRequired(logKey string, accessTokenKey string, hydraConfig *cl
       Token: accessToken.AccessToken,
       Scope: strRequiredScopes, // This will make hydra check that all scopes are present else introspect.active will be false.
     }
-    introspectResponse, err := hydra.IntrospectToken(hydraInstrospectUrl, hydraClient, introspectRequest)
+    introspectResponse, err := hydra.IntrospectToken(aconf.HydraIntrospectUrl, hydraClient, introspectRequest)
     if err != nil {
       log.WithFields(logrus.Fields{"scope": strRequiredScopes}).Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
