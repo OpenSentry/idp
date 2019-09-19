@@ -225,35 +225,42 @@ func serve(env *environment.State) {
   // All requests need to be authenticated.
   r.Use(utils.AuthenticationRequired(environment.LogKey, environment.AccessTokenKey))
 
-  hydraInstrospectUrl := config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.introspect")
+  hydraIntrospectUrl := config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.introspect")
 
-  r.GET(  "/challenges", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.GetChallenges(env) )
-  r.POST( "/challenges", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.PostChallenges(env) )
-  r.POST( "/challenges/verify", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), challenges.PostVerify(env) )
+  aconf := utils.AuthorizationConfig{
+    LogKey:             environment.LogKey,
+    AccessTokenKey:     environment.AccessTokenKey,
+    HydraConfig:        env.HydraConfig,
+    HydraIntrospectUrl: hydraIntrospectUrl,
+  }
 
-  r.GET(    "/identities",    utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "read:identity"), identities.GetIdentities(env) )
-  r.POST(   "/identities",   utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostIdentities(env) )
-  r.PUT(    "/identities",    utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "update:identity"), identities.PutIdentities(env) )
-  r.DELETE( "/identities", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "delete:identity"), identities.DeleteIdentities(env) )
+  r.GET(  "/challenges", utils.AuthorizationRequired(aconf, "authenticate:identity"), challenges.GetChallenges(env) )
+  r.POST( "/challenges", utils.AuthorizationRequired(aconf, "authenticate:identity"), challenges.PostChallenges(env) )
+  r.POST( "/challenges/verify", utils.AuthorizationRequired(aconf, "authenticate:identity"), challenges.PostVerify(env) )
 
-  r.POST( "/identities/deleteverification", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "delete:identity"), identities.PostDeleteVerification(env) )
+  r.GET(    "/identities",    utils.AuthorizationRequired(aconf, "read:identity"), identities.GetIdentities(env) )
+  r.POST(   "/identities",   utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostIdentities(env) )
+  r.PUT(    "/identities",    utils.AuthorizationRequired(aconf, "update:identity"), identities.PutIdentities(env) )
+  r.DELETE( "/identities", utils.AuthorizationRequired(aconf, "delete:identity"), identities.DeleteIdentities(env) )
 
-  r.POST( "/identities/authenticate", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostAuthenticate(env) )
-  r.PUT( "/identities/password", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PutPassword(env) )
+  r.POST( "/identities/deleteverification", utils.AuthorizationRequired(aconf, "delete:identity"), identities.PostDeleteVerification(env) )
 
-  r.PUT( "/identities/totp", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PutTotp(env) )
+  r.POST( "/identities/authenticate", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostAuthenticate(env) )
+  r.PUT( "/identities/password", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PutPassword(env) )
 
-  r.POST( "/identities/logout", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "logout:identity"), identities.PostLogout(env) )
+  r.PUT( "/identities/totp", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PutTotp(env) )
 
-  r.POST( "/identities/recover", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "recover:identity"), identities.PostRecover(env) )
-  r.POST( "/identities/recoververification", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "authenticate:identity"), identities.PostRecoverVerification(env) )
+  r.POST( "/identities/logout", utils.AuthorizationRequired(aconf, "logout:identity"), identities.PostLogout(env) )
 
-  r.POST( "/identities/invite", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "invite:identity"), invites.PostInvites(env) )
+  r.POST( "/identities/recover", utils.AuthorizationRequired(aconf, "recover:identity"), identities.PostRecover(env) )
+  r.POST( "/identities/recoververification", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostRecoverVerification(env) )
 
-  r.GET(  "/invites", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "read:invite"), invites.GetInvites(env) )
-  r.POST( "/invites", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "create:invite"), invites.PostInvites(env) )
+  r.POST( "/identities/invite", utils.AuthorizationRequired(aconf, "invite:identity"), invites.PostInvites(env) )
 
-  r.POST( "/follows", utils.AuthorizationRequired(environment.LogKey, environment.AccessTokenKey, env.HydraConfig, hydraInstrospectUrl, "create:follow"), follows.PostFollows(env) )
+  r.GET(  "/invites", utils.AuthorizationRequired(aconf, "read:invite"), invites.GetInvites(env) )
+  r.POST( "/invites", utils.AuthorizationRequired(aconf, "create:invite"), invites.PostInvites(env) )
+
+  r.POST( "/follows", utils.AuthorizationRequired(aconf, "create:follow"), follows.PostFollows(env) )
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
