@@ -85,7 +85,18 @@ WITH inv, i
 // Attach relation ship to authenticated node
 MATCH (inv)-[r:IS_GRANTED]->(gr:GrantRule)
 MERGE (i)-[:IS_GRANTED]->(gr)
-DELETE r
+
+WITH inv, i
+
+MATCH (inv)-[r:FOLLOWS]-(n:Identity)
+MERGE (i)-[:FOLLOWS]->(n)
+
+DETACH DELETE inv
+
+
+
+
+
 
 WITH inv, i
 
