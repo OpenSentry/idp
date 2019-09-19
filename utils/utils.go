@@ -33,17 +33,17 @@ type AuthorizationConfig struct {
 }
 
 func GenerateRandomBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
+  b := make([]byte, n)
+  _, err := rand.Read(b)
+  if err != nil {
+    return nil, err
+  }
+  return b, nil
 }
 
 func GenerateRandomString(s int) (string, error) {
-	b, err := GenerateRandomBytes(s)
-	return base64.StdEncoding.EncodeToString(b), err
+  b, err := GenerateRandomBytes(s)
+  return base64.StdEncoding.EncodeToString(b), err
 }
 
 type IpData struct {
@@ -54,7 +54,7 @@ type IpData struct {
 func GetRequestIpData(r *http.Request) (IpData, error) {
   ip, port, err := net.SplitHostPort(r.RemoteAddr)
   if err != nil {
-  	return IpData{}, err
+    return IpData{}, err
   }
   ret := IpData{
     Ip: ip,
@@ -153,8 +153,8 @@ func ProcessMethodOverride(r *gin.Engine) gin.HandlerFunc {
 
     // Only need to check POST method
     if c.Request.Method != "POST" {
-			return
-		}
+      return
+    }
 
     method := c.Request.Header.Get("X-HTTP-Method-Override")
     method = strings.ToLower(method)
@@ -216,11 +216,11 @@ func RequestLogger(logKey string, requestIdKey string, log *logrus.Logger, appFi
     })
     c.Set(logKey, requestLog)
 
-		c.Next()
+    c.Next()
 
-		// Stop timer
-		stop := time.Now()
-		latency := stop.Sub(start)
+    // Stop timer
+    stop := time.Now()
+    latency := stop.Sub(start)
 
     ipData, err := GetRequestIpData(c.Request)
     if err != nil {
@@ -236,18 +236,18 @@ func RequestLogger(logKey string, requestIdKey string, log *logrus.Logger, appFi
       }).Debug(err.Error())
     }
 
-		method := c.Request.Method
-		statusCode := c.Writer.Status()
-		errorMessage := c.Errors.ByType(gin.ErrorTypePrivate).String()
+    method := c.Request.Method
+    statusCode := c.Writer.Status()
+    errorMessage := c.Errors.ByType(gin.ErrorTypePrivate).String()
 
-		bodySize := c.Writer.Size()
+    bodySize := c.Writer.Size()
 
     var fullpath string = path
-		if raw != "" {
-			fullpath = path + "?" + raw
-		}
+    if raw != "" {
+      fullpath = path + "?" + raw
+    }
 
-		log.WithFields(appFields).WithFields(logrus.Fields{
+    log.WithFields(appFields).WithFields(logrus.Fields{
       "latency": latency,
       "forwarded_for.ip": forwardedForIpData.Ip,
       "forwarded_for.port": forwardedForIpData.Port,
@@ -320,7 +320,7 @@ func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) 
     t, accessTokenExists := c.Get(aconf.AccessTokenKey)
     if accessTokenExists == false {
       c.AbortWithStatusJSON(http.StatusForbidden, JsonError{ErrorCode: ERROR_MISSING_BEARER_TOKEN, Error: "No access token found. Hint: Is bearer token missing?"})
-			return
+      return
     }
     var accessToken *oauth2.Token = t.(*oauth2.Token)
 
@@ -372,21 +372,21 @@ func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) 
 }
 
 func RequestId() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Check for incoming header, use it if exists
-		requestID := c.Request.Header.Get("X-Request-Id")
+  return func(c *gin.Context) {
+    // Check for incoming header, use it if exists
+    requestID := c.Request.Header.Get("X-Request-Id")
 
-		// Create request id with UUID4
-		if requestID == "" {
-			uuid4, _ := uuid.NewV4()
-			requestID = uuid4.String()
-		}
+    // Create request id with UUID4
+    if requestID == "" {
+      uuid4, _ := uuid.NewV4()
+      requestID = uuid4.String()
+    }
 
-		// Expose it for use in the application
-		c.Set("RequestId", requestID)
+    // Expose it for use in the application
+    c.Set("RequestId", requestID)
 
-		// Set X-Request-Id header
-		c.Writer.Header().Set("X-Request-Id", requestID)
-		c.Next()
-	}
+    // Set X-Request-Id header
+    c.Writer.Header().Set("X-Request-Id", requestID)
+    c.Next()
+  }
 }
