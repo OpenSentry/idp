@@ -247,6 +247,11 @@ func RequestLogger(logKey string, requestIdKey string, log *logrus.Logger, appFi
       fullpath = path + "?" + raw
     }
 
+    // if public data is requested successfully, then dont log it since its just spam when debugging
+    if strings.Contains(path, "/public/") && ( statusCode == http.StatusOK || statusCode == http.StatusNotModified ) {
+     return
+    }
+
     log.WithFields(appFields).WithFields(logrus.Fields{
       "latency": latency,
       "forwarded_for.ip": forwardedForIpData.Ip,
