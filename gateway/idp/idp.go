@@ -1123,7 +1123,7 @@ func DeleteIdentity(driver neo4j.Driver, identity Identity) (Identity, error) {
   obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      MATCH (i::Human:Identity {id:$id}) DETACH DELETE i
+      MATCH (i:Human:Identity {id:$id}) DETACH DELETE i
     `
     params := map[string]interface{}{"id": identity.Id}
     if result, err = tx.Run(cypher, params); err != nil {
