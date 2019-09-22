@@ -16,6 +16,7 @@ MERGE (:Identity:Human {
 
 // ### Required clients
 MERGE (:Identity:Client {
+  id:randomUUID(),
   username: "idp",
   client_id:"idp",
   client_secret:"",
@@ -24,6 +25,7 @@ MERGE (:Identity:Client {
 })
 
 MERGE (:Identity:Client {
+  id:randomUUID(),
   username: "idpui",
   client_id:"idpui",
   client_secret:"",
@@ -33,8 +35,42 @@ MERGE (:Identity:Client {
 
 // ## IDPAPI
 MERGE (:Identity:ResourceServer {
+  id:randomUUID(),
   username:"idprs",
   aud:"idp",
   name:"Identity Provider",
   description:"Identity Provider"
 });
+
+// HYDRA API
+MERGE (:Identity:ResourceServer {
+  id:randomUUID(),
+  name:"hydra",
+  description:"OAuth2 API"
+})
+;
+
+// # AAP
+MERGE (:Identity:Client {
+  id:randomUUID(),
+  client_id:"aap",
+  client_secret:"",
+  name: "AAP hydra client",
+  description:"Used by the Access and Authorization Provider api to call Hydra
+"})
+MERGE (:Identity:Client {
+  id:randomUUID(),
+  client_id:"aapui",
+  client_secret:"",
+  name: "AAP api client",
+  description:"Used by the Access and Authorization Provider UI to call the Access and Authorization API"
+})
+;
+
+// AAP API
+MERGE (:Identity:ResourceServer {
+  id:randomUUID(),
+  name:"aap",
+  description:"Access and Authorization provider"
+})
+;
