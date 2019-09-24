@@ -211,6 +211,61 @@ func marshalRecordToInvite(record neo4j.Record) (Invite) {
   }
 }
 
+func FetchInvitesForIdentity(driver neo4j.Driver, identity Identity) ([]Invite, error) {
+  var err error
+
+  session, err := driver.Session(neo4j.AccessModeRead);
+  if err != nil {
+    return nil, err
+  }
+  defer session.Close()
+
+  obj, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+
+    cypher := `
+      MATCH (i:Identity {id:$id})
+      MATCH (inv:Invite)-[:INVITED_BY]->(i) WHERE inv.exp > datetime().epochSeconds
+
+      WITH i, inv
+
+      OPTIONAL MATCH (n:Identity)-[:IS_INVITED]->(inv)-[:INVITED_BY]->(i)
+
+      WITH i, inv, n
+
+      RETURN inv.id, inv.email, inv.username, inv.granted_scopes, inv.follow_identities, inv.iat, inv.ttl, inv.exp, i.id, n.id
+    `
+    params := map[string]interface{}{"id": identity.Id}
+    if result, err = tx.Run(cypher, params); err != nil {
+      return nil, err
+    }
+
+    var ret []Invite
+    for result.Next() {
+      record := result.Record()
+      inv := marshalRecordToInvite(record)
+      ret = append(ret, inv)
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+
+    // TODO: Check if neo returned empty set
+
+    return ret, nil
+  })
+
+  if err != nil {
+    return nil, err
+  }
+  if obj != nil {
+    return obj.([]Invite), nil
+  }
+  return nil, nil
+}
+
 func FetchInviteById(driver neo4j.Driver, id string) (Invite, bool, error) {
   var err error
 

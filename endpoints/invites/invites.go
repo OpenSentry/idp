@@ -26,41 +26,39 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
     }
 
     // Sanity check. InvitedBy
-    invitedByIdentity, exists, err := idp.FetchIdentityById(env.Driver, input.InvitedBy)
+    ibi, exists, err := idp.FetchIdentityById(env.Driver, input.InvitedByIdentity)
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
     if exists == false {
-      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Indentity not found. Hint: invited_by"})
+      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Indentity not found. Hint: ibi"})
       return
     }
 
     // Sanity check. Invited Identity
-    invitedIdentityId := ""
-    if input.Invited != "" {
-      identity, exists, err := idp.FetchIdentityById(env.Driver, input.Invited)
+    var ii idp.Identity
+    if input.InvitedIdentity != "" {
+      ii, exists, err = idp.FetchIdentityById(env.Driver, input.InvitedIdentity)
       if err != nil {
         log.Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
       if exists == false {
-        c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Indentity not found. Hint: invited"})
+        c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Indentity not found. Hint: ii"})
         return
       }
-      invitedIdentityId = identity.Id
     }
-
 
     log.WithFields(logrus.Fields{"fixme": 1}).Debug("Put invite expiration into config")
     identityInvite := idp.IdentityInvite{
       Email: input.Email,
-      Username: input.Username,
+      Username: input.HintUsername,
       TTL: 60 * 60 * 24, // 24 hour invite
-      InvitedBy: invitedByIdentity.Id,
-      InvitedIdentityId: invitedIdentityId,
+      InvitedBy: ibi.Id,
+      InvitedIdentityId: ii.Id,
     }
     invite, err := idp.CreateIdentityInvite(env.Driver, identityInvite)
     if err != nil {
@@ -91,22 +89,42 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
       "func": "GetInvites",
     })
 
-    var request InviteReadRequest
-    err := c.BindJSON(&request)
+    var requests []InviteReadRequest
+    err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
-    invite, exists, err := idp.FetchIdentityInviteById(env.Driver, request.Id)
+    for index, request := range requests {
+
+    }
+
+    identity := idp.Identity{
+      Id: request.Id,
+    }
+
+    invites, err := idp.FetchInvitesForIdentity(env.Driver, identity)
     if err != nil {
       log.WithFields(logrus.Fields{"id": request.Id}).Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
-    if exists == true {
-      c.JSON(http.StatusOK, InviteReadResponse{ marshalIdentityInviteToInviteResponse(invite) })
+    if invites != nil {
+      var r []*InviteResponse
+
+      for _, invite := range invites {
+
+        n := idp.IdentityInvite{
+          Id: invite.Id,
+          Email: invite.Email,
+        }
+
+        r = append(r, marshalIdentityInviteToInviteResponse(n))
+      }
+
+      c.JSON(http.StatusOK, r)
       return
     }
 
