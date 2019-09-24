@@ -257,8 +257,8 @@ func serve(env *environment.State) {
 
   r.POST( "/identities/invite", utils.AuthorizationRequired(aconf, "invite:identity"), invites.PostInvites(env) )
 
-  r.GET(  "/invites", utils.AuthorizationRequired(aconf, "read:invite"), invites.GetInvites(env) )
-  r.POST( "/invites", utils.AuthorizationRequired(aconf, "create:invite"), invites.PostInvites(env) )
+  r.GET(  "/invites", utils.AuthorizationRequired(aconf, "invite:identity"), invites.GetInvites(env) )
+  r.POST( "/invites", utils.AuthorizationRequired(aconf, "invite:identity"), invites.PostInvites(env) )
 
   r.POST( "/follows", utils.AuthorizationRequired(aconf, "create:follow"), follows.PostFollows(env) )
 

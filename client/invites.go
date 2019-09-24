@@ -19,11 +19,11 @@ type InviteResponse struct {
 // CRUD
 
 type InviteCreateRequest struct {
-  InvitedBy string `json:"invited_by" binding:"required"`
+  InvitedByIdentity string `json:"ibi" binding:"required"`
   TTL int64 `json:"ttl" binding:"required"`
-  Invited string `json:"invited,omitempty"`
+  InvitedIdentity string `json:"ii,omitempty"`
   Email string `json:"email,omitempty"`
-  Username string `json:"username,omitempty"` // Hint username
+  HintUsername string `json:"hint_username,omitempty"`
 }
 
 type InviteCreateResponse struct {
@@ -40,8 +40,8 @@ type InviteReadResponse struct {
 
 // Actions
 
-func ReadInvites(client *IdpClient, challengeUrl string, request *InviteReadRequest) (*InviteReadResponse, error) {
-  var response InviteReadResponse
+func ReadInvites(client *IdpClient, challengeUrl string, request *[]InviteReadRequest) (*[]InviteReadResponse, error) {
+  var response []InviteReadResponse
 
   body, err := json.Marshal(request)
   if err != nil {
