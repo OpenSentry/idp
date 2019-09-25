@@ -130,7 +130,7 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
 
     newChallenge := idp.Challenge{
       JwtRegisteredClaims: idp.JwtRegisteredClaims{
-        Subject: input.Subject,
+        Subject: identity.Id,
         Audience: input.Audience,
         ExpiresAt: time.Now().Unix() + input.TTL,
       },

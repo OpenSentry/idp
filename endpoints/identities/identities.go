@@ -30,8 +30,8 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
 
     var err error
 
-    var request IdentitiesReadRequest
-    err = c.BindJSON(&request)
+    var input IdentitiesReadRequest
+    err = c.BindJSON(&input)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
@@ -39,30 +39,31 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
 
     var humans []idp.Human
 
-    if request.Id == "" {
+    if input.Id == "" {
 
-      if request.Username != "" {
-        humans, err = idp.FetchHumansByUsername(env.Driver, []string{request.Username})
+      if input.Username != "" {
+        humans, err = idp.FetchHumansByUsername(env.Driver, []string{input.Username})
+        log.Debug(humans)
         if err != nil {
-          log.WithFields(logrus.Fields{"id": request.Id}).Debug(err.Error())
+          log.WithFields(logrus.Fields{"id": input.Id}).Debug(err.Error())
           c.AbortWithStatus(http.StatusInternalServerError)
           return
         }
       }
 
-      if len(humans) <= 0 && request.Email != "" {
-        humans, err = idp.FetchHumansByEmail(env.Driver, []string{request.Email})
+      if len(humans) <= 0 && input.Email != "" {
+        humans, err = idp.FetchHumansByEmail(env.Driver, []string{input.Email})
         if err != nil {
-          log.WithFields(logrus.Fields{"id": request.Id}).Debug(err.Error())
+          log.WithFields(logrus.Fields{"id": input.Id}).Debug(err.Error())
           c.AbortWithStatus(http.StatusInternalServerError)
           return
         }
       }
 
     } else {
-      humans, err = idp.FetchHumansById(env.Driver, []string{request.Id})
+      humans, err = idp.FetchHumansById(env.Driver, []string{input.Id})
       if err != nil {
-        log.WithFields(logrus.Fields{"id": request.Id}).Debug(err.Error())
+        log.WithFields(logrus.Fields{"id": input.Id}).Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
@@ -74,7 +75,7 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
     }
 
     // Deny by default
-    log.WithFields(logrus.Fields{"id": request.Id, "username": request.Username, "email": request.Email}).Debug("Identity not found")
+    log.WithFields(logrus.Fields{"id": input.Id, "username": input.Username, "email": input.Email}).Debug("Identity not found")
     c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
     c.Abort()
   }
@@ -117,6 +118,7 @@ func PostIdentities(env *environment.State) gin.HandlerFunc {
       Name: input.Name,
       Email: input.Email,
       Password: hashedPassword,
+      AllowLogin: true,
     }
     human, err := idp.CreateHuman(env.Driver, newHuman)
     if err != nil {

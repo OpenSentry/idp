@@ -209,6 +209,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
           newChallenge := idp.Challenge{
             JwtRegisteredClaims: idp.JwtRegisteredClaims{
+              Issuer: config.GetString("idp.public.issuer"),
               ExpiresAt: time.Now().Unix() + 300, // 5 min
               Audience: "https://id.localhost/api/authenticate",
             },
@@ -226,7 +227,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           }
 
           log.WithFields(logrus.Fields{"fixme": 1}).Debug("IDP _MUST_ NOT HAVE BINDING TO IDPUI! - Find a way to make verify redirect setup")
-          u, err := url.Parse( config.GetString("idpui.public.url") + config.GetString("idpui.public.url.endpoints.verify") )
+          u, err := url.Parse( config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.verify") )
           if err != nil {
             log.Debug(err.Error())
             logResponse(log, input.Challenge, denyResponse, "Authentication denied")
