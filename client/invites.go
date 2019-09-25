@@ -40,7 +40,7 @@ type InviteReadResponse struct {
 
 // Actions
 
-func ReadInvites(client *IdpClient, challengeUrl string, request *[]InviteReadRequest) (*[]InviteReadResponse, error) {
+func ReadInvites(client *IdpClient, challengeUrl string, request []InviteReadRequest) ([]InviteReadResponse, error) {
   var response []InviteReadResponse
 
   body, err := json.Marshal(request)
@@ -57,7 +57,7 @@ func ReadInvites(client *IdpClient, challengeUrl string, request *[]InviteReadRe
   if err != nil {
     return nil, err
   }
-  return &response, nil
+  return response, nil
 }
 
 func CreateInvites(client *IdpClient, challengeUrl string, request *InviteCreateRequest) (*InviteCreateResponse, error) {
