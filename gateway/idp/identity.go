@@ -66,7 +66,7 @@ func FetchIdentitiesById(driver neo4j.Driver, ids []string) ([]Identity, error) 
     }
   } else {
     cypher = `
-      MATCH (i:Identity) WHERE i.Id in split($ids, ",")
+      MATCH (i:Identity) WHERE i.id in split($ids, ",")
       RETURN i
     `
     params = map[string]interface{}{
@@ -87,7 +87,7 @@ func fetchIdentitiesByQuery(driver neo4j.Driver, cypher string, params map[strin
   }
   defer session.Close()
 
-  neoResult, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  neoResult, err = session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
@@ -114,7 +114,7 @@ func fetchIdentitiesByQuery(driver neo4j.Driver, cypher string, params map[strin
   if err != nil {
     return nil, err
   }
-  if neoResult != nil {
+  if neoResult == nil {
     return nil, nil
   }
   return neoResult.([]Identity), nil
