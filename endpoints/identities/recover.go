@@ -35,18 +35,19 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
+    humans, err := idp.FetchHumansById(env.Driver, []string{input.Id})
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
-    if exists == false {
+    if humans == nil {
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       return
     }
+    human := humans[0]
 
     sender := idp.SMTPSender{
       Name: config.GetString("recover.sender.name"),
@@ -61,7 +62,7 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
     }
 
-    recoverChallenge, err := idp.CreateRecoverChallenge(config.GetString("recover.link"), identity, 60 * 5) // Fixme configfy 60*5
+    recoverChallenge, err := idp.CreateRecoverChallenge(config.GetString("recover.link"), human, 60 * 5) // Fixme configfy 60*5
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
@@ -75,8 +76,10 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    n := idp.Identity{
-      Id: identity.Id,
+    n := idp.Human{
+      Identity: idp.Identity{
+        Id: human.Id,
+      },
       OtpRecoverCode: hashedCode,
       OtpRecoverCodeExpire: recoverChallenge.Expire,
     }
@@ -123,7 +126,7 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       Body: tpl.String(),
     }
 
-    _, err = idp.SendAnEmailToIdentity(smtpConfig, updatedIdentity, mail)
+    _, err = idp.SendAnEmailToHuman(smtpConfig, updatedIdentity, mail)
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": updatedIdentity.Id,
