@@ -66,7 +66,7 @@ func CreateHuman(driver neo4j.Driver, human Human) (Human, error) {
     var result neo4j.Result
     cypher := `
       CREATE (i:Human:Identity {
-        id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp
+        id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp,
 
         email:$email, username:$username,
 
@@ -79,9 +79,7 @@ func CreateHuman(driver neo4j.Driver, human Human) (Human, error) {
         totp_required:false, totp_secret:"",
 
         otp_recover_code:"", otp_recover_code_expire:0,
-        otp_delete_code:"", otp_delete_code_expire:0,
-
-
+        otp_delete_code:"", otp_delete_code_expire:0
       })
       RETURN i
     `
@@ -89,6 +87,7 @@ func CreateHuman(driver neo4j.Driver, human Human) (Human, error) {
       "iss": human.Issuer, "exp": human.ExpiresAt,
       "email": human.Email, "username": human.Username,
       "name": human.Name,
+      "allow_login": human.AllowLogin,
       "password": human.Password,
     }
     if result, err = tx.Run(cypher, params); err != nil {
@@ -133,15 +132,13 @@ func FetchHumansById(driver neo4j.Driver, ids []string) ([]Human, error) {
 
   if ids == nil {
     cypher = `
-      MATCH (i:Human:Identity {id: $id})
+      MATCH (i:Human:Identity)
       RETURN i
     `
-    params = map[string]interface{}{
-      "id": strings.Join(ids, ","),
-    }
+    params = map[string]interface{}{}
   } else {
     cypher = `
-      MATCH (i:Human:Identity) WHERE i.Id in split($ids, ",")
+      MATCH (i:Human:Identity) WHERE i.id in split($ids, ",")
       RETURN i
     `
     params = map[string]interface{}{
@@ -157,15 +154,13 @@ func FetchHumansByEmail(driver neo4j.Driver, emails []string) ([]Human, error) {
 
   if emails == nil {
     cypher = `
-      MATCH (i:Human:Identity {email: $email})
+      MATCH (i:Human:Identity)
       RETURN i
     `
-    params = map[string]interface{}{
-      "email": strings.Join(emails, ","),
-    }
+    params = map[string]interface{}{}
   } else {
     cypher = `
-      MATCH (i:Human:Identity) WHERE i.Email in split($emails, ",")
+      MATCH (i:Human:Identity) WHERE i.email in split($emails, ",")
       RETURN i
     `
     params = map[string]interface{}{
@@ -181,15 +176,13 @@ func FetchHumansByUsername(driver neo4j.Driver, usernames []string) ([]Human, er
 
   if usernames == nil {
     cypher = `
-      MATCH (i:Human:Identity {username:$username})
+      MATCH (i:Human:Identity)
       RETURN i
     `
-    params = map[string]interface{}{
-      "username": strings.Join(usernames, ","),
-    }
+    params = map[string]interface{}{}
   } else {
     cypher = `
-      MATCH (i:Human:Identity) WHERE i.Email in split($usernames, ",")
+      MATCH (i:Human:Identity) WHERE i.username in split($usernames, ",")
       RETURN i
     `
     params = map[string]interface{}{
@@ -210,34 +203,35 @@ func fetchHumansByQuery(driver neo4j.Driver, cypher string, params map[string]in
   }
   defer session.Close()
 
-  neoResult, err = session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+  neoResult, err = session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+    var err error
     var result neo4j.Result
+
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
     }
 
-    var err error
-    var out []Human
+    var humans []Human
     for result.Next() {
       record := result.Record()
 
-      objNode := record.GetByIndex(0)
-      if objNode != nil {
-        obj := marshalNodeToHuman(objNode.(neo4j.Node))
-        out = append(out, obj)
+      humanNode := record.GetByIndex(0)
+      if humanNode != nil {
+        human := marshalNodeToHuman(humanNode.(neo4j.Node))
+        humans = append(humans, human)
       }
-
     }
     if err = result.Err(); err != nil {
       return nil, err
     }
-    return out, nil
+    return humans, nil
   })
 
   if err != nil {
     return nil, err
   }
-  if neoResult != nil {
+  if neoResult == nil {
     return nil, nil
   }
   return neoResult.([]Human), nil

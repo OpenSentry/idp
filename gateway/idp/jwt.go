@@ -16,13 +16,29 @@ type JwtRegisteredClaims struct {
 func marshalNodeToJwtRegisteredClaims(node neo4j.Node) (JwtRegisteredClaims) {
   p := node.Props()
 
+  var iss string
+  var sub string
+  var aud string
+  var exp int64
+  var nbf int64
+  var iat int64
+  var jti string
+
+  if p["iss"] != nil { iss = p["iss"].(string) }
+  if p["sub"] != nil { sub = p["sub"].(string) }
+  if p["aud"] != nil { aud = p["aud"].(string) }
+  if p["exp"] != nil { exp = p["exp"].(int64) }
+  if p["nbf"] != nil { nbf = p["nbf"].(int64) }
+  if p["iat"] != nil { iat = p["iat"].(int64) }
+  if p["jti"] != nil { jti = p["jti"].(string) }
+
   return JwtRegisteredClaims{
-    Issuer:    p["id"].(string),
-    Subject:   p["sub"].(string),
-    Audience:  p["name"].(string),
-    ExpiresAt: p["exp"].(int64),
-    NotBefore: p["nbf"].(int64),
-    IssuedAt:  p["iat"].(int64),
-    JwtId:     p["jti"].(string),
+    Issuer:    iss,
+    Subject:   sub,
+    Audience:  aud,
+    ExpiresAt: exp,
+    NotBefore: nbf,
+    IssuedAt:  iat,
+    JwtId:     jti,
   }
 }
