@@ -112,14 +112,13 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    if invites != nil {
+    if len(invites) > 0 {
       c.JSON(http.StatusOK, InviteReadResponse{ marshalIdentityInviteToInviteResponse(invites[0]) })
       return
     }
 
     // Deny by default
-    c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Invite not found"})
-    c.Abort()
+    c.AbortWithStatusJSON(http.StatusOK, []InviteReadResponse{})
   }
   return gin.HandlerFunc(fn)
 }
