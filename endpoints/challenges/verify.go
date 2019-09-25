@@ -42,7 +42,7 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
       RedirectTo: "",
     }
 
-    challenge, exists, err := idp.FetchChallenge(env.Driver, input.OtpChallenge)
+    challenges, err := idp.FetchChallengesById(env.Driver, []string{input.OtpChallenge})
     if err != nil {
       log.WithFields(logrus.Fields{
         "otp_challenge": input.OtpChallenge,
@@ -51,32 +51,34 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    if exists == false {
+    if challenges == nil {
       log.WithFields(logrus.Fields{
         "otp_challenge": input.OtpChallenge,
       }).Debug("Challenge not found")
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found"})
       return
     }
+    challenge := challenges[0]
 
-    identity, exists, err := idp.FetchIdentityById(env.Driver, challenge.Subject)
+    identities, err := idp.FetchHumansById(env.Driver, []string{challenge.Subject})
     if err != nil {
       log.WithFields(logrus.Fields{
-        "otp_challenge": challenge.OtpChallenge,
+        "otp_challenge": challenge.Id,
         "id": challenge.Subject,
       }).Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
-    if exists == false {
+    if identities == nil {
       log.WithFields(logrus.Fields{
-        "otp_challenge": challenge.OtpChallenge,
+        "otp_challenge": challenge.Id,
         "id": challenge.Subject,
       }).Debug("Identity not found")
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       return
     }
+    identity := identities[0]
 
     var valid bool = false
 
@@ -95,7 +97,7 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
 
       } else {
         log.WithFields(logrus.Fields{
-          "otp_challenge": challenge.OtpChallenge,
+          "otp_challenge": challenge.Id,
           "id": challenge.Subject,
         }).Debug("TOTP not enabled for Identity")
         c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "TOTP not enabled for Identity. Hint: Use a code of digits instead."})
@@ -109,24 +111,15 @@ func PostVerify(env *environment.State) gin.HandlerFunc {
     }
 
     if valid == true {
-      verifiedChallenge, exists, err := idp.VerifyChallenge(env.Driver, challenge)
+      verifiedChallenge, err := idp.VerifyChallenge(env.Driver, challenge)
       if err != nil {
-        log.WithFields(logrus.Fields{"otp_challenge": challenge.OtpChallenge}).Debug(err.Error())
+        log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
-      if exists == false {
-        log.WithFields(logrus.Fields{
-          "otp_challenge": challenge.OtpChallenge,
-          "id": challenge.Subject,
-        }).Debug("Challenge not found")
-        c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found"})
-        return
-      }
-
       c.JSON(http.StatusOK, VerifyResponse{
-        OtpChallenge: verifiedChallenge.OtpChallenge,
+        OtpChallenge: verifiedChallenge.Id,
         Verified: true,
         RedirectTo: verifiedChallenge.RedirectTo,
       })

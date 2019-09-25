@@ -47,35 +47,42 @@ func PostSend(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    invite, exists, err := idp.FetchIdentityInviteById(env.Driver, input.Id)
+    invites, err := idp.FetchInvitesById(env.Driver, []string{input.Id})
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
-    if exists == false {
+    if invites == nil {
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Invite not found."})
       return
     }
+    invite := invites[0]
 
-    invitedByIdentity, exists, err := idp.FetchIdentityById(env.Driver, invite.InvitedBy)
+    invitedByIdentities, err := idp.FetchHumansById(env.Driver, []string{invite.InvitedBy.Id})
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
-    if exists == false {
+    if invitedByIdentities == nil {
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Indentity not found. Hint: invited_by"})
       return
     }
+    invitedByIdentity := invitedByIdentities[0]
 
-    invitedIdentity, exists, err := idp.FetchIdentityById(env.Driver, invite.InvitedIdentityId)
+    invitedIdentities, err := idp.FetchHumansById(env.Driver, []string{invite.Invited.Id})
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
-    isAnonymousInvite := !exists
+    isAnonymousInvite := invitedIdentities == nil
+
+    var invitedIdentity idp.Human
+    if invitedIdentities != nil {
+      invitedIdentity = invitedIdentities[0]
+    }
 
     sender := idp.SMTPSender{
       Name: config.GetString("provider.name"),
@@ -118,7 +125,7 @@ func PostSend(env *environment.State) gin.HandlerFunc {
     data := InviteTemplateData{
       Id: invite.Id,
       InvitedBy: invitedByIdentity.Name,
-      Email: invite.Email,
+      Email: invite.SentTo.Email,
       InvitationUrl: u.String(),
       IdentityProvider: config.GetString("provider.name"),
     }
@@ -137,10 +144,10 @@ func PostSend(env *environment.State) gin.HandlerFunc {
 
     if isAnonymousInvite == true {
 
-      _, err = idp.SendAnEmailToAnonymous(smtpConfig, invite.Email, invite.Email, mail)
+      _, err = idp.SendAnEmailToAnonymous(smtpConfig, invite.SentTo.Email, invite.SentTo.Email, mail)
       if err != nil {
         log.WithFields(logrus.Fields{
-          "email": invite.Email,
+          "email": invite.SentTo.Email,
           "file": emailTemplateFile,
         }).Debug("Failed to send invite mail")
         c.AbortWithStatus(http.StatusInternalServerError)
@@ -149,7 +156,7 @@ func PostSend(env *environment.State) gin.HandlerFunc {
 
     } else {
 
-      _, err = idp.SendAnEmailToIdentity(smtpConfig, invitedIdentity, mail)
+      _, err = idp.SendAnEmailToHuman(smtpConfig, invitedIdentity, mail)
       if err != nil {
         log.WithFields(logrus.Fields{
           "id": invitedIdentity.Id,
