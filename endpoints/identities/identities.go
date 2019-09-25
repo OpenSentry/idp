@@ -37,67 +37,44 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    // Inspect access token for subject
-    /*s, _ := c.Get("sub") // Middleware delivers access_token.id_token.sub
-    subject := s.(string)
-    log.WithFields(logrus.Fields{"sub": subject}).Debug("Found subject in access token")
-
-    // Sanity check. Require subject from access token
-    if subject == "" {
-      c.JSON(http.StatusForbidden, gin.H{"error": "Missing subject in access_token"})
-      c.Abort()
-      return
-    }*/
-
-    var identity idp.Identity
-    var exists bool
+    var humans []idp.Human
 
     if request.Id == "" {
 
-      // Look for identity id using either subject or email
-      if request.Subject != "" {
-        identity, exists, err = idp.FetchIdentityBySubject(env.Driver, request.Subject)
+      if request.Username != "" {
+        humans, err = idp.FetchHumansByUsername(env.Driver, []string{request.Username})
         if err != nil {
-          log.WithFields(logrus.Fields{"sub": request.Subject}).Debug(err.Error())
+          log.WithFields(logrus.Fields{"id": request.Id}).Debug(err.Error())
           c.AbortWithStatus(http.StatusInternalServerError)
           return
         }
       }
 
-      if identity.Id == "" && request.Email != "" {
-        identity, exists, err = idp.FetchIdentityByEmail(env.Driver, request.Email)
+      if len(humans) <= 0 && request.Email != "" {
+        humans, err = idp.FetchHumansByEmail(env.Driver, []string{request.Email})
         if err != nil {
-          log.WithFields(logrus.Fields{"email": request.Email}).Debug(err.Error())
+          log.WithFields(logrus.Fields{"id": request.Id}).Debug(err.Error())
           c.AbortWithStatus(http.StatusInternalServerError)
           return
         }
       }
 
     } else {
-
-      identity, exists, err = idp.FetchIdentityById(env.Driver, request.Id)
+      humans, err = idp.FetchHumansById(env.Driver, []string{request.Id})
       if err != nil {
         log.WithFields(logrus.Fields{"id": request.Id}).Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
-
     }
 
-    // Sanity check. Access token subject and Identity.Subject must match.
-    //if subject != identity.Id {
-    //  c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed. Hint: Access token subject and Identity.Id does not match"})
-    //  c.Abort()
-    //  return
-    //}
-
-    if exists == true {
-      c.JSON(http.StatusOK, IdentitiesReadResponse{ marshalIdentityToIdentityResponse(identity) })
+    if len(humans) > 0 {
+      c.JSON(http.StatusOK, IdentitiesReadResponse{ marshalIdentityToIdentityResponse(humans[0]) })
       return
     }
 
     // Deny by default
-    log.WithFields(logrus.Fields{"id": request.Id, "subject": request.Subject, "email": request.Email}).Debug("Identity not found")
+    log.WithFields(logrus.Fields{"id": request.Id, "username": request.Username, "email": request.Email}).Debug("Identity not found")
     c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
     c.Abort()
   }
@@ -119,13 +96,13 @@ func PostIdentities(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    if input.Subject == "" {
-      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Missing sub"})
+    if input.Username == "" {
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Missing username"})
       return
     }
 
-    if env.BannedUsernames[input.Subject] == true {
-      c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Subject is banned"})
+    if env.BannedUsernames[input.Username] == true {
+      c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Username is banned"})
       return
     }
 
@@ -135,19 +112,19 @@ func PostIdentities(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    newIdentity := idp.Identity{
-      Subject: input.Subject,
+    newHuman := idp.Human{
+      Username: input.Username,
       Name: input.Name,
       Email: input.Email,
       Password: hashedPassword,
     }
-    identity, err := idp.CreateIdentity(env.Driver, newIdentity)
+    human, err := idp.CreateHuman(env.Driver, newHuman)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": err.Error()})
       return
     }
 
-    c.JSON(http.StatusOK, IdentitiesCreateResponse{ marshalIdentityToIdentityResponse(identity) })
+    c.JSON(http.StatusOK, IdentitiesCreateResponse{ marshalIdentityToIdentityResponse(human) })
   }
   return gin.HandlerFunc(fn)
 }
@@ -190,19 +167,21 @@ func PutIdentities(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    updateIdentity := idp.Identity{
-      Id: input.Id,
+    updateHuman := idp.Human{
+      Identity: idp.Identity{
+        Id: input.Id,
+      },
       Name: input.Name,
       Email: input.Email,
     }
-    identity, err := idp.UpdateIdentity(env.Driver, updateIdentity)
+    human, err := idp.UpdateHuman(env.Driver, updateHuman)
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
-    c.JSON(http.StatusOK, IdentitiesUpdateResponse{ marshalIdentityToIdentityResponse(identity) })
+    c.JSON(http.StatusOK, IdentitiesUpdateResponse{ marshalIdentityToIdentityResponse(human) })
   }
   return gin.HandlerFunc(fn)
 }
@@ -249,7 +228,7 @@ func DeleteIdentities(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
+    identities, err := idp.FetchIdentitiesById(env.Driver, []string{input.Id})
     if err != nil {
       log.Debug(err.Error())
       c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
@@ -257,11 +236,12 @@ func DeleteIdentities(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    if exists == false {
+    if identities == nil {
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
       c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       return;
     }
+    identity := identities[0]
 
     sender := idp.SMTPSender{
       Name: config.GetString("delete.sender.name"),
@@ -292,10 +272,12 @@ func DeleteIdentities(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    n := idp.Identity{
-      Id: identity.Id,
-      OtpDeleteCode: hashedCode,
-      OtpDeleteCodeExpire: deleteChallenge.Expire,
+    n := idp.Human{
+      Identity: idp.Identity{
+        Id: identity.Id,
+        OtpDeleteCode: hashedCode,
+        OtpDeleteCodeExpire: deleteChallenge.Expire,
+      },
     }
     updatedIdentity, err := idp.UpdateOtpDeleteCode(env.Driver, n)
     if err != nil {
@@ -343,7 +325,7 @@ func DeleteIdentities(env *environment.State) gin.HandlerFunc {
       Body: tpl.String(),
     }
 
-    _, err = idp.SendAnEmailToIdentity(smtpConfig, updatedIdentity, anEmail)
+    _, err = idp.SendAnEmailToHuman(smtpConfig, updatedIdentity, anEmail)
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": updatedIdentity.Id,
@@ -367,10 +349,10 @@ func DeleteIdentities(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func marshalIdentityToIdentityResponse(identity idp.Identity) *IdentitiesResponse {
+func marshalIdentityToIdentityResponse(identity idp.Human) *IdentitiesResponse {
   return &IdentitiesResponse{
     Id:                   identity.Id,
-    Subject:              identity.Subject,
+    Username:             identity.Username,
     Password:             identity.Password,
     Name:                 identity.Name,
     Email:                identity.Email,

@@ -25,19 +25,20 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
+    humans, err := idp.FetchHumansById(env.Driver, []string{input.Id})
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
-    if exists == true {
+    if humans != nil {
+      human := humans[0]
 
-      valid, _ := idp.ValidatePassword(identity.Password, input.Password)
+      valid, _ := idp.ValidatePassword(human.Password, input.Password)
       if valid == true {
         // Nothing to change was the new password is same as current password
-        c.JSON(http.StatusOK, IdentitiesPasswordResponse{ marshalIdentityToIdentityResponse(identity) })
+        c.JSON(http.StatusOK, IdentitiesPasswordResponse{ marshalIdentityToIdentityResponse(human) })
         return
       }
 
@@ -48,8 +49,10 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
         return
       }
 
-      updatedIdentity, err := idp.UpdatePassword(env.Driver, idp.Identity{
-        Id: identity.Id,
+      updatedIdentity, err := idp.UpdatePassword(env.Driver, idp.Human{
+        Identity: idp.Identity{
+          Id: human.Id,
+        },
         Password: hashedPassword,
       })
       if err != nil {
