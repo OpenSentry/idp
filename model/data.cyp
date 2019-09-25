@@ -45,7 +45,9 @@ MERGE (:Identity:ResourceServer {
 // HYDRA API
 MERGE (:Identity:ResourceServer {
   id:randomUUID(),
-  name:"hydra",
+  username:"hydrars",
+  aud:"hydra",
+  name:"Hydra",
   description:"OAuth2 API"
 })
 ;
@@ -67,10 +69,12 @@ MERGE (:Identity:Client {
 })
 ;
 
-// AAP API
+// AAPAPI
 MERGE (:Identity:ResourceServer {
   id:randomUUID(),
-  name:"aap",
+  username:"aaprs",
+  aud:"aap",
+  name:"Access & Authorization Provider",
   description:"Access and Authorization provider"
 })
 ;
