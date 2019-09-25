@@ -1,6 +1,7 @@
 package challenges
 
 import (
+  "time"
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
@@ -50,7 +51,7 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    challenge, exists, err := idp.FetchChallenge(env.Driver, otpChallengeRequest.OtpChallenge)
+    challenges, err := idp.FetchChallengesById(env.Driver, []string{otpChallengeRequest.OtpChallenge})
     if err != nil {
       log.WithFields(logrus.Fields{
         "otp_challenge": otpChallengeRequest.OtpChallenge,
@@ -59,14 +60,16 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    if exists == true {
+    if challenges != nil {
+      challenge := challenges[0]
+
       c.JSON(http.StatusOK, OtpChallengeResponse{
-        OtpChallenge: challenge.OtpChallenge,
+        OtpChallenge: challenge.Id,
         Subject: challenge.Subject,
         Audience: challenge.Audience,
         IssuedAt: challenge.IssuedAt,
         ExpiresAt: challenge.ExpiresAt,
-        TTL: challenge.TTL,
+        TTL: challenge.ExpiresAt - challenge.IssuedAt,
         RedirectTo: challenge.RedirectTo,
         CodeType: challenge.CodeType,
         Code: challenge.Code,
@@ -107,7 +110,7 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
       }
     }
 
-    identity, exists, err := idp.FetchIdentityBySubject(env.Driver, input.Subject)
+    identities, err := idp.FetchHumansById(env.Driver, []string{input.Subject})
     if err != nil {
       log.WithFields(logrus.Fields{
         "id": input.Subject,
@@ -116,23 +119,26 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    if exists == false {
+    if identities == nil {
       log.WithFields(logrus.Fields{
         "id": input.Subject,
       }).Debug("Identity not found")
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       return
     }
+    identity := identities[0]
 
-    aChallenge := idp.Challenge{
-      Subject: input.Subject,
-      Audience: input.Audience,
-      TTL: input.TTL,
+    newChallenge := idp.Challenge{
+      JwtRegisteredClaims: idp.JwtRegisteredClaims{
+        Subject: identity.Id,
+        Audience: input.Audience,
+        ExpiresAt: time.Now().Unix() + input.TTL,
+      },
       RedirectTo: input.RedirectTo,
       CodeType: input.CodeType,
       Code: hashedCode,
     }
-    challenge, exists, err := idp.CreateChallengeForIdentity(env.Driver, identity, aChallenge)
+    challenge, _, err := idp.CreateChallenge(env.Driver, newChallenge, identity)
     if err != nil {
       log.WithFields(logrus.Fields{
         "sub": input.Subject, "aud":input.Audience, "ttl": input.TTL, "redirect_to": input.RedirectTo, "code": hashedCode, "code_type": input.CodeType,
@@ -141,26 +147,24 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    if exists == true {
-      c.JSON(http.StatusOK, OtpChallengeResponse{
-        OtpChallenge: challenge.OtpChallenge,
-        Subject: challenge.Subject,
-        Audience: challenge.Audience,
-        IssuedAt: challenge.IssuedAt,
-        ExpiresAt: challenge.ExpiresAt,
-        TTL: challenge.TTL,
-        RedirectTo: challenge.RedirectTo,
-        CodeType: challenge.CodeType,
-        Code: challenge.Code,
-      })
-      return
-    }
+    c.JSON(http.StatusOK, OtpChallengeResponse{
+      OtpChallenge: challenge.Id,
+      Subject: challenge.Subject,
+      Audience: challenge.Audience,
+      IssuedAt: challenge.IssuedAt,
+      ExpiresAt: challenge.ExpiresAt,
+      TTL: challenge.ExpiresAt - challenge.IssuedAt,
+      RedirectTo: challenge.RedirectTo,
+      CodeType: challenge.CodeType,
+      Code: challenge.Code,
+    })
+    return
 
     // Deny by default
-    log.WithFields(logrus.Fields{
-      "sub": input.Subject, "aud":input.Audience, "ttl": input.TTL, "redirect_to": input.RedirectTo, "code": hashedCode, "code_type": input.CodeType,
-    }).Debug("Challenge not created")
-    c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not created"})
+    //log.WithFields(logrus.Fields{
+    //  "sub": input.Subject, "aud":input.Audience, "ttl": input.TTL, "redirect_to": input.RedirectTo, "code": hashedCode, "code_type": input.CodeType,
+    //}).Debug("Challenge not created")
+    //c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not created"})
   }
   return gin.HandlerFunc(fn)
 }
