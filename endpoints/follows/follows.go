@@ -25,51 +25,48 @@ func PostFollows(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    type FollowCreateRequest struct {
-      Id string `json:"id" binding:"required"`
-      Follow string `json:"follow" binding:"required"`
-    }
-
     // Sanity check. Identity that are to follow another identity must exist
-    fromIdentity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
+    fromIdentities, err := idp.FetchIdentitiesById(env.Driver, []string{input.Id})
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
-    if exists == false {
+    if fromIdentities == nil {
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Indentity not found. Hint: id"})
       return
     }
+    fromIdentity := fromIdentities[0]
 
     // Sanity check. Identity that follows exists
-    toIdentity, exists, err := idp.FetchIdentityById(env.Driver, input.Follow)
+    toIdentities, err := idp.FetchIdentitiesById(env.Driver, []string{input.Follow})
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
-    if exists == false {
+    if toIdentities == nil {
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Indentity not found. Hint: follow"})
       return
     }
+    toIdentity := toIdentities[0]
 
-    follow, err := idp.CreateFollow(env.Driver, fromIdentity, toIdentity)
+    edge, err := idp.CreateFollow(env.Driver, fromIdentity, toIdentity)
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
-    response := FollowCreateResponse{ FollowResponse: marshalFollowToFollowResponse(follow) }
+    response := FollowCreateResponse{ FollowResponse: marshalFollowToFollowResponse(edge) }
     c.JSON(http.StatusOK, response)
   }
   return gin.HandlerFunc(fn)
 }
 
-func marshalFollowToFollowResponse(follow idp.Follow) *FollowResponse {
+func marshalFollowToFollowResponse(edge idp.Follow) *FollowResponse {
   return &FollowResponse{
-    Id: follow.Id,
-    Follow: follow.FollowIdentity,
+    Id: edge.From.Id,
+    Follow: edge.To.Id,
   }
 }
