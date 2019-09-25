@@ -30,14 +30,15 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
+    humans, err := idp.FetchHumansById(env.Driver, []string{input.Id})
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": err.Error()})
       return;
     }
 
-    if exists == true {
+    if humans != nil {
+      human := humans[0]
 
       encryptedSecret, err := idp.Encrypt(input.TotpSecret, config.GetString("totp.cryptkey"))
       if err != nil {
@@ -46,8 +47,10 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
         return
       }
 
-      updatedIdentity, err := idp.UpdateTotp(env.Driver, idp.Identity{
-        Id: identity.Id,
+      updatedIdentity, err := idp.UpdateTotp(env.Driver, idp.Human{
+        Identity: idp.Identity{
+          Id: human.Id,
+        },
         TotpRequired: input.TotpRequired,
         TotpSecret: encryptedSecret,
       })

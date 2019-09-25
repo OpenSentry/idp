@@ -7,7 +7,7 @@ import (
 
 type IdentitiesResponse struct {
   Id                   string `json:"id" binding:"required"`
-  Subject              string `json:"sub" binding:"required"`
+  Username             string `json:"username" binding:"required"`
   Password             string `json:"password" binding:"required"`
   Name                 string `json:"name" binding:"required`
   Email                string `json:"email" binding:"required"`
@@ -37,7 +37,7 @@ type IdentitiesInviteResponse struct {
 
 type IdentitiesCreateRequest struct {
   Password string `json:"password" binding:"required"`
-  Subject  string `json:"sub"`
+  Username string `json:"username,omitempty"`
   Email    string `json:"email,omitempty"`
   Name     string `json:"name,omitempty"`
 }
@@ -47,9 +47,9 @@ type IdentitiesCreateResponse struct {
 }
 
 type IdentitiesReadRequest struct {
-  Id      string `form:"id"    json:"id"`
-  Subject string `form:"sub"   json:"sub"`
-  Email   string `form:"email" json:"email"`
+  Id       string `form:"id"       json:"id"`
+  Username string `form:"username" json:"username"`
+  Email    string `form:"email"    json:"email"`
 }
 
 type IdentitiesReadResponse struct {
