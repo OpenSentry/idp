@@ -31,18 +31,19 @@ func PostDeleteVerification(env *environment.State) gin.HandlerFunc {
       RedirectTo: "",
     }
 
-    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
+    identities, err := idp.FetchIdentitiesById(env.Driver, []string{input.Id})
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
-    if exists == false {
+    if identities == nil {
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
       return
     }
+    identity := identities[0]
 
     valid, err := idp.ValidatePassword(identity.OtpDeleteCode, input.VerificationCode)
     if err != nil {
@@ -61,10 +62,12 @@ func PostDeleteVerification(env *environment.State) gin.HandlerFunc {
       log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all access tokens for identity - put them on revoked list or rely on expire")
       log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all consents in hydra for identity - this is probably aap?")
 
-      n := idp.Identity{
-        Id: identity.Id,
+      n := idp.Human{
+        Identity: idp.Identity{
+          Id: identity.Id,
+        },
       }
-      updatedIdentity, err := idp.DeleteIdentity(env.Driver, n)
+      updatedIdentity, err := idp.DeleteHuman(env.Driver, n)
       if err != nil {
         log.Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)

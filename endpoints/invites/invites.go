@@ -26,47 +26,53 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
     }
 
     // Sanity check. InvitedBy
-    invitedByIdentity, exists, err := idp.FetchIdentityById(env.Driver, input.InvitedBy)
+    var invitedByIdentity idp.Human
+    invitedByIdentities, err := idp.FetchHumansById(env.Driver, []string{input.InvitedBy})
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
-    if exists == false {
+    if invitedByIdentities == nil {
       c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Indentity not found. Hint: invited_by"})
       return
     }
+    invitedByIdentity = invitedByIdentities[0]
+
 
     // Sanity check. Invited Identity
-    invitedIdentityId := ""
+    var invitedIdentity idp.Human
     if input.Invited != "" {
-      identity, exists, err := idp.FetchIdentityById(env.Driver, input.Invited)
+      identities, err := idp.FetchHumansById(env.Driver, []string{input.Invited})
       if err != nil {
         log.Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
-      if exists == false {
+      if identities == nil {
         c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Indentity not found. Hint: invited"})
         return
       }
-      invitedIdentityId = identity.Id
+      invitedIdentity = identities[0]
     }
-
 
     log.WithFields(logrus.Fields{"fixme": 1}).Debug("Put invite expiration into config")
-    identityInvite := idp.IdentityInvite{
-      Email: input.Email,
-      Username: input.Username,
-      TTL: 60 * 60 * 24, // 24 hour invite
-      InvitedBy: invitedByIdentity.Id,
-      InvitedIdentityId: invitedIdentityId,
+    invite := idp.Invite{
+      HintUsername: input.Username,
+      Human: idp.Human{
+        Identity: idp.Identity{
+          Issuer: "",
+          ExpiresAt: 60 * 60 * 24, // 24 hours
+        },
+      },
+
+      Invited: &invitedIdentity,
     }
-    invite, err := idp.CreateIdentityInvite(env.Driver, identityInvite)
+    invite, _, _, err = idp.CreateInvite(env.Driver, invite, invitedByIdentity, idp.Email{ Email:input.Email })
     if err != nil {
       log.WithFields(logrus.Fields{
-        "id": identityInvite.Id,
-        "email": identityInvite.Email,
+        "invited_by": invitedByIdentity.Id,
+        "email": input.Email,
       }).Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
@@ -98,15 +104,16 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    invite, exists, err := idp.FetchIdentityInviteById(env.Driver, request.Id)
+
+    invites, err := idp.FetchInvites(env.Driver, nil)
     if err != nil {
-      log.WithFields(logrus.Fields{"id": request.Id}).Debug(err.Error())
+      log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
-    if exists == true {
-      c.JSON(http.StatusOK, InviteReadResponse{ marshalIdentityInviteToInviteResponse(invite) })
+    if invites != nil {
+      c.JSON(http.StatusOK, InviteReadResponse{ marshalIdentityInviteToInviteResponse(invites[0]) })
       return
     }
 
@@ -132,18 +139,16 @@ func PutInvite(env *environment.State, route environment.Route) gin.HandlerFunc 
       return
     }
 
-    invite, exists, err := idp.FetchInviteById(env.Driver, input.Id)
+    invites, err := idp.FetchInvites(env.Driver, nil)
     if err != nil {
       log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
 
-    if exists == true {
+    if invites != nil {
 
-      // Created granted relations as specified in the invite
-      // Create follow relations as specified in the invite
-      accept, err := idp.AcceptInvite(env.Driver, invite)
+      accept, err := idp.AcceptInvite(env.Driver, invites[0])
       if err != nil {
         log.Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)
@@ -169,15 +174,15 @@ func PutInvite(env *environment.State, route environment.Route) gin.HandlerFunc 
   return gin.HandlerFunc(fn)
 }
 
-func marshalIdentityInviteToInviteResponse(invite idp.IdentityInvite) *InviteResponse {
+func marshalIdentityInviteToInviteResponse(invite idp.Invite) *InviteResponse {
   return &InviteResponse{
     Id: invite.Id,
-    InvitedBy: invite.InvitedBy,
-    TTL: invite.TTL,
+    InvitedBy: invite.InvitedBy.Id,
+    TTL: invite.ExpiresAt - invite.IssuedAt,
     IssuedAt: invite.IssuedAt,
     ExpiresAt: invite.ExpiresAt,
-    Email: invite.Email,
+    Email: invite.SentTo.Email,
     Username: invite.Username,
-    Invited: invite.InvitedIdentityId,
+    Invited: invite.Invited.Id,
   }
 }

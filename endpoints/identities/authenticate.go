@@ -1,6 +1,8 @@
 package identities
 
 import (
+  "time"
+  "net/url"
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
@@ -82,7 +84,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         IsPasswordInvalid: false,
         IdentityExists: true,
       }
-      
+
       logResponse(log, input.Challenge, acceptResponse, "Authenticated")
       c.JSON(http.StatusOK, acceptResponse)
       return
@@ -101,7 +103,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
       // Check that login_challenge url and login_challenge in otp_challenge is the same. (CSRF)
       // Accept login based on verified otp data
 
-      challenge, exists, err := idp.FetchChallenge(env.Driver, input.OtpChallenge)
+      challenges, err := idp.FetchChallengesById(env.Driver, []string{input.OtpChallenge})
       if err != nil {
         log.Debug(err.Error())
         logResponse(log, input.Challenge, denyResponse, "Authentication denied")
@@ -109,7 +111,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         return
       }
 
-      if exists == false {
+      if challenges == nil {
         log.WithFields(logrus.Fields{
           "otp_challenge": input.OtpChallenge,
         }).Debug("OTP Challenge not found")
@@ -117,9 +119,10 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         c.JSON(http.StatusOK, denyResponse)
         return
       }
+      challenge := challenges[0]
 
-      if challenge.Verified > 0 {
-        log.WithFields(logrus.Fields{"otp_challenge": challenge.OtpChallenge}).Debug("Challenge verified")
+      if challenge.VerifiedAt > 0 {
+        log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug("Challenge verified")
 
         log.WithFields(logrus.Fields{"fixme": 1}).Debug("Check if challenge actually matches login_challenge and that session matches?")
 
@@ -167,7 +170,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
       return;
     }
 
-    identity, exists, err := idp.FetchIdentityById(env.Driver, input.Id)
+    humans, err := idp.FetchHumansById( env.Driver, []string{input.Id} )
     if err != nil {
       log.Debug(err.Error())
       logResponse(log, input.Challenge, denyResponse, "Authentication denied")
@@ -175,42 +178,47 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
       return;
     }
 
-    if exists == false {
+    if humans == nil {
       denyResponse.IdentityExists = false
       log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
       logResponse(log, input.Challenge, denyResponse, "Authentication denied")
       c.JSON(http.StatusOK, denyResponse)
       return
     }
+    human := humans[0]
 
-    if identity.AllowLogin == true {
+    if human.AllowLogin == true {
 
-      valid, _ := idp.ValidatePassword(identity.Password, input.Password)
+      valid, _ := idp.ValidatePassword(human.Password, input.Password)
       if valid == true {
 
         acceptResponse := IdentitiesAuthenticateResponse{
-          Id: identity.Id,
+          Id: human.Id,
           Authenticated: true,
           RedirectTo: "",
-          TotpRequired: identity.TotpRequired,
+          TotpRequired: human.TotpRequired,
           IsPasswordInvalid: false,
           IdentityExists: true,
         }
 
-        if identity.TotpRequired == true {
+        if human.TotpRequired == true {
           // Do not call hydra yet we need totp authentication aswell. Create a totp request instaed.
 
           log.WithFields(logrus.Fields{"fixme": 1}).Debug("Move idpui redirect into config")
           redirectTo := "https://id.localhost/login?login_challenge=" + input.Challenge
 
-          aChallenge := idp.Challenge{
-            TTL: 300, // 5 min
+          newChallenge := idp.Challenge{
+            JwtRegisteredClaims: idp.JwtRegisteredClaims{
+              Issuer: config.GetString("idp.public.issuer"),
+              ExpiresAt: time.Now().Unix() + 300, // 5 min
+              Audience: "https://id.localhost/api/authenticate",
+            },
             CodeType: "TOTP", // means the code is not stored in DB, but calculated from otp_secret
             Code: "",
             RedirectTo: redirectTo, // When challenge is verified where should the verify controller redirect to and append otp_challenge=
-            Audience: "https://id.localhost/api/authenticate",
           }
-          otpChallenge, exists, err := idp.CreateChallengeForIdentity(env.Driver, identity, aChallenge)
+
+          otpChallenge, _, err := idp.CreateChallenge(env.Driver, newChallenge, human)
           if err != nil {
             log.Debug(err.Error())
             logResponse(log, input.Challenge, denyResponse, "Authentication denied")
@@ -218,25 +226,23 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             return
           }
 
-          if exists == false {
-            log.WithFields(logrus.Fields{
-              "challenge": input.Challenge,
-              "id": denyResponse.Id,
-              "authenticated": denyResponse.Authenticated,
-              "totp_required": denyResponse.TotpRequired,
-              "redirect_to": denyResponse.RedirectTo,
-            }).Debug("Challenge not found, OTP")
-            c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found, OTP"})
+          log.WithFields(logrus.Fields{"fixme": 1}).Debug("IDP _MUST_ NOT HAVE BINDING TO IDPUI! - Find a way to make verify redirect setup")
+          u, err := url.Parse( config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.verify") )
+          if err != nil {
+            log.Debug(err.Error())
+            logResponse(log, input.Challenge, denyResponse, "Authentication denied")
+            c.JSON(http.StatusOK, denyResponse)
             return
           }
+          q := u.Query()
+          q.Add("otp_challenge", otpChallenge.Id)
+          u.RawQuery = q.Encode()
 
-          // config.GetString("idpui.public.url") + config.GetString("idpui.public.url.endpoints.verify")
-          log.WithFields(logrus.Fields{"fixme": 1}).Debug("Move idpui redirect into config")
-          acceptResponse.RedirectTo = "/verify?otp_challenge=" + otpChallenge.OtpChallenge
+          acceptResponse.RedirectTo = u.String()
 
         } else {
           hydraLoginAcceptRequest := hydra.LoginAcceptRequest{
-            Subject: identity.Id,
+            Subject: human.Id,
             Remember: true,
             RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
           }
