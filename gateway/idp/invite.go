@@ -150,7 +150,7 @@ func FetchInvitesById(driver neo4j.Driver, ids []string) ([]Invite, error) {
 
   if ids == nil {
     cypher = `
-      MATCH (inv:Invite:Identity {id: $id}) WHERE inv.exp > datetime().epochSeconds
+      MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
       MATCH (inv)-[:SENT_TO]->(e:Email)
 
       OPTIONAL MATCH (i:Identity)-[:IS_INVITED]->(inv)-[:INVITED_BY]->(ibi:Identity)
