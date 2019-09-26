@@ -40,42 +40,42 @@ type InviteReadResponse struct {
 
 // Actions
 
-func ReadInvites(client *IdpClient, challengeUrl string, request *InviteReadRequest) (*InviteReadResponse, error) {
+func ReadInvites(client *IdpClient, challengeUrl string, request *InviteReadRequest) (int, *InviteReadResponse, error) {
   var response InviteReadResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "GET", challengeUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "GET", challengeUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func CreateInvites(client *IdpClient, challengeUrl string, request *InviteCreateRequest) (*InviteCreateResponse, error) {
+func CreateInvites(client *IdpClient, challengeUrl string, request *InviteCreateRequest) (int, *InviteCreateResponse, error) {
   var response InviteCreateResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "POST", challengeUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "POST", challengeUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }

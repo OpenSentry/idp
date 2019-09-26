@@ -43,7 +43,7 @@ func marshalNodeToChallenge(node neo4j.Node) (Challenge) {
 
 // CRUD
 
-func CreateChallenge(driver neo4j.Driver, challenge Challenge, requestedBy Human) (Challenge, Human, error) {
+func CreateChallenge(driver neo4j.Driver, challenge Challenge, requestedBy string) (Challenge, Human, error) {
   var err error
   type NeoReturnType struct{
     Challenge Challenge
@@ -57,6 +57,12 @@ func CreateChallenge(driver neo4j.Driver, challenge Challenge, requestedBy Human
   defer session.Close()
 
   neoResult, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+    _, err := fetchByIdentityId(requestedBy, tx)
+    if err != nil {
+      return nil, err
+    }
+
     var result neo4j.Result
     cypher := `
       MATCH (rbi:Human:Identity {id:$rbi})
@@ -74,8 +80,8 @@ func CreateChallenge(driver neo4j.Driver, challenge Challenge, requestedBy Human
       RETURN c, rbi
     `
     params := map[string]interface{}{
-      "rbi": requestedBy.Id,
-      "sub": requestedBy.Id,
+      "rbi": requestedBy,
+      "sub": requestedBy,
       "iss": challenge.Issuer,
       "exp": challenge.ExpiresAt,
       "aud": challenge.Audience,
@@ -205,7 +211,7 @@ func fetchChallengesByQuery(driver neo4j.Driver, cypher string, params map[strin
 
 // Actions
 
-func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, error) {
+func VerifyChallenge(driver neo4j.Driver, challenge Challenge, requestedBy string) (Challenge, error) {
   var err error
 
   session, err := driver.Session(neo4j.AccessModeWrite);
@@ -215,6 +221,12 @@ func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, error
   defer session.Close()
 
   obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+    _, err := fetchByIdentityId(requestedBy, tx)
+    if err != nil {
+      return nil, err
+    }
+
     var result neo4j.Result
     cypher := `
       MATCH (c:Challenge {id:$id})-[:REQUESTED_BY]->(i:Identity) WHERE c.exp > datetime().epochSeconds

@@ -23,22 +23,22 @@ type FollowCreateResponse struct {
 
 // Actions
 
-func CreateFollow(client *IdpClient, challengeUrl string, request *FollowCreateRequest) (*FollowCreateResponse, error) {
+func CreateFollow(client *IdpClient, challengeUrl string, request *FollowCreateRequest) (int, *FollowCreateResponse, error) {
   var response FollowCreateResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "POST", challengeUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "POST", challengeUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
