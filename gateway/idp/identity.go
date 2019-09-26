@@ -23,13 +23,19 @@ type Identity struct {
 func marshalNodeToIdentity(node neo4j.Node) (Identity) {
   p := node.Props()
 
+  var otpDeleteCode string
+  var OtpDeleteCodeExpire int64
+
+  if p["otp_delete_code"] != nil { otpDeleteCode = p["otp_delete_code"].(string) }
+  if p["otp_delete_code_expire"] != nil { OtpDeleteCodeExpire = p["otp_delete_code_expire"].(int64) }
+
   return Identity{
     Id:        p["id"].(string),
     Issuer:    p["iss"].(string),
     ExpiresAt: p["exp"].(int64),
     IssuedAt:  p["iat"].(int64),
-    OtpDeleteCode:        p["otp_delete_code"].(string),
-    OtpDeleteCodeExpire:  p["otp_delete_code_expire"].(int64),
+    OtpDeleteCode:        otpDeleteCode,
+    OtpDeleteCodeExpire:  OtpDeleteCodeExpire,
   }
 }
 
