@@ -7,7 +7,7 @@ import (
 )
 
 type Invite struct {
-  Human
+  Identity
 
   HintUsername string
 
@@ -20,7 +20,7 @@ func marshalNodeToInvite(node neo4j.Node) (Invite) {
   p := node.Props()
 
   return Invite{
-    Human: marshalNodeToHuman(node),
+    Identity: marshalNodeToIdentity(node),
 
     HintUsername: p["hint_username"].(string),
   }
@@ -61,16 +61,16 @@ func CreateInvite(driver neo4j.Driver, invite Invite, invitedBy Human, email Ema
 
       CREATE (inv:Invite:Identity {
         id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp,
-        hint_username:$hint_username,
+        hint_username:$hint_username
       })-[:INVITED_BY]->(ibi)
+
+      WITH inv, ibi, i
+
+      MERGE (inv)-[:SENT_TO]->(e:Email{email:$email})
 
       WITH inv, e, ibi, i, collect(i) as h
 
       FOREACH( n in h | MERGE (n)-[:IS_INVITED]->(inv) )
-
-      WITH inv, e, ibi, i
-
-      MERGE (inv)-[:SENT_TO]->(e:Email{email:$email})
 
       WITH inv, e, ibi, i
 
@@ -81,7 +81,8 @@ func CreateInvite(driver neo4j.Driver, invite Invite, invitedBy Human, email Ema
     params := map[string]interface{}{
       "ibi": invitedBy.Id,
       "email": email.Email,
-      "iss": invite.Issuer, "exp": invite.ExpiresAt,
+      "iss": invite.Issuer,
+      "exp": invite.ExpiresAt,
       "hint_username": invite.HintUsername,
     }
     if result, err = tx.Run(cypher, params); err != nil {
@@ -97,7 +98,7 @@ func CreateInvite(driver neo4j.Driver, invite Invite, invitedBy Human, email Ema
 
       inviteNode := record.GetByIndex(0)
       if inviteNode != nil {
-        invite := marshalNodeToInvite(inviteNode.(neo4j.Node))
+        invite = marshalNodeToInvite(inviteNode.(neo4j.Node))
 
         emailNode := record.GetByIndex(1)
         if emailNode != nil {
