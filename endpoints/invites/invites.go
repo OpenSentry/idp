@@ -2,6 +2,7 @@ package invites
 
 import (
   "net/http"
+  "time"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -17,6 +18,7 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
     log = log.WithFields(logrus.Fields{
       "func": "PostInvites",
     })
+  
 
     var input InviteCreateRequest
     err := c.BindJSON(&input)
@@ -59,13 +61,10 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
     log.WithFields(logrus.Fields{"fixme": 1}).Debug("Put invite expiration into config")
     invite := idp.Invite{
       HintUsername: input.HintUsername,
-      Human: idp.Human{
-        Identity: idp.Identity{
-          Issuer: "",
-          ExpiresAt: 60 * 60 * 24, // 24 hours
-        },
+      Identity: idp.Identity{
+        Issuer: "",
+        ExpiresAt: time.Now().Unix() + 60 * 60 * 24, // 24 hours
       },
-
       Invited: &invitedIdentity,
     }
     invite, _, _, err = idp.CreateInvite(env.Driver, invite, invitedByIdentity, idp.Email{ Email:input.Email })
@@ -77,6 +76,8 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
+
+    log.Debug(invite)
 
     response := InviteCreateResponse{ InviteResponse: marshalIdentityInviteToInviteResponse(invite) }
 
@@ -174,6 +175,12 @@ func PutInvite(env *environment.State, route environment.Route) gin.HandlerFunc 
 }
 
 func marshalIdentityInviteToInviteResponse(invite idp.Invite) *InviteResponse {
+
+  var invited idp.Human
+  if invite.Invited != nil {
+    invited = *invite.Invited
+  }
+
   return &InviteResponse{
     Id: invite.Id,
     InvitedBy: invite.InvitedBy.Id,
@@ -181,7 +188,7 @@ func marshalIdentityInviteToInviteResponse(invite idp.Invite) *InviteResponse {
     IssuedAt: invite.IssuedAt,
     ExpiresAt: invite.ExpiresAt,
     Email: invite.SentTo.Email,
-    Username: invite.Username,
-    Invited: invite.Invited.Id,
+    Username: invite.HintUsername,
+    Invited: invited.Id,
   }
 }
