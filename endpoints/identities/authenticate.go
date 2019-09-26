@@ -218,7 +218,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             RedirectTo: redirectTo, // When challenge is verified where should the verify controller redirect to and append otp_challenge=
           }
 
-          otpChallenge, _, err := idp.CreateChallenge(env.Driver, newChallenge, human)
+          otpChallenge, _, err := idp.CreateChallenge(env.Driver, newChallenge, human.Id)
           if err != nil {
             log.Debug(err.Error())
             logResponse(log, input.Challenge, denyResponse, "Authentication denied")

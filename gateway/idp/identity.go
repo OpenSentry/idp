@@ -1,7 +1,7 @@
 package idp
 
 import (
-  //"errors"
+  "errors"
   "strings"
   "github.com/neo4j/neo4j-go-driver/neo4j"
 )
@@ -38,6 +38,38 @@ type Follow struct {
   To Identity
 }
 
+func fetchByIdentityId(id string, tx neo4j.Transaction) (Identity, error) {
+  var err error
+  var result neo4j.Result
+  var identity Identity
+
+  cypher := `MATCH (i:Identity {id:$id}) return i`
+  params := map[string]interface{}{
+    "id": id,
+  }
+
+  if result, err = tx.Run(cypher, params); err != nil {
+    return Identity{}, err
+  }
+
+  if result.Next() {
+    record := result.Record()
+
+    identityNode := record.GetByIndex(0)
+
+    if identityNode != nil {
+      identity = marshalNodeToIdentity(identityNode.(neo4j.Node))
+    } else {
+      return Identity{}, errors.New("Identity not found")
+    }
+  }
+
+  if err = result.Err(); err != nil {
+    return Identity{}, err
+  }
+
+  return identity, nil
+}
 
 // CRUD
 
