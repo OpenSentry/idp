@@ -236,7 +236,7 @@ func serve(env *environment.State) {
 
   r.GET(  "/challenges", utils.AuthorizationRequired(aconf, "authenticate:identity"), challenges.GetChallenges(env) )
   r.POST( "/challenges", utils.AuthorizationRequired(aconf, "authenticate:identity"), challenges.PostChallenges(env) )
-  r.POST( "/challenges/verify", utils.AuthorizationRequired(aconf, "authenticate:identity"), challenges.PostVerify(env) )
+  r.PUT( "/challenges/verify", utils.AuthorizationRequired(aconf, "authenticate:identity"), challenges.PutVerify(env) )
 
   r.GET(    "/identities",    utils.AuthorizationRequired(aconf, "read:identity"), identities.GetIdentities(env) )
   r.POST(   "/identities",   utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostIdentities(env) )

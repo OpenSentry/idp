@@ -189,282 +189,282 @@ type IdentitiesInviteReadResponse struct {
   *IdentitiesInviteResponse
 }
 
-func ReadInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteReadRequest) (*IdentitiesInviteReadResponse, error) {
+func ReadInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteReadRequest) (int, *IdentitiesInviteReadResponse, error) {
   var response IdentitiesInviteReadResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "GET", inviteUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "GET", inviteUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func UpdateInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteUpdateRequest) (*IdentitiesInviteUpdateResponse, error) {
+func UpdateInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteUpdateRequest) (int, *IdentitiesInviteUpdateResponse, error) {
   var response IdentitiesInviteUpdateResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "PUT", inviteUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "PUT", inviteUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func CreateInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteCreateRequest) (*IdentitiesInviteCreateResponse, error) {
+func CreateInvite(client *IdpClient, inviteUrl string, request *IdentitiesInviteCreateRequest) (int, *IdentitiesInviteCreateResponse, error) {
   var response IdentitiesInviteCreateResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "POST", inviteUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "POST", inviteUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func CreateIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesCreateRequest) (*IdentitiesCreateResponse, error) {
+func CreateIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesCreateRequest) (int, *IdentitiesCreateResponse, error) {
   var response IdentitiesCreateResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "POST", identitiesUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "POST", identitiesUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func ReadIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesReadRequest) (*IdentitiesReadResponse, error) {
+func ReadIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesReadRequest) (int, *IdentitiesReadResponse, error) {
   var response IdentitiesReadResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "GET", identitiesUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "GET", identitiesUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func UpdateIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesUpdateRequest) (*IdentitiesUpdateResponse, error) {
+func UpdateIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesUpdateRequest) (int, *IdentitiesUpdateResponse, error) {
   var response IdentitiesUpdateResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "PUT", identitiesUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "PUT", identitiesUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func DeleteIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesDeleteRequest) (*IdentitiesDeleteResponse, error) {
+func DeleteIdentity(client *IdpClient, identitiesUrl string, request *IdentitiesDeleteRequest) (int, *IdentitiesDeleteResponse, error) {
   var response IdentitiesDeleteResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "DELETE", identitiesUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "DELETE", identitiesUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func DeleteIdentityVerification(client *IdpClient, verificationUrl string, request *IdentitiesDeleteVerificationRequest) (*IdentitiesDeleteVerificationResponse, error) {
+func DeleteIdentityVerification(client *IdpClient, verificationUrl string, request *IdentitiesDeleteVerificationRequest) (int, *IdentitiesDeleteVerificationResponse, error) {
   var response IdentitiesDeleteVerificationResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "POST", verificationUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "POST", verificationUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func UpdateIdentityPassword(client *IdpClient, passwordUrl string, request *IdentitiesPasswordRequest) (*IdentitiesPasswordResponse, error) {
+func UpdateIdentityPassword(client *IdpClient, passwordUrl string, request *IdentitiesPasswordRequest) (int, *IdentitiesPasswordResponse, error) {
   var response IdentitiesPasswordResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "PUT", passwordUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "PUT", passwordUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func UpdateIdentityTotp(client *IdpClient, totpUrl string, request *IdentitiesTotpRequest) (*IdentitiesTotpResponse, error) {
+func UpdateIdentityTotp(client *IdpClient, totpUrl string, request *IdentitiesTotpRequest) (int, *IdentitiesTotpResponse, error) {
   var response IdentitiesTotpResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "PUT", totpUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "PUT", totpUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func AuthenticateIdentity(client *IdpClient, authenticateUrl string, request *IdentitiesAuthenticateRequest) (*IdentitiesAuthenticateResponse, error) {
+func AuthenticateIdentity(client *IdpClient, authenticateUrl string, request *IdentitiesAuthenticateRequest) (int, *IdentitiesAuthenticateResponse, error) {
   var response IdentitiesAuthenticateResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "POST", authenticateUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "POST", authenticateUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func RecoverIdentity(client *IdpClient, recoverUrl string, request *IdentitiesRecoverRequest) (*IdentitiesRecoverResponse, error) {
+func RecoverIdentity(client *IdpClient, recoverUrl string, request *IdentitiesRecoverRequest) (int, *IdentitiesRecoverResponse, error) {
   var response IdentitiesRecoverResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "POST", recoverUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "POST", recoverUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func RecoverIdentityVerification(client *IdpClient, verificationUrl string, request *IdentitiesRecoverVerificationRequest) (*IdentitiesRecoverVerificationResponse, error) {
+func RecoverIdentityVerification(client *IdpClient, verificationUrl string, request *IdentitiesRecoverVerificationRequest) (int, *IdentitiesRecoverVerificationResponse, error) {
   var response IdentitiesRecoverVerificationResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "POST", verificationUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "POST", verificationUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
 
-func LogoutIdentity(client *IdpClient, logoutUrl string, request *IdentitiesLogoutRequest) (*IdentitiesLogoutResponse, error) {
+func LogoutIdentity(client *IdpClient, logoutUrl string, request *IdentitiesLogoutRequest) (int, *IdentitiesLogoutResponse, error) {
   var response IdentitiesLogoutResponse
 
   body, err := json.Marshal(request)
   if err != nil {
-    return nil, err
+    return 999, nil, err
   }
 
-  result, err := callService(client, "POST", logoutUrl, bytes.NewBuffer(body))
+  status, result, err := callService(client, "POST", logoutUrl, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
   err = json.Unmarshal(result, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err
   }
-  return &response, nil
+  return status, &response, nil
 }
