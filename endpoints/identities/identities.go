@@ -10,6 +10,7 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   "github.com/charmixer/idp/utils"
+  E "github.com/charmixer/idp/client/errors"
 )
 
 func GetIdentities(env *environment.State) gin.HandlerFunc {
@@ -46,40 +47,51 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
         return
       }
 
-      // TODO: To decrease memory usage fix to use a pointer instead.
-      var mapIdentities map[string]idp.Identity
+      var mapIdentities map[string]*idp.Identity
       if ( iRequests[0] != nil ) {
         for _, identity := range dbIdentities {
-          mapIdentities[identity.Id] = identity
+          mapIdentities[identity.Id] = &identity
         }
       }
-
-      var ok []client.Identity
-
+      
       for _, request := range iRequests {
-        var r client.ReadIdentitiesRequest
-        if request.Request != nil {  // Allow empty request
-          r = request.Request.(client.ReadIdentitiesRequest)
 
-          var i = mapIdentities[r.Id]
-          ok = append(ok, client.Identity{
-            Id: i.Id,
-          })
+        if request.Request == nil {
+
+          // The empty fetch
+          var ok []client.Identity
+          for _, i := range dbIdentities {
+            ok = append(ok, client.Identity{
+              Id: i.Id,
+            })
+          }
+          var response client.ReadIdentitiesResponse
+          response.Index = request.Index
+          response.Status = http.StatusOK
+          response.Ok = ok
+          request.Response = response
+          continue
 
         } else {
-          for _, d := range dbIdentities {
-            ok = append(ok, client.Identity{
-              Id: d.Id,
-            })
+
+          r := request.Request.(client.ReadIdentitiesRequest)
+
+          var i = mapIdentities[r.Id]
+          if i != nil {
+            ok := []client.Identity{ { Id: i.Id, } }
+            var response client.ReadIdentitiesResponse
+            response.Index = request.Index
+            response.Status = http.StatusOK
+            response.Ok = ok
+            request.Response = response
+            continue
           }
 
         }
 
-        var response client.ReadIdentitiesResponse
-        response.Index = request.Index
-        response.Status = http.StatusOK
-        response.Ok = ok
-        request.Response = response
+        // Deny by default
+        request.Response = utils.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
+        continue
       }
     }
 
