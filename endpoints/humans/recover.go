@@ -1,4 +1,4 @@
-package identities
+package humans
 
 import (
   "net/http"
