@@ -21,6 +21,7 @@ import (
   "reflect"
   "gopkg.in/go-playground/validator.v9"
   "github.com/charmixer/idp/client"
+  E "github.com/charmixer/idp/client/errors"
   // <-
 )
 
@@ -404,6 +405,7 @@ func RequestId() gin.HandlerFunc {
   }
 }
 
+
 type Request struct {
   Index int
   Request interface{}
@@ -441,7 +443,7 @@ func HandleBulkRestRequest(iRequests interface{}, iHandleRequests IHandleRequest
     // fail all
     for _,request := range requests {
       if request.Response == nil {
-        request.Response = NewClientErrorResponse(request.Index, []client.ErrorResponse{client.ErrorResponse{Code: -6, Error: "Failed due to too many requests"}})
+        request.Response = NewClientErrorResponse(request.Index, E.MAX_REQUESTS_EXCEEDED)
       }
 
       responses = append(responses, request.Response)
@@ -462,11 +464,7 @@ func HandleBulkRestRequest(iRequests interface{}, iHandleRequests IHandleRequest
       if request.Request == nil {
         // if we dont allow the empty set, return an error to the user
         if !params.EnableEmptyRequest {
-          request.Response = client.BulkResponse{
-            Index: request.Index,
-            Status: http.StatusNotFound,
-            Errors: []client.ErrorResponse{client.ErrorResponse{Code: -2, Error: "The empty request is not allowed for this endpoint"}},
-          }
+          request.Response = NewClientErrorResponse(request.Index, E.EMPTY_REQUEST_NOT_ALLOWED)
 
           errorsFound = true
           continue
@@ -481,10 +479,14 @@ func HandleBulkRestRequest(iRequests interface{}, iHandleRequests IHandleRequest
 
           var errorResponses []client.ErrorResponse
           for _, e := range err.(validator.ValidationErrors) {
-            errorResponses = append(errorResponses, client.ErrorResponse{Code: -1, Error: e.Translate(nil)})
+            errorResponses = append(errorResponses, client.ErrorResponse{Code: E.INPUT_VALIDATION_FAILED, Error: e.Translate(nil)})
           }
 
-          request.Response = NewClientErrorResponse(request.Index, errorResponses)
+          request.Response = client.BulkResponse{
+            Index: request.Index,
+            Status: http.StatusNotFound,
+            Errors: errorResponses,
+          }
 
           errorsFound = true
           continue
@@ -499,7 +501,7 @@ func HandleBulkRestRequest(iRequests interface{}, iHandleRequests IHandleRequest
       // fail all
       for _,request := range requests {
         if request.Response == nil {
-          request.Response = NewClientErrorResponse(request.Index, []client.ErrorResponse{client.ErrorResponse{Code: -3, Error: "Failed due to other errors"}})
+          request.Response = NewClientErrorResponse(request.Index, E.FAILED_DUE_TO_OTHER_ERRORS)
         }
 
         responses = append(responses, request.Response)
@@ -536,17 +538,24 @@ func HandleBulkRestRequest(iRequests interface{}, iHandleRequests IHandleRequest
   return responses
 }
 func NewInternalErrorResponse(index int) (client.BulkResponse) {
+  c := E.INTERNAL_SERVER_ERROR
+  e := E.ERRORS[c][E.DEFAULT_LANG]
   return client.BulkResponse{
     Index: index,
     Status: http.StatusInternalServerError,
-    Errors: []client.ErrorResponse{client.ErrorResponse{Code: 500, Error: "Internal server error occured. Please wait until fixed before you try again."}},
+    Errors: []client.ErrorResponse{{Code: c, Error: e}},
   }
 }
-func NewClientErrorResponse(index int, data []client.ErrorResponse) (client.BulkResponse) {
+func NewClientErrorResponse(index int, code... int) (client.BulkResponse) {
+  var data []client.ErrorResponse
+  for _, c := range code {
+    e := E.ERRORS[c][E.DEFAULT_LANG]
+    data = append(data, client.ErrorResponse{Code: c, Error: e})
+  }
+
   return client.BulkResponse{
     Index: index,
     Status: http.StatusNotFound,
     Errors: data,
   }
 }
-

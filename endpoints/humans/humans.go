@@ -13,6 +13,7 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   "github.com/charmixer/idp/utils"
+  E "github.com/charmixer/idp/client/errors"
 )
 
 type DeleteTemplateData struct {
@@ -38,37 +39,37 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*utils.Request) {
-      var humans []idp.Human
+      var identities []idp.Identity
 
       for _, request := range iRequests {
         if request.Request != nil {
           var r client.ReadHumansRequest
           r = request.Request.(client.ReadHumansRequest)
-          humans = append(humans, idp.Identity{ Id:r.Id, Email:r.Email, Username:r.Username })
+          identities = append(identities, idp.Identity{ Id:r.Id, Email:r.Email, Username:r.Username })
         }
       }
 
-      dbHumans, err := idp.FetchHumans(env.Driver, humans)
+      dbIdentities, err := idp.FetchHumans(env.Driver, identities)
       if err != nil {
         log.Debug(err.Error())
-        c.AbortWithStatusJSON(http.StatusInternalServerError)
+        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
-      // TODO: To decrease memory usage fix to use a pointer instead.
-      var mapHumans map[string]idp.Human
+      var mapIdentities map[string]*idp.Human
       if ( iRequests[0] != nil ) {
-        for _, human := range dbHumans {
-          mapHumans[human.Id] = human
+        for _, identity := range dbIdentities {
+          mapIdentities[identity.Id] = &identity
         }
       }
 
       for _, request := range iRequests {
-        var r client.ReadHumansRequest
+
         if request.Request == nil {
 
           // The empty fetch
-          for _, i := range dbHumans {
+          var ok []client.Human
+          for _, i := range dbIdentities {
             ok = append(ok, client.Human{
               Id: i.Id,
               Username: i.Usermame,
@@ -84,7 +85,7 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
               OtpDeleteCodeExpire: i.OtpDeleteCodeExpire,
             })
           }
-          var response client.ReadIdentitiesResponse
+          var response client.ReadHumansResponse
           response.Index = request.Index
           response.Status = http.StatusOK
           response.Ok = ok
@@ -93,25 +94,26 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
 
         } else {
 
-          r = request.Request.(client.ReadHumansRequest)
+          r := request.Request.(client.ReadHumansRequest)
 
-          var i = mapHumans[r.Id]
+          var i = mapIdentities[r.Id]
           if i != nil {
-            ok := client.Human{
-              Id: i.Id,
-              Username: i.Usermame,
-              Password: i.Password,
-              Name: i.Name,
-              Email: i.Email,
-              AllowLogin: i.AllowLogin,
-              TotpRequired: i.TotpRequired,
-              TotpSecret: i.TotpSecret,
-              OtpRecoverCode: i.OtpRecoverCode,
-              OtpRecoverCodeExpire: i.OtpRecoverCodeExpire,
-              OtpDeleteCode: i.OtpDeleteCode,
-              OtpDeleteCodeExpire: i.OtpDeleteCodeExpire,
+            ok := []client.Human{ {
+                Id: i.Id,
+                Username: i.Usermame,
+                Password: i.Password,
+                Name: i.Name,
+                Email: i.Email,
+                AllowLogin: i.AllowLogin,
+                TotpRequired: i.TotpRequired,
+                TotpSecret: i.TotpSecret,
+                OtpRecoverCode: i.OtpRecoverCode,
+                OtpRecoverCodeExpire: i.OtpRecoverCodeExpire,
+                OtpDeleteCode: i.OtpDeleteCode,
+                OtpDeleteCodeExpire: i.OtpDeleteCodeExpire,
+              },
             }
-            var response client.ReadIdentitiesResponse
+            var response client.ReadHumansResponse
             response.Index = request.Index
             response.Status = http.StatusOK
             response.Ok = ok
@@ -122,13 +124,8 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
         }
 
         // Deny by default
-        var response client.ReadIdentitiesResponse
-        response.Index = request.Index
-        response.Status = http.StatusOK
-        response.Ok = 0 // FIXME: Hent utils fra aap og bruge NewClientError( med coden som i aap)
-        request.Response = response
+        request.Response = utils.NewClientErrorResponse(request.Index, ce.HUMAN_NOT_FOUND)
         continue
-
       }
     }
 
@@ -146,7 +143,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
       "func": "PostHumans",
     })
 
-    var requests []client.HumansCreateRequest
+    var requests []client.CreateHumansRequest
     err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -158,17 +155,18 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
       requestedByIdentity := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
-        r := request.Request.(client.HumansCreateRequest)
+        r := request.Request.(client.CreateHumansRequest)
 
         if env.BannedUsernames[r.Username] == true {
-          c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Username is banned"})
-          return
+          request.Response = utils.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
+          continue
         }
 
-        hashedPassword, err := idp.CreatePassword(r.Password)
+        hashedPassword, err := idp.CreatePassword(r.Password) // @SecurityRisk: Please _NEVER_ log the cleartext password
         if err != nil {
-          c.AbortWithStatus(http.StatusInternalServerError)
-          return
+          log.Debug(err.Error())
+          request.Response = utils.NewInternalErrorResponse(request.Index)
+          continue
         }
 
         newHuman := idp.Human{
@@ -180,20 +178,115 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
         }
         human, err := idp.CreateHuman(env.Driver, newHuman)
         if err != nil {
-          log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, "password": newHuman.Password, newHuman.AllowLogin }).Debug(err.Error())
+          // @SecurityRisk: Please _NEVER_ log the hashed password
+          log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin }).Debug(err.Error())
           request.Response = utils.NewInternalErrorResponse(request.Index)
           continue
         }
 
         if human != nil {
-         response := client.HumansCreateResponse{Ok: ok}
-         response.Index = request.Index
-         response.Status = http.StatusOK
-         request.Response = human
-         continue;
+          ok := []client.Human{ {
+              Id: human.Id,
+              Username: human.Usermame,
+              Password: human.Password,
+              Name: human.Name,
+              Email: human.Email,
+              AllowLogin: human.AllowLogin,
+              TotpRequired: human.TotpRequired,
+              TotpSecret: human.TotpSecret,
+              OtpRecoverCode: human.OtpRecoverCode,
+              OtpRecoverCodeExpire: human.OtpRecoverCodeExpire,
+              OtpDeleteCode: human.OtpDeleteCode,
+              OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
+            },
+          }
+          var response client.CreateHumansResponse
+          response.Index = request.Index
+          response.Status = http.StatusOK
+          response.Ok = ok
+          request.Response = response
+          continue
         }
 
         // Deny by default
+        // @SecurityRisk: Please _NEVER_ log the hashed password
+        log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin }).Debug(err.Error())
+        request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_CREATED)
+        continue
+      }
+    }
+
+    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequest: 1})
+    c.JSON(http.StatusOK, responses)
+  }
+  return gin.HandlerFunc(fn)
+}
+
+func PutHumans(env *environment.State) gin.HandlerFunc {
+  fn := func(c *gin.Context) {
+
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "func": "PutHumans",
+    })
+
+    var requests []client.UpdateHumansRequest
+    err := c.BindJSON(&requests)
+    if err != nil {
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+      return
+    }
+
+    var handleRequest = func(iRequests []*utils.Request) {
+
+      requestedByIdentity := c.MustGet("sub").(string)
+
+      for _, request := range iRequests {
+        r := request.Request.(client.UpdateHumansRequest)
+
+        updateHuman := idp.Human{
+          Identity: idp.Identity{
+            Id: r.Id,
+          },
+          Name: r.Name,
+          Email: r.Email,
+        }
+        human, err := idp.UpdateHuman(env.Driver, updateHuman)
+        if err != nil {
+          log.Debug(err.Error())
+          request.Response = utils.NewInternalErrorResponse(request.Index)
+          continue
+        }
+
+        if human != nil {
+          ok := []client.Human{ {
+              Id: human.Id,
+              Username: human.Usermame,
+              Password: human.Password,
+              Name: human.Name,
+              Email: human.Email,
+              AllowLogin: human.AllowLogin,
+              TotpRequired: human.TotpRequired,
+              TotpSecret: human.TotpSecret,
+              OtpRecoverCode: human.OtpRecoverCode,
+              OtpRecoverCodeExpire: human.OtpRecoverCodeExpire,
+              OtpDeleteCode: human.OtpDeleteCode,
+              OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
+            },
+          }
+          var response client.UpdateHumansResponse
+          response.Index = request.Index
+          response.Status = http.StatusOK
+          response.Ok = ok
+          request.Response = response
+          continue
+        }
+
+        // Deny by default
+        // @SecurityRisk: Please _NEVER_ log the hashed password
+        log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin }).Debug(err.Error())
+        request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_UPDATED)
+        continue
       }
     }
 
@@ -203,119 +296,20 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PutIdentities(env *environment.State) gin.HandlerFunc {
+func DeleteHumans(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
-    // Warning: Do not log user passwords!
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PutIdentities",
+      "func": "DeleteHumans",
     })
 
-    var input IdentitiesUpdateRequest
-    err := c.BindJSON(&input)
+    var requests []client.DeleteHumansRequest
+    err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
-
-    // Inspect access token for subject
-    s, _ := c.Get("sub") // Middleware delivers access_token.id_token.sub
-    subject := s.(string)
-
-    // Sanity check. Require subject from access token
-    if subject == "" {
-      c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Missing subject in access_token"})
-      return
-    }
-
-    // Sanity check. Identity exists
-    if input.Id == "" {
-      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      return
-    }
-
-    // Sanity check. Access token subject and Identity.Subject must match.
-    if subject != input.Id {
-      c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Not allowed. Hint: Access token subject and Identity.Id does not match"})
-      return
-    }
-
-    updateHuman := idp.Human{
-      Identity: idp.Identity{
-        Id: input.Id,
-      },
-      Name: input.Name,
-      Email: input.Email,
-    }
-    human, err := idp.UpdateHuman(env.Driver, updateHuman)
-    if err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-
-    c.JSON(http.StatusOK, IdentitiesUpdateResponse{ marshalIdentityToIdentityResponse(human) })
-  }
-  return gin.HandlerFunc(fn)
-}
-
-func DeleteIdentities(env *environment.State) gin.HandlerFunc {
-  fn := func(c *gin.Context) {
-
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
-    log = log.WithFields(logrus.Fields{
-      "func": "DeleteIdentities",
-    })
-
-    var input IdentitiesDeleteRequest
-    err := c.BindJSON(&input)
-    if err != nil {
-      c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-      c.Abort()
-      return
-    }
-
-    // Inspect access token for subject
-    s, _ := c.Get("sub") // Middleware delivers access_token.id_token.sub
-    subject := s.(string)
-
-    // Sanity check. Require subject from access token
-    if subject == "" {
-      c.JSON(http.StatusForbidden, gin.H{"error": "Missing subject in access_token"})
-      c.Abort()
-      return
-    }
-
-    // Sanity check. Identity exists
-    if input.Id == "" {
-      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
-      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      c.Abort()
-      return
-    }
-
-    // Sanity check. Access token subject and Identity.Subject must match.
-    if subject != input.Id {
-      c.JSON(http.StatusForbidden, gin.H{"error": "Not allowed. Hint: Access token subject and Identity.Id does not match"})
-      c.Abort()
-      return
-    }
-
-    identities, err := idp.FetchIdentitiesById(env.Driver, []string{input.Id})
-    if err != nil {
-      log.Debug(err.Error())
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
-      return
-    }
-
-    if identities == nil {
-      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
-      c.JSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      return;
-    }
-    identity := identities[0]
 
     sender := idp.SMTPSender{
       Name: config.GetString("delete.sender.name"),
@@ -330,115 +324,131 @@ func DeleteIdentities(env *environment.State) gin.HandlerFunc {
       SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
     }
 
-    deleteChallenge, err := idp.CreateDeleteChallenge(config.GetString("delete.link"), identity, 60 * 5) // Fixme configfy 60*5
-    if err != nil {
-      log.Debug(err.Error())
-      c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-      c.Abort()
-      return
+    var handleRequest = func(iRequests []*utils.Request) {
+
+      requestedByIdentity := c.MustGet("sub").(string)
+
+      var humans []idp.Human
+      for _, request := range iRequests {
+        if request.Request != nil {
+          var r client.ReadHumansRequest
+          r = request.Request.(client.ReadHumansRequest)
+          humans = append(humans, idp.Human{ Id:r.Id, Email:r.Email, Username:r.Username })
+        }
+      }
+      dbHumans, err := idp.FetchHumans(env.Driver, humans)
+      if err != nil {
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
+        return
+      }
+      var mapHumans map[string]*idp.Human
+      if ( iRequests[0] != nil ) {
+        for _, human := range dbHumans {
+          mapHumans[human.Id] = &human
+        }
+      }
+
+      for _, request := range iRequests {
+        r := request.Request.(client.DeleteHumansRequest)
+
+        var i = mapHumans[r.Id]
+        if i != nil {
+
+          // FIXME: Use challenge system!
+
+          challenge, err := idp.CreateDeleteChallenge(config.GetString("delete.link"), i, 60 * 5) // Fixme configfy 60*5
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          hashedCode, err := idp.CreatePassword(challenge.Code)
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          n := idp.Human{
+            Identity: idp.Identity{
+              Id: identity.Id,
+              OtpDeleteCode: hashedCode,
+              OtpDeleteCodeExpire: deleteChallenge.Expire,
+            },
+          }
+          updateHuman, err := idp.UpdateOtpDeleteCode(env.Driver, n)
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          log.WithFields(logrus.Fields{ "fixme":1, "verification_code": challenge.Code }).Debug("Delete Code. Please do not do this in production!");
+
+          templateFile := config.GetString("delete.template.email.file")
+          emailSubject := config.GetString("delete.template.email.subject")
+
+          tplRecover, err := ioutil.ReadFile(templateFile)
+          if err != nil {
+            log.WithFields(logrus.Fields{ "file": templateFile }).Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          t := template.Must(template.New(templateFile).Parse(string(tplRecover)))
+
+          data := DeleteTemplateData{
+            Sender: sender.Name,
+            Name: updatedIdentity.Id,
+            VerificationCode: challenge.Code,
+          }
+
+          var tpl bytes.Buffer
+          if err := t.Execute(&tpl, data); err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          anEmail := idp.AnEmail{
+            Subject: emailSubject,
+            Body: tpl.String(),
+          }
+
+          _, err = idp.SendAnEmailToHuman(smtpConfig, updateHuman, anEmail)
+          if err != nil {
+            log.WithFields(logrus.Fields{ "id": updatedIdentity.Id, "file": templateFile }).Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          ok := client.HumanRedirect{
+            Id: human.Id,
+            RedirectTo: challenge.RedirectTo,
+          }
+          var response client.DeleteHumansResponse
+          response.Index = request.Index
+          response.Status = http.StatusOK
+          response.Ok = ok
+          request.Response = response
+          log.WithFields(logrus.Fields{"id":ok.Id, "redirect_to":ok.RedirectTo}).Debug("Delete Verification Requested")
+          continue
+        }
+
+        // Deny by default
+        request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+        continue
+      }
     }
 
-    hashedCode, err := idp.CreatePassword(deleteChallenge.VerificationCode)
-    if err != nil {
-      log.Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
-      return
-    }
-
-    n := idp.Human{
-      Identity: idp.Identity{
-        Id: identity.Id,
-        OtpDeleteCode: hashedCode,
-        OtpDeleteCodeExpire: deleteChallenge.Expire,
-      },
-    }
-    updatedIdentity, err := idp.UpdateOtpDeleteCode(env.Driver, n)
-    if err != nil {
-      log.Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
-      return
-    }
-
-    log.WithFields(logrus.Fields{
-      "verification_code": deleteChallenge.VerificationCode,
-    }).Debug("VERIFICATION CODE - DO NOT DO THIS IN PRODUCTION");
-
-    templateFile := config.GetString("delete.template.email.file")
-    emailSubject := config.GetString("delete.template.email.subject")
-
-    tplRecover, err := ioutil.ReadFile(templateFile)
-    if err != nil {
-      log.WithFields(logrus.Fields{
-        "file": templateFile,
-      }).Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
-      return
-    }
-
-    t := template.Must(template.New(templateFile).Parse(string(tplRecover)))
-
-    data := DeleteTemplateData{
-      Sender: sender.Name,
-      Name: updatedIdentity.Id,
-      VerificationCode: deleteChallenge.VerificationCode,
-    }
-
-    var tpl bytes.Buffer
-    if err := t.Execute(&tpl, data); err != nil {
-      log.Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
-      return
-    }
-
-    anEmail := idp.AnEmail{
-      Subject: emailSubject,
-      Body: tpl.String(),
-    }
-
-    _, err = idp.SendAnEmailToHuman(smtpConfig, updatedIdentity, anEmail)
-    if err != nil {
-      log.WithFields(logrus.Fields{
-        "id": updatedIdentity.Id,
-        "file": templateFile,
-      }).Debug(err.Error())
-      c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-      c.Abort()
-      return
-    }
-
-    deleteResponse := IdentitiesDeleteResponse{
-      Id: updatedIdentity.Id,
-      RedirectTo: deleteChallenge.RedirectTo,
-    }
-    log.WithFields(logrus.Fields{
-      "id": deleteResponse.Id,
-      "redirect_to": deleteResponse.RedirectTo,
-    }).Debug("Delete mail send")
-    c.JSON(http.StatusOK, deleteResponse)
+    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequest: 1})
+    c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
 }
 
-func marshalHumanToHumanResponse(identity idp.Human) *HumansResponse {
-  return &HumansResponse{
-    Id:                   identity.Id,
-    Username:             identity.Username,
-    Password:             identity.Password,
-    Name:                 identity.Name,
-    Email:                identity.Email,
-    AllowLogin:           identity.AllowLogin,
-    TotpRequired:         identity.TotpRequired,
-    TotpSecret:           identity.TotpSecret,
-    OtpRecoverCode:       identity.OtpRecoverCode,
-    OtpRecoverCodeExpire: identity.OtpRecoverCodeExpire,
-    OtpDeleteCode:        identity.OtpDeleteCode,
-    OtpDeleteCodeExpire:  identity.OtpDeleteCodeExpire,
-  }
-}
 
 
 
