@@ -20,6 +20,7 @@ import (
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/migration"
   "github.com/charmixer/idp/endpoints/identities"
+  "github.com/charmixer/idp/endpoints/humans"
   "github.com/charmixer/idp/endpoints/challenges"
   "github.com/charmixer/idp/endpoints/invites"
   "github.com/charmixer/idp/endpoints/follows"
@@ -239,21 +240,23 @@ func serve(env *environment.State) {
   r.PUT( "/challenges/verify", utils.AuthorizationRequired(aconf, "authenticate:identity"), challenges.PutVerify(env) )
 
   r.GET(    "/identities",    utils.AuthorizationRequired(aconf, "read:identity"), identities.GetIdentities(env) )
-  r.POST(   "/identities",   utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostIdentities(env) )
-  r.PUT(    "/identities",    utils.AuthorizationRequired(aconf, "update:identity"), identities.PutIdentities(env) )
-  r.DELETE( "/identities", utils.AuthorizationRequired(aconf, "delete:identity"), identities.DeleteIdentities(env) )
 
-  r.POST( "/identities/deleteverification", utils.AuthorizationRequired(aconf, "delete:identity"), identities.PostDeleteVerification(env) )
+  r.GET( "/humans", utils.AuthorizationRequired(aconf, "read:human"), humans.GetHumans(env))
+  //r.POST(   "/identities",   utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostIdentities(env) )
+  //r.PUT(    "/identities",    utils.AuthorizationRequired(aconf, "update:identity"), identities.PutIdentities(env) )
+  //r.DELETE( "/identities", utils.AuthorizationRequired(aconf, "delete:identity"), identities.DeleteIdentities(env) )
 
-  r.POST( "/identities/authenticate", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostAuthenticate(env) )
-  r.PUT( "/identities/password", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PutPassword(env) )
+  //r.POST( "/identities/deleteverification", utils.AuthorizationRequired(aconf, "delete:identity"), identities.PostDeleteVerification(env) )
 
-  r.PUT( "/identities/totp", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PutTotp(env) )
+  //r.POST( "/identities/authenticate", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostAuthenticate(env) )
+  //r.PUT( "/identities/password", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PutPassword(env) )
 
-  r.POST( "/identities/logout", utils.AuthorizationRequired(aconf, "logout:identity"), identities.PostLogout(env) )
+  //r.PUT( "/identities/totp", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PutTotp(env) )
 
-  r.POST( "/identities/recover", utils.AuthorizationRequired(aconf, "recover:identity"), identities.PostRecover(env) )
-  r.POST( "/identities/recoververification", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostRecoverVerification(env) )
+  //r.POST( "/identities/logout", utils.AuthorizationRequired(aconf, "logout:identity"), identities.PostLogout(env) )
+
+  //r.POST( "/identities/recover", utils.AuthorizationRequired(aconf, "recover:identity"), identities.PostRecover(env) )
+  //r.POST( "/identities/recoververification", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostRecoverVerification(env) )
 
   r.POST( "/identities/invite", utils.AuthorizationRequired(aconf, "invite:identity"), invites.PostInvites(env) )
 
