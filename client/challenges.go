@@ -12,7 +12,7 @@ type Challenge struct {
   IssuedAt     int64  `json:"iat" validate:"required"`
   ExpiresAt    int64  `json:"exp" validate:"required"`
   TTL          int64  `json:"ttl" validate:"required"`
-  RedirectTo   string `json:"redirect_to" validate:"required"`
+  RedirectTo   string `json:"redirect_to" validate:"required,url"`
   CodeType     string `json:"code_type" validate:"required"`
   Code         string `json:"code" validate:"required"`
 }
@@ -21,7 +21,7 @@ type CreateChallengesRequest struct {
   Subject     string `json:"sub" validate:"required,uuid"`
   Audience    string `json:"aud" validate:"required"`
   TTL         int64  `json:"ttl" validate:"required"`
-  RedirectTo  string `json:"redirect_to" validate:"required"`
+  RedirectTo  string `json:"redirect_to" validate:"required,url"`
   CodeType    string `json:"code_type" validate:"required"`
   Code        string `json:"code" validate:"required"`
 }
@@ -43,7 +43,7 @@ type ReadChallengesResponse struct {
 type ChallengeVerification struct {
   OtpChallenge string `json:"otp_challenge" binding:"required"`
   Verified     bool   `json:"verified" binding:"required"`
-  RedirectTo   string `json:"redirect_to" binding:"required"`
+  RedirectTo   string `json:"redirect_to" binding:"required,url"`
 }
 
 type UpdateChallengesVerifyRequest struct {
