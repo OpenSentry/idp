@@ -13,6 +13,7 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   "github.com/charmixer/idp/utils"
+  E "github.com/charmixer/idp/client/errors"
 )
 
 func PostAuthenticate(env *environment.State) gin.HandlerFunc {
@@ -23,7 +24,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
       "func": "PostAuthenticate",
     })
 
-    var requests []client.CreateIdentitiesAuthenticateRequest
+    var requests []client.CreateHumansAuthenticateRequest
     err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -32,12 +33,12 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
     hydraClient := hydra.NewHydraClient(env.HydraConfig)
 
-    deny := client.IdentityAuthentication{}
+    deny := client.HumanAuthentication{}
 
     var handleRequest = func(iRequests []*utils.Request) {
 
       for _, request := range iRequests {
-        r := request.Request.(client.CreateIdentitiesAuthenticateRequest)
+        r := request.Request.(client.CreateHumansAuthenticateRequest)
 
         log = log.WithFields(logrus.Fields{"challenge": r.Challenge})
 
@@ -63,7 +64,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           }
 
           log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
-          accept := client.IdentityAuthentication{
+          accept := client.HumanAuthentication{
             Id: hydraLoginResponse.Subject,
             Authenticated: true,
             RedirectTo: hydraLoginAcceptResponse.RedirectTo,
@@ -72,7 +73,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             IdentityExists: true, // FIXME: Check if Identity still exists in the system
           }
 
-          var response client.CreateIdentitiesAuthenticateResponse
+          var response client.CreateHumansAuthenticateResponse
           response.Index = request.Index
           response.Status = http.StatusOK
           response.Ok = accept
@@ -109,7 +110,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           }
           if dbChallenges == nil {
             log.Debug("Challenge not found")
-            request.Response = utils.NewClientErrorResponse(request.Index, []client.ErrorResponse{ {Code: -399 , Error:"Challenge not found"} })
+            request.Response = utils.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
             continue
           }
           challenge := dbChallenges[0]
@@ -131,7 +132,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             }
 
             log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
-            accept := client.IdentityAuthentication{
+            accept := client.HumanAuthentication{
               Id: hydraLoginResponse.Subject,
               Authenticated: true,
               RedirectTo: hydraLoginAcceptResponse.RedirectTo,
@@ -140,7 +141,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               IdentityExists: true, // FIXME: Check if Identity still exists in the system
             }
 
-            var response client.CreateIdentitiesAuthenticateResponse
+            var response client.CreateHumansAuthenticateResponse
             response.Index = request.Index
             response.Status = http.StatusOK
             response.Ok = accept
@@ -151,7 +152,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           }
 
           // Deny by default
-          var response client.CreateIdentitiesAuthenticateResponse
+          var response client.CreateHumansAuthenticateResponse
           response.Index = request.Index
           response.Status = http.StatusOK
           response.Ok = deny
@@ -179,8 +180,8 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           }
 
           if humans == nil {
-            log.WithFields(logrus.Fields{"id": r.Id}).Debug("Identity not found")
-            request.Response = utils.NewClientErrorResponse(request.Index, []client.ErrorResponse{ {Code: -380 , Error:"Identity not found"} })
+            log.WithFields(logrus.Fields{"id": r.Id}).Debug("Human not found")
+            request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
             continue
           }
           human := humans[0]
@@ -190,7 +191,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             valid, _ := idp.ValidatePassword(human.Password, r.Password)
             if valid == true {
 
-              accept := client.IdentityAuthentication{
+              accept := client.HumanAuthentication{
                 Id: human.Id,
                 Authenticated: true,
                 RedirectTo: "",
@@ -252,7 +253,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                 accept.RedirectTo = hydraLoginAcceptResponse.RedirectTo
               }
 
-              var response client.CreateIdentitiesAuthenticateResponse
+              var response client.CreateHumansAuthenticateResponse
               response.Index = request.Index
               response.Status = http.StatusOK
               response.Ok = accept

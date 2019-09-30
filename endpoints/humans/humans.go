@@ -39,27 +39,27 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*utils.Request) {
-      var identities []idp.Identity
+      var identities []idp.Human
 
       for _, request := range iRequests {
         if request.Request != nil {
           var r client.ReadHumansRequest
           r = request.Request.(client.ReadHumansRequest)
-          identities = append(identities, idp.Identity{ Id:r.Id, Email:r.Email, Username:r.Username })
+          identities = append(identities, idp.Human{ Identity: idp.Identity{Id:r.Id}, Email:r.Email, Username:r.Username })
         }
       }
 
-      dbIdentities, err := idp.FetchHumans(env.Driver, identities)
+      dbHumans, err := idp.FetchHumans(env.Driver, identities)
       if err != nil {
         log.Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
-      var mapIdentities map[string]*idp.Human
+      var mapHumans map[string]*idp.Human
       if ( iRequests[0] != nil ) {
-        for _, identity := range dbIdentities {
-          mapIdentities[identity.Id] = &identity
+        for _, human := range dbHumans {
+          mapHumans[human.Id] = &human
         }
       }
 
@@ -69,20 +69,20 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
 
           // The empty fetch
           var ok []client.Human
-          for _, i := range dbIdentities {
+          for _, i := range dbHumans {
             ok = append(ok, client.Human{
-              Id: i.Id,
-              Username: i.Usermame,
-              Password: i.Password,
-              Name: i.Name,
-              Email: i.Email,
-              AllowLogin: i.AllowLogin,
-              TotpRequired: i.TotpRequired,
-              TotpSecret: i.TotpSecret,
-              OtpRecoverCode: i.OtpRecoverCode,
+              Id:                   i.Id,
+              Username:             i.Username,
+              Password:             i.Password,
+              Name:                 i.Name,
+              Email:                i.Email,
+              AllowLogin:           i.AllowLogin,
+              TotpRequired:         i.TotpRequired,
+              TotpSecret:           i.TotpSecret,
+              OtpRecoverCode:       i.OtpRecoverCode,
               OtpRecoverCodeExpire: i.OtpRecoverCodeExpire,
-              OtpDeleteCode: i.OtpDeleteCode,
-              OtpDeleteCodeExpire: i.OtpDeleteCodeExpire,
+              OtpDeleteCode:        i.OtpDeleteCode,
+              OtpDeleteCodeExpire:  i.OtpDeleteCodeExpire,
             })
           }
           var response client.ReadHumansResponse
@@ -96,21 +96,21 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
 
           r := request.Request.(client.ReadHumansRequest)
 
-          var i = mapIdentities[r.Id]
+          var i = mapHumans[r.Id]
           if i != nil {
             ok := []client.Human{ {
-                Id: i.Id,
-                Username: i.Usermame,
-                Password: i.Password,
-                Name: i.Name,
-                Email: i.Email,
-                AllowLogin: i.AllowLogin,
-                TotpRequired: i.TotpRequired,
-                TotpSecret: i.TotpSecret,
-                OtpRecoverCode: i.OtpRecoverCode,
+                Id:                   i.Id,
+                Username:             i.Username,
+                Password:             i.Password,
+                Name:                 i.Name,
+                Email:                i.Email,
+                AllowLogin:           i.AllowLogin,
+                TotpRequired:         i.TotpRequired,
+                TotpSecret:           i.TotpSecret,
+                OtpRecoverCode:       i.OtpRecoverCode,
                 OtpRecoverCodeExpire: i.OtpRecoverCodeExpire,
-                OtpDeleteCode: i.OtpDeleteCode,
-                OtpDeleteCodeExpire: i.OtpDeleteCodeExpire,
+                OtpDeleteCode:        i.OtpDeleteCode,
+                OtpDeleteCodeExpire:  i.OtpDeleteCodeExpire,
               },
             }
             var response client.ReadHumansResponse
@@ -124,7 +124,7 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
         }
 
         // Deny by default
-        request.Response = utils.NewClientErrorResponse(request.Index, ce.HUMAN_NOT_FOUND)
+        request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
         continue
       }
     }
@@ -152,7 +152,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
 
     var handleRequest = func(iRequests []*utils.Request) {
 
-      requestedByIdentity := c.MustGet("sub").(string)
+      // requestedByIdentity := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
         r := request.Request.(client.CreateHumansRequest)
@@ -184,10 +184,10 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
           continue
         }
 
-        if human != nil {
-          ok := []client.Human{ {
+        if human != (idp.Human{}) {
+          ok := client.Human{
               Id: human.Id,
-              Username: human.Usermame,
+              Username: human.Username,
               Password: human.Password,
               Name: human.Name,
               Email: human.Email,
@@ -198,7 +198,6 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
               OtpRecoverCodeExpire: human.OtpRecoverCodeExpire,
               OtpDeleteCode: human.OtpDeleteCode,
               OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
-            },
           }
           var response client.CreateHumansResponse
           response.Index = request.Index
@@ -216,7 +215,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequest: 1})
+    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
@@ -239,7 +238,7 @@ func PutHumans(env *environment.State) gin.HandlerFunc {
 
     var handleRequest = func(iRequests []*utils.Request) {
 
-      requestedByIdentity := c.MustGet("sub").(string)
+      //requestedByIdentity := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
         r := request.Request.(client.UpdateHumansRequest)
@@ -258,21 +257,20 @@ func PutHumans(env *environment.State) gin.HandlerFunc {
           continue
         }
 
-        if human != nil {
-          ok := []client.Human{ {
-              Id: human.Id,
-              Username: human.Usermame,
-              Password: human.Password,
-              Name: human.Name,
-              Email: human.Email,
-              AllowLogin: human.AllowLogin,
-              TotpRequired: human.TotpRequired,
-              TotpSecret: human.TotpSecret,
-              OtpRecoverCode: human.OtpRecoverCode,
-              OtpRecoverCodeExpire: human.OtpRecoverCodeExpire,
-              OtpDeleteCode: human.OtpDeleteCode,
-              OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
-            },
+        if human != (idp.Human{}) {
+          ok := client.Human{
+            Id: human.Id,
+            Username: human.Username,
+            Password: human.Password,
+            Name: human.Name,
+            Email: human.Email,
+            AllowLogin: human.AllowLogin,
+            TotpRequired: human.TotpRequired,
+            TotpSecret: human.TotpSecret,
+            OtpRecoverCode: human.OtpRecoverCode,
+            OtpRecoverCodeExpire: human.OtpRecoverCodeExpire,
+            OtpDeleteCode: human.OtpDeleteCode,
+            OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
           }
           var response client.UpdateHumansResponse
           response.Index = request.Index
@@ -284,7 +282,7 @@ func PutHumans(env *environment.State) gin.HandlerFunc {
 
         // Deny by default
         // @SecurityRisk: Please _NEVER_ log the hashed password
-        log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin }).Debug(err.Error())
+        log.WithFields(logrus.Fields{ "username": updateHuman.Username, "name": updateHuman.Name, "email": updateHuman.Email, /* "password": updateHuman.Password, */ "allow_login":updateHuman.AllowLogin }).Debug(err.Error())
         request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_UPDATED)
         continue
       }
@@ -326,14 +324,14 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
 
     var handleRequest = func(iRequests []*utils.Request) {
 
-      requestedByIdentity := c.MustGet("sub").(string)
+      //requestedByIdentity := c.MustGet("sub").(string)
 
       var humans []idp.Human
       for _, request := range iRequests {
         if request.Request != nil {
-          var r client.ReadHumansRequest
-          r = request.Request.(client.ReadHumansRequest)
-          humans = append(humans, idp.Human{ Id:r.Id, Email:r.Email, Username:r.Username })
+          var r client.DeleteHumansRequest
+          r = request.Request.(client.DeleteHumansRequest)
+          humans = append(humans, idp.Human{ Identity:idp.Identity{Id:r.Id} })
         }
       }
       dbHumans, err := idp.FetchHumans(env.Driver, humans)
@@ -357,7 +355,7 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
 
           // FIXME: Use challenge system!
 
-          challenge, err := idp.CreateDeleteChallenge(config.GetString("delete.link"), i, 60 * 5) // Fixme configfy 60*5
+          challenge, err := idp.CreateDeleteChallenge(config.GetString("delete.link"), *i, 60 * 5) // Fixme configfy 60*5
           if err != nil {
             log.Debug(err.Error())
             request.Response = utils.NewInternalErrorResponse(request.Index)
@@ -373,12 +371,12 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
 
           n := idp.Human{
             Identity: idp.Identity{
-              Id: identity.Id,
+              Id: i.Id,
               OtpDeleteCode: hashedCode,
-              OtpDeleteCodeExpire: deleteChallenge.Expire,
+              OtpDeleteCodeExpire: challenge.Expire,
             },
           }
-          updateHuman, err := idp.UpdateOtpDeleteCode(env.Driver, n)
+          updatedHuman, err := idp.UpdateOtpDeleteCode(env.Driver, n)
           if err != nil {
             log.Debug(err.Error())
             request.Response = utils.NewInternalErrorResponse(request.Index)
@@ -401,7 +399,7 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
 
           data := DeleteTemplateData{
             Sender: sender.Name,
-            Name: updatedIdentity.Id,
+            Name: updatedHuman.Id,
             VerificationCode: challenge.Code,
           }
 
@@ -417,15 +415,15 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
             Body: tpl.String(),
           }
 
-          _, err = idp.SendAnEmailToHuman(smtpConfig, updateHuman, anEmail)
+          _, err = idp.SendAnEmailToHuman(smtpConfig, updatedHuman, anEmail)
           if err != nil {
-            log.WithFields(logrus.Fields{ "id": updatedIdentity.Id, "file": templateFile }).Debug(err.Error())
+            log.WithFields(logrus.Fields{ "id": updatedHuman.Id, "file": templateFile }).Debug(err.Error())
             request.Response = utils.NewInternalErrorResponse(request.Index)
             continue
           }
 
           ok := client.HumanRedirect{
-            Id: human.Id,
+            Id: updatedHuman.Id,
             RedirectTo: challenge.RedirectTo,
           }
           var response client.DeleteHumansResponse
@@ -443,7 +441,7 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequest: 1})
+    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

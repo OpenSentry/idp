@@ -10,6 +10,7 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   "github.com/charmixer/idp/utils"
+  E "github.com/charmixer/idp/client/errors"
 )
 
 func PutVerify(env *environment.State) gin.HandlerFunc {
@@ -43,7 +44,7 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
         }
         if dbChallenges == nil {
           log.WithFields(logrus.Fields{ "otp_challenge": r.OtpChallenge, "id": requestedByIdentityId, }).Debug("Challenge not found")
-          request.Response = utils.NewClientErrorResponse(request.Index, []client.ErrorResponse{ {Code: -399 , Error:"Challenge not found"} })
+          request.Response = utils.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
           continue
         }
         challenge := dbChallenges[0]
@@ -55,8 +56,8 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
           continue
         }
         if identities == nil {
-          log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("Identity not found")
-          request.Response = utils.NewClientErrorResponse(request.Index, []client.ErrorResponse{ {Code: -400 , Error:"Identity not found"} })
+          log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("Human not found")
+          request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
           continue
         }
         identity := identities[0]
@@ -77,8 +78,8 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
             valid, _ = idp.ValidateOtp(r.Code, decryptedSecret)
 
           } else {
-            log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("TOTP disabled for Identity")
-            request.Response = utils.NewClientErrorResponse(request.Index, []client.ErrorResponse{ {Code: -401 , Error:"TOTP not enabled for Identity"} })
+            log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("TOTP not required for Human")
+            request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_TOTP_NOT_REQUIRED)
             continue
           }
 

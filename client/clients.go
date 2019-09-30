@@ -12,8 +12,6 @@ type Client struct {
   Description  string `json:"description"   validate:"required"`
 }
 
-// Endpoints
-
 type ReadClientsRequest struct {
   Id string `json:"id,omitempty" validate:"uuid"`
 }

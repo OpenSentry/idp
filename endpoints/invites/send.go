@@ -13,7 +13,9 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
-  _ "github.com/charmixer/idp/client"
+  "github.com/charmixer/idp/client"
+  E "github.com/charmixer/idp/client/errors"
+  "github.com/charmixer/idp/utils"
 )
 
 type InviteSendRequest struct {
@@ -32,56 +34,19 @@ type InviteTemplateData struct {
   IdentityProvider string
 }
 
-func PostSend(env *environment.State) gin.HandlerFunc {
+func PutInvitesSend(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PostSend",
+      "func": "PutInvitesSend",
     })
 
-    var input InviteSendRequest
-    err := c.BindJSON(&input)
+    var requests []client.CreateInvitesSendRequest
+    err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
-    }
-
-    invites, err := idp.FetchInvitesById(env.Driver, []string{input.Id})
-    if err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-    if invites == nil {
-      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Invite not found."})
-      return
-    }
-    invite := invites[0]
-
-    invitedByIdentities, err := idp.FetchHumansById(env.Driver, []string{invite.InvitedBy.Id})
-    if err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-    if invitedByIdentities == nil {
-      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Indentity not found. Hint: invited_by"})
-      return
-    }
-    invitedByIdentity := invitedByIdentities[0]
-
-    invitedIdentities, err := idp.FetchHumansById(env.Driver, []string{invite.Invited.Id})
-    if err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-    isAnonymousInvite := invitedIdentities == nil
-
-    var invitedIdentity idp.Human
-    if invitedIdentities != nil {
-      invitedIdentity = invitedIdentities[0]
     }
 
     sender := idp.SMTPSender{
@@ -102,79 +67,113 @@ func PostSend(env *environment.State) gin.HandlerFunc {
 
     tplEmail, err := ioutil.ReadFile(emailTemplateFile)
     if err != nil {
-      log.WithFields(logrus.Fields{
-        "file": emailTemplateFile,
-      }).Debug(err.Error())
+      log.WithFields(logrus.Fields{ "file": emailTemplateFile }).Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
-
     t := template.Must(template.New(emailTemplateFile).Parse(string(tplEmail)))
 
-    u, err := url.Parse( config.GetString("invite.url") )
-    if err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
 
-    q := u.Query()
-    q.Add("id", invite.Id)
-    u.RawQuery = q.Encode()
+    var handleRequest = func(iRequests []*utils.Request) {
 
-    data := InviteTemplateData{
-      Id: invite.Id,
-      InvitedBy: invitedByIdentity.Name,
-      Email: invite.SentTo.Email,
-      InvitationUrl: u.String(),
-      IdentityProvider: config.GetString("provider.name"),
-    }
+      var invites []idp.Invite
 
-    var tpl bytes.Buffer
-    if err := t.Execute(&tpl, data); err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
+      //sendByIdentityId := c.MustGet("sub").(string)
+      //humans = append(humans, idp.Invite { Human:idp.Human{ Identity: idp.Identity{Id:sendByIdentityId} } })
 
-    mail := idp.AnEmail{
-      Subject: emailSubject,
-      Body: tpl.String(),
-    }
+      for _, request := range iRequests {
+        if request.Request != nil {
+          var r client.CreateInvitesSendRequest
+          r = request.Request.(client.CreateInvitesSendRequest)
+          invites = append(invites, idp.Invite { Human:idp.Human{ Identity: idp.Identity{Id:r.Id} } })
+        }
+      }
 
-    if isAnonymousInvite == true {
-
-      _, err = idp.SendAnEmailToAnonymous(smtpConfig, invite.SentTo.Email, invite.SentTo.Email, mail)
+      dbInvites, err := idp.FetchInvites(env.Driver, invites)
       if err != nil {
-        log.WithFields(logrus.Fields{
-          "email": invite.SentTo.Email,
-          "file": emailTemplateFile,
-        }).Debug("Failed to send invite mail")
+        log.Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
-    } else {
+      var mapInvites map[string]*idp.Invite
+      if ( iRequests[0] != nil ) {
+        for _, invite := range dbInvites {
+          mapInvites[invite.Id] = &invite
+        }
+      }
 
-      _, err = idp.SendAnEmailToHuman(smtpConfig, invitedIdentity, mail)
-      if err != nil {
-        log.WithFields(logrus.Fields{
-          "id": invitedIdentity.Id,
-          "file": emailTemplateFile,
-        }).Debug("Failed to send invite mail")
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
+      for _, request := range iRequests {
+        r := request.Request.(client.CreateInvitesSendRequest)
+
+        invite := mapInvites[r.Id]
+        if invite != nil {
+
+          u, err := url.Parse( config.GetString("invite.url") )
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          q := u.Query()
+          q.Add("id", invite.Id)
+          u.RawQuery = q.Encode()
+
+          data := InviteTemplateData{
+            Id: invite.Id,
+            InvitedBy: invite.InvitedBy.Name,
+            Email: invite.SentTo.Email,
+            InvitationUrl: u.String(),
+            IdentityProvider: config.GetString("provider.name"),
+          }
+
+          var tpl bytes.Buffer
+          if err := t.Execute(&tpl, data); err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          mail := idp.AnEmail{
+            Subject: emailSubject,
+            Body: tpl.String(),
+          }
+
+          _, err = idp.SendAnEmailToAnonymous(smtpConfig, invite.SentTo.Email, invite.SentTo.Email, mail)
+          if err != nil {
+            log.WithFields(logrus.Fields{ "email": invite.SentTo.Email, "file": emailTemplateFile }).Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          ok := client.Invite{
+              Id: invite.Id,
+              IssuedAt: invite.IssuedAt,
+              ExpiresAt: invite.ExpiresAt,
+              Email: invite.Email,
+              Invited: invite.Invited.Id,
+              HintUsername: invite.HintUsername,
+              InvitedBy: invite.InvitedBy.Id,
+          }
+          var response client.CreateInvitesResponse
+          response.Index = request.Index
+          response.Status = http.StatusOK
+          response.Ok = ok
+          request.Response = response
+          log.WithFields(logrus.Fields{ "id": ok.Id, }).Debug("Invite sent")
+          continue
+        }
+
+        log.WithFields(logrus.Fields{ "id":r.Id }).Debug(err.Error())
+        request.Response = utils.NewClientErrorResponse(request.Index, E.INVITE_NOT_FOUND)
+        continue
       }
 
     }
 
-    response := InviteSendResponse{
-      Id: invite.Id,
-    }
-    log.WithFields(logrus.Fields{
-      "id": response.Id,
-    }).Debug("Recover mail send")
-    c.JSON(http.StatusOK, response)
+    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
 }
