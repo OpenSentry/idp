@@ -15,8 +15,20 @@ const IDENTITY_NOT_FOUND = 10
 const HUMAN_NOT_FOUND = 20
 const HUMAN_NOT_CREATED = 21
 const HUMAN_NOT_UPDATED = 22
+const HUMAN_TOTP_NOT_REQUIRED = 23
+
+const CHALLENGE_NOT_FOUND = 30
 
 const USERNAME_BANNED = 80
+
+const INVITE_NOT_FOUND = 90
+const INVITE_NOT_CREATED = 91
+
+const CLIENT_NOT_FOUND = 100
+
+const FOLLOW_NOT_FOUND = 110
+const FOLLOW_NOT_CREATED = 111
+
 
 // keep em' static
 var ERRORS = map[int]map[int]string{
@@ -71,6 +83,42 @@ var ERRORS = map[int]map[int]string{
       EN:  "Username is banned",
       DEV: "Username is banned according to the banlist",
     },
+  CHALLENGE_NOT_FOUND:
+    {
+      EN:  "Not found",
+      DEV: "Challenge not found",
+    },
+  HUMAN_TOTP_NOT_REQUIRED:
+    {
+      EN:  "TOTP not required",
+      DEV: "TOTP not required",
+    },
+  INVITE_NOT_FOUND:
+    {
+      EN:  "Not found",
+      DEV: "Invite not found",
+    },
+  INVITE_NOT_CREATED:
+    {
+      EN:  "Not created",
+      DEV: "Failed to create invite. This requires investigation as it should never happen with validation in place.",
+    },
+  CLIENT_NOT_FOUND:
+    {
+      EN:  "Not found",
+      DEV: "Client not found",
+    },
+  FOLLOW_NOT_FOUND:
+    {
+      EN:  "Not found",
+      DEV: "Follow not found",
+    },
+  FOLLOW_NOT_CREATED:
+    {
+      EN:  "Not created",
+      DEV: "Failed to create follow. This requires investigation as it should never happen with validation in place.",
+    },
+
 }
 
 // E[INPUT_VALIDATION_FAILED][EN]

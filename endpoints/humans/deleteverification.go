@@ -9,6 +9,7 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   "github.com/charmixer/idp/utils"
+  E "github.com/charmixer/idp/client/errors"
 )
 
 func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
@@ -19,7 +20,7 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
       "func": "PutDeleteVerification",
     })
 
-    var requests []client.UpdateIdentitiesDeleteVerifyRequest
+    var requests []client.UpdateHumansDeleteVerifyRequest
     err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -29,17 +30,17 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
     var handleRequest = func(iRequests []*utils.Request) {
 
       for _, request := range iRequests {
-        r := request.Request.(client.UpdateIdentitiesDeleteVerifyRequest)
+        r := request.Request.(client.UpdateHumansDeleteVerifyRequest)
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
-        deny := client.IdentityVerification{
+        deny := client.HumanVerification{
           Id: r.Id,
           Verified: false,
           RedirectTo: "",
         }
 
-        identities, err := idp.FetchIdentitiesById(env.Driver, []string{r.Id})
+        identities, err := idp.FetchHumansById(env.Driver, []string{r.Id})
         if err != nil {
           log.Debug(err.Error())
           request.Response = utils.NewInternalErrorResponse(request.Index)
@@ -47,8 +48,8 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
         }
 
         if identities == nil {
-          log.Debug("Identity not found")
-          request.Response = utils.NewClientErrorResponse(request.Index, []client.ErrorResponse{ {Code: -380 , Error:"Identity not found"} })
+          log.WithFields(logrus.Fields{"id":r.Id}).Debug("Human not found")
+          request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
           continue
         }
         identity := identities[0]
@@ -77,13 +78,13 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
             continue
           }
 
-          accept := client.IdentityVerification{
+          accept := client.HumanVerification{
             Id: updatedIdentity.Id,
             Verified: true,
             RedirectTo: r.RedirectTo,
           }
 
-          var response client.UpdateIdentitiesDeleteVerifyResponse
+          var response client.UpdateHumansDeleteVerifyResponse
           response.Index = request.Index
           response.Status = http.StatusOK
           response.Ok = accept
@@ -94,7 +95,7 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
         }
 
         // Deny by default
-        var response client.UpdateIdentitiesDeleteVerifyResponse
+        var response client.UpdateHumansDeleteVerifyResponse
         response.Index = request.Index
         response.Status = http.StatusOK
         response.Ok = deny
@@ -104,7 +105,7 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
 
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{})
+    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

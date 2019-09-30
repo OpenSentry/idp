@@ -9,8 +9,6 @@ type Identity struct {
   Id string `json:"id" validate:"required,uuid"`
 }
 
-// Endpoints
-
 type ReadIdentitiesRequest struct {
   Id       string `json:"id,omitempty"        validate:"uuid"`
 }

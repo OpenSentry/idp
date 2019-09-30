@@ -53,7 +53,7 @@ type CreateHumansRequest struct {
 
 type CreateHumansResponse struct {
   BulkResponse
-  Ok Identity `json:"ok,omitempty" validate:"dive"`
+  Ok Human `json:"ok,omitempty" validate:"dive"`
 }
 
 type ReadHumansRequest struct {
@@ -64,7 +64,7 @@ type ReadHumansRequest struct {
 
 type ReadHumansResponse struct {
   BulkResponse
-  Ok []Identity `json:"ok,omitempty" validate:"dive"`
+  Ok []Human `json:"ok,omitempty" validate:"dive"`
 }
 
 type UpdateHumansRequest struct {
@@ -75,7 +75,7 @@ type UpdateHumansRequest struct {
 
 type UpdateHumansResponse struct {
   BulkResponse
-  Ok Identity `json:"ok,omitempty" validate:"dive"`
+  Ok Human `json:"ok,omitempty" validate:"dive"`
 }
 
 type DeleteHumansRequest struct {
@@ -105,7 +105,7 @@ type UpdateHumansPasswordRequest struct {
 
 type UpdateHumansPasswordResponse struct {
   BulkResponse
-  Ok Identity `json:"ok,omitempty" validate:"dive"`
+  Ok Human `json:"ok,omitempty" validate:"dive"`
 }
 
 type UpdateHumansTotpRequest struct {
@@ -116,7 +116,7 @@ type UpdateHumansTotpRequest struct {
 
 type UpdateHumansTotpResponse struct {
   BulkResponse
-  Ok Identity `json:"ok,omitempty" validate:"dive"`
+  Ok Human `json:"ok,omitempty" validate:"dive"`
 }
 
 type CreateHumansAuthenticateRequest struct {

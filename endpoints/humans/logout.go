@@ -9,6 +9,7 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/client"
+  "github.com/charmixer/idp/utils"
 )
 
 func PostLogout(env *environment.State) gin.HandlerFunc {
@@ -19,7 +20,7 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
       "func": "PostLogout",
     })
 
-    var requests []client.CreateIdentitiesLogoutRequest
+    var requests []client.CreateHumansLogoutRequest
     err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -31,9 +32,7 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
     var handleRequest = func(iRequests []*utils.Request) {
 
       for _, request := range iRequests {
-        r := request.Request.(client.UpdateIdentitiesDeleteVerifyRequest)
-
-        log = log.WithFields(logrus.Fields{"id": r.Id})
+        r := request.Request.(client.CreateHumansLogoutRequest)
 
         hydraLogoutAcceptResponse, err := hydra.AcceptLogout(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.logoutAccept"), hydraClient, r.Challenge, hydra.LogoutAcceptRequest{
         })
@@ -43,18 +42,18 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
           continue
         }
 
-        ok := client.IdentityRedirect{
-          Id: hydraLogoutAcceptResponse.Subject,
-          RedirectTo: r.RedirectTo,
+        ok := client.HumanRedirect{
+          // Id: hydraLogoutAcceptResponse.Subject,
+          RedirectTo: hydraLogoutAcceptResponse.RedirectTo,
         }
 
-        var response client.CreateIdentitiesLogoutResponse
+        var response client.CreateHumansLogoutResponse
         response.Index = request.Index
         response.Status = http.StatusOK
         response.Ok = ok
         request.Response = response
 
-        log.WithFields(logrus.Fields{ "redirect_to":ok.RedirectTo }).Debug("Logout successful")
+        log.WithFields(logrus.Fields{ /*"id": ok.Id,*/ "redirect_to":ok.RedirectTo }).Debug("Logout successful")
         continue
       }
 
