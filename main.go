@@ -21,6 +21,7 @@ import (
   "github.com/charmixer/idp/migration"
   "github.com/charmixer/idp/endpoints/identities"
   "github.com/charmixer/idp/endpoints/humans"
+  "github.com/charmixer/idp/endpoints/clients"
   "github.com/charmixer/idp/endpoints/challenges"
   "github.com/charmixer/idp/endpoints/invites"
   "github.com/charmixer/idp/endpoints/follows"
@@ -241,28 +242,31 @@ func serve(env *environment.State) {
 
   r.GET(    "/identities",    utils.AuthorizationRequired(aconf, "read:identity"), identities.GetIdentities(env) )
 
-  r.GET( "/humans", utils.AuthorizationRequired(aconf, "read:human"), humans.GetHumans(env))
-  //r.POST(   "/identities",   utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostIdentities(env) )
-  //r.PUT(    "/identities",    utils.AuthorizationRequired(aconf, "update:identity"), identities.PutIdentities(env) )
-  //r.DELETE( "/identities", utils.AuthorizationRequired(aconf, "delete:identity"), identities.DeleteIdentities(env) )
+  r.GET(    "/humans", utils.AuthorizationRequired(aconf, "read:human"), humans.GetHumans(env))
+  r.POST(   "/humans",   utils.AuthorizationRequired(aconf, "authenticate:identity"), humans.PostHumans(env) )
+  r.PUT(    "/humans",    utils.AuthorizationRequired(aconf, "update:identity"), humans.PutHumans(env) )
+  r.DELETE( "/humans", utils.AuthorizationRequired(aconf, "delete:identity"), humans.DeleteHumans(env) )
 
-  //r.POST( "/identities/deleteverification", utils.AuthorizationRequired(aconf, "delete:identity"), identities.PostDeleteVerification(env) )
+  r.POST( "/humans/authenticate", utils.AuthorizationRequired(aconf, "authenticate:identity"), humans.PostAuthenticate(env) )
+  r.PUT(  "/humans/password", utils.AuthorizationRequired(aconf, "authenticate:identity"), humans.PutPassword(env) )
 
-  //r.POST( "/identities/authenticate", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostAuthenticate(env) )
-  //r.PUT( "/identities/password", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PutPassword(env) )
+  r.PUT(  "/humans/totp", utils.AuthorizationRequired(aconf, "authenticate:identity"), humans.PutTotp(env) )
 
-  //r.PUT( "/identities/totp", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PutTotp(env) )
+  r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "logout:identity"), humans.PostLogout(env) )
 
-  //r.POST( "/identities/logout", utils.AuthorizationRequired(aconf, "logout:identity"), identities.PostLogout(env) )
+  r.POST( "/humans/deleteverification", utils.AuthorizationRequired(aconf, "delete:identity"), humans.PutDeleteVerification(env) )
 
-  //r.POST( "/identities/recover", utils.AuthorizationRequired(aconf, "recover:identity"), identities.PostRecover(env) )
-  //r.POST( "/identities/recoververification", utils.AuthorizationRequired(aconf, "authenticate:identity"), identities.PostRecoverVerification(env) )
+  r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "recover:identity"), humans.PostRecover(env) )
+  r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "authenticate:identity"), humans.PutRecoverVerification(env) )
 
-  r.POST( "/identities/invite", utils.AuthorizationRequired(aconf, "invite:identity"), invites.PostInvites(env) )
+  r.GET ( "/clients", utils.AuthorizationRequired(aconf, "read:client"), clients.GetClients(env))
 
   r.GET(  "/invites", utils.AuthorizationRequired(aconf, "read:invite"), invites.GetInvites(env) )
   r.POST( "/invites", utils.AuthorizationRequired(aconf, "create:invite"), invites.PostInvites(env) )
+  r.PUT(  "/invites/accept", utils.AuthorizationRequired(aconf, "accept:invite"), invites.PutInvitesAccept(env) )
+  r.PUT(  "/invites/send", utils.AuthorizationRequired(aconf, "send:invite"), invites.PutInvitesSend(env) )
 
+  r.GET(  "/follows", utils.AuthorizationRequired(aconf, "read:follow"), follows.GetFollows(env) )
   r.POST( "/follows", utils.AuthorizationRequired(aconf, "create:follow"), follows.PostFollows(env) )
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))

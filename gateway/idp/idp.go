@@ -19,17 +19,17 @@ import (
 )
 
 type RecoverChallenge struct {
-  Id               string
-  VerificationCode string
-  Expire           int64
-  RedirectTo       string
+  Id         string
+  Code       string
+  Expire     int64
+  RedirectTo string
 }
 
 type DeleteChallenge struct {
-  Id               string
-  VerificationCode string
-  Expire           int64
-  RedirectTo       string
+  Id         string
+  Code       string
+  Expire     int64
+  RedirectTo string
 }
 
 func ValidatePassword(storedPassword string, password string) (bool, error) {
@@ -53,8 +53,8 @@ func ValidateOtp(otp string, secret string) (bool, error) {
   return valid, nil
 }
 
-func CreateDeleteChallenge(url string, identity Identity, challengeTimeoutInSeconds int64) (DeleteChallenge, error) {
-  verificationCode, err := GenerateRandomDigits(6);
+func CreateDeleteChallenge(url string, identity Human, challengeTimeoutInSeconds int64) (DeleteChallenge, error) {
+  code, err := GenerateRandomDigits(6);
   if err != nil {
     return DeleteChallenge{}, err
   }
@@ -66,14 +66,14 @@ func CreateDeleteChallenge(url string, identity Identity, challengeTimeoutInSeco
 
   return DeleteChallenge{
     Id: identity.Id,
-    VerificationCode: verificationCode,
+    Code: code,
     Expire: expiresAt,
     RedirectTo: redirectTo,
   }, nil
 }
 
 func CreateRecoverChallenge(url string, identity Human, challengeTimeoutInSeconds int64) (RecoverChallenge, error) {
-  verificationCode, err := GenerateRandomDigits(6);
+  code, err := GenerateRandomDigits(6);
   if err != nil {
     return RecoverChallenge{}, err
   }
@@ -85,7 +85,7 @@ func CreateRecoverChallenge(url string, identity Human, challengeTimeoutInSecond
 
   return RecoverChallenge{
     Id: identity.Id,
-    VerificationCode: verificationCode,
+    Code: code,
     Expire: expiresAt,
     RedirectTo: redirectTo,
   }, nil

@@ -7,100 +7,112 @@ import (
 
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
-  . "github.com/charmixer/idp/client"
+  "github.com/charmixer/idp/client"
+  E "github.com/charmixer/idp/client/errors"
+  "github.com/charmixer/idp/utils"
 )
 
-func PostRecoverVerification(env *environment.State) gin.HandlerFunc {
+func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PostRecoverVerification",
+      "func": "PutRecoverVerification",
     })
 
-    var input IdentitiesRecoverVerificationRequest
-    err := c.BindJSON(&input)
+    var requests []client.UpdateHumansRecoverVerifyRequest
+    err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
-    denyResponse := IdentitiesRecoverVerificationResponse{
-      Id: input.Id,
-      Verified: false,
-      RedirectTo: "",
-    }
+    var handleRequest = func(iRequests []*utils.Request) {
 
-    identities, err := idp.FetchHumansById(env.Driver, []string{input.Id})
-    if err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
+      for _, request := range iRequests {
+        r := request.Request.(client.UpdateHumansRecoverVerifyRequest)
 
-    if identities == nil {
-      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
-      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Identity not found"})
-      return
-    }
-    identity := identities[0]
+        log = log.WithFields(logrus.Fields{"id": r.Id})
 
-    valid, err := idp.ValidatePassword(identity.OtpRecoverCode, input.VerificationCode)
-    if err != nil {
-      log.Debug(err.Error())
-      log.WithFields(logrus.Fields{
-        "id": denyResponse.Id,
-        "verified": denyResponse.Verified,
-        "redirect_to": denyResponse.RedirectTo,
-      }).Debug("Recover rejected")
-      c.JSON(http.StatusOK, denyResponse)
-      return
-    }
+        deny := client.HumanVerification{
+          Id: r.Id,
+          Verified: false,
+          RedirectTo: "",
+        }
 
-    if valid == true {
+        humans, err := idp.FetchHumansById(env.Driver, []string{r.Id})
+        if err != nil {
+          log.Debug(err.Error())
+          request.Response = utils.NewInternalErrorResponse(request.Index)
+          continue
+        }
 
-      // Update the password
-      hashedPassword, err := idp.CreatePassword(input.Password)
-      if err != nil {
-        log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
+        if humans == nil {
+          log.WithFields(logrus.Fields{"id":r.Id}).Debug("Human not found")
+          request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+          continue
+        }
+        human := humans[0]
+
+        valid, err := idp.ValidatePassword(human.OtpRecoverCode, r.Code)
+        if err != nil {
+          log.Debug(err.Error())
+          request.Response = utils.NewInternalErrorResponse(request.Index)
+          continue
+        }
+
+        if valid == true {
+
+          // Update the password
+          hashedPassword, err := idp.CreatePassword(r.Password)
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          n := idp.Human{
+            Identity: idp.Identity{
+              Id: human.Id,
+            },
+            Password: hashedPassword,
+          }
+          updatedHuman, err := idp.UpdatePassword(env.Driver, n)
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          accept := client.HumanVerification{
+            Id: updatedHuman.Id,
+            Verified: true,
+            RedirectTo: r.RedirectTo,
+          }
+
+          var response client.UpdateHumansRecoverVerifyResponse
+          response.Index = request.Index
+          response.Status = http.StatusOK
+          response.Ok = accept
+          request.Response = response
+
+          log.WithFields(logrus.Fields{ "verified":accept.Verified, "redirect_to":accept.RedirectTo }).Debug("Identity deleted")
+          continue
+        }
+
+        // Deny by default
+        var response client.UpdateHumansRecoverVerifyResponse
+        response.Index = request.Index
+        response.Status = http.StatusOK
+        response.Ok = deny
+        request.Response = response
+        log.Debug("Verification denied")
       }
 
-      n := idp.Human{
-        Identity: idp.Identity{
-          Id: identity.Id,
-        },
-        Password: hashedPassword,
-      }
-      updatedIdentity, err := idp.UpdatePassword(env.Driver, n)
-      if err != nil {
-        log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
-      }
-
-      acceptResponse := IdentitiesRecoverVerificationResponse{
-        Id: updatedIdentity.Id,
-        Verified: true,
-        RedirectTo: input.RedirectTo,
-      }
-      log.WithFields(logrus.Fields{
-        "id": acceptResponse.Id,
-        "verified": acceptResponse.Verified,
-        "redirect_to": acceptResponse.RedirectTo,
-      }).Debug("Recover accepted")
-      c.JSON(http.StatusOK, acceptResponse)
-      return
     }
 
-    // Deny by default
-    log.WithFields(logrus.Fields{
-      "id": denyResponse.Id,
-      "verified": denyResponse.Verified,
-      "redirect_to": denyResponse.RedirectTo,
-    }).Debug("Recover rejected")
-    c.JSON(http.StatusOK, denyResponse)
+    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
 }

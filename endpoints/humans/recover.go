@@ -11,7 +11,9 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
-  . "github.com/charmixer/idp/client"
+  "github.com/charmixer/idp/client"
+  E "github.com/charmixer/idp/client/errors"
+  "github.com/charmixer/idp/utils"
 )
 
 type RecoverTemplateData struct {
@@ -28,26 +30,12 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       "func": "PostRecover",
     })
 
-    var input IdentitiesRecoverRequest
-    err := c.BindJSON(&input)
+    var requests []client.CreateHumansRecoverRequest
+    err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
-
-    humans, err := idp.FetchHumansById(env.Driver, []string{input.Id})
-    if err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-
-    if humans == nil {
-      log.WithFields(logrus.Fields{"id": input.Id}).Debug("Identity not found")
-      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      return
-    }
-    human := humans[0]
 
     sender := idp.SMTPSender{
       Name: config.GetString("recover.sender.name"),
@@ -62,89 +50,128 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
     }
 
-    recoverChallenge, err := idp.CreateRecoverChallenge(config.GetString("recover.link"), human, 60 * 5) // Fixme configfy 60*5
-    if err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
+    var handleRequest = func(iRequests []*utils.Request) {
+
+      //requestedByIdentity := c.MustGet("sub").(string)
+
+      var humans []idp.Human
+      for _, request := range iRequests {
+        if request.Request != nil {
+          var r client.CreateHumansRecoverRequest
+          r = request.Request.(client.CreateHumansRecoverRequest)
+          humans = append(humans, idp.Human{ Identity:idp.Identity{Id:r.Id} })
+        }
+      }
+      dbHumans, err := idp.FetchHumans(env.Driver, humans)
+      if err != nil {
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
+        return
+      }
+      var mapHumans map[string]*idp.Human
+      if ( iRequests[0] != nil ) {
+        for _, human := range dbHumans {
+          mapHumans[human.Id] = &human
+        }
+      }
+
+      for _, request := range iRequests {
+        r := request.Request.(client.CreateHumansRecoverRequest)
+
+        var i = mapHumans[r.Id]
+        if i != nil {
+
+          // FIXME: Use challenge system!
+
+          challenge, err := idp.CreateRecoverChallenge(config.GetString("recover.link"), *i, 60 * 5) // Fixme configfy 60*5
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          hashedCode, err := idp.CreatePassword(challenge.Code)
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+
+          n := idp.Human{
+            Identity: idp.Identity{
+              Id: i.Id,
+            },
+            OtpRecoverCode: hashedCode,
+            OtpRecoverCodeExpire: challenge.Expire,
+          }
+          updatedHuman, err := idp.UpdateOtpRecoverCode(env.Driver, n)
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          log.WithFields(logrus.Fields{ "fixme":1, "code": challenge.Code }).Debug("Recover Code. Please do not do this in production!");
+
+          templateFile := config.GetString("recover.template.email.file")
+          emailSubject := config.GetString("recover.template.email.subject")
+
+          tplRecover, err := ioutil.ReadFile(templateFile)
+          if err != nil {
+            log.WithFields(logrus.Fields{ "file": templateFile }).Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          t := template.Must(template.New(templateFile).Parse(string(tplRecover)))
+
+          data := RecoverTemplateData{
+            Sender: sender.Name,
+            Name: updatedHuman.Id,
+            VerificationCode: challenge.Code,
+          }
+
+          var tpl bytes.Buffer
+          if err := t.Execute(&tpl, data); err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          anEmail := idp.AnEmail{
+            Subject: emailSubject,
+            Body: tpl.String(),
+          }
+
+          _, err = idp.SendAnEmailToHuman(smtpConfig, updatedHuman, anEmail)
+          if err != nil {
+            log.WithFields(logrus.Fields{ "id": updatedHuman.Id, "file": templateFile }).Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          ok := client.HumanRedirect{
+            Id: updatedHuman.Id,
+            RedirectTo: challenge.RedirectTo,
+          }
+          var response client.CreateHumansRecoverResponse
+          response.Index = request.Index
+          response.Status = http.StatusOK
+          response.Ok = ok
+          request.Response = response
+          log.WithFields(logrus.Fields{"id":ok.Id, "redirect_to":ok.RedirectTo}).Debug("Recover Verification Requested")
+          continue
+        }
+
+        // Deny by default
+        request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+        continue
+      }
     }
 
-    hashedCode, err := idp.CreatePassword(recoverChallenge.VerificationCode)
-    if err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-
-    n := idp.Human{
-      Identity: idp.Identity{
-        Id: human.Id,
-      },
-      OtpRecoverCode: hashedCode,
-      OtpRecoverCodeExpire: recoverChallenge.Expire,
-    }
-    updatedIdentity, err := idp.UpdateOtpRecoverCode(env.Driver, n)
-    if err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-
-    log.WithFields(logrus.Fields{
-      "verification_code": recoverChallenge.VerificationCode,
-    }).Debug("VERIFICATION CODE - DO NOT DO THIS IN PRODUCTION");
-
-    recoverTemplateFile := config.GetString("recover.template.email.file")
-    recoverSubject := config.GetString("recover.template.email.subject")
-
-    tplRecover, err := ioutil.ReadFile(recoverTemplateFile)
-    if err != nil {
-      log.WithFields(logrus.Fields{
-        "file": recoverTemplateFile,
-      }).Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-
-    t := template.Must(template.New(recoverTemplateFile).Parse(string(tplRecover)))
-
-    data := RecoverTemplateData{
-      Sender: sender.Name,
-      Name: updatedIdentity.Id,
-      VerificationCode: recoverChallenge.VerificationCode,
-    }
-
-    var tpl bytes.Buffer
-    if err := t.Execute(&tpl, data); err != nil {
-      log.Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-
-    mail := idp.AnEmail{
-      Subject: recoverSubject,
-      Body: tpl.String(),
-    }
-
-    _, err = idp.SendAnEmailToHuman(smtpConfig, updatedIdentity, mail)
-    if err != nil {
-      log.WithFields(logrus.Fields{
-        "id": updatedIdentity.Id,
-        "file": recoverTemplateFile,
-      }).Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-
-    recoverResponse := IdentitiesRecoverResponse{
-      Id: updatedIdentity.Id,
-      RedirectTo: recoverChallenge.RedirectTo,
-    }
-    log.WithFields(logrus.Fields{
-      "id": recoverResponse.Id,
-      "redirect_to": recoverResponse.RedirectTo,
-    }).Debug("Recover mail send")
-    c.JSON(http.StatusOK, recoverResponse)
+    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
 }
