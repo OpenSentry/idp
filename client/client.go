@@ -31,13 +31,13 @@ func NewIdpClientWithUserAccessToken(config *oauth2.Config, token *oauth2.Token)
 
 
 type ErrorResponse struct {
-  Code  int    `json:"code" binding:"required"`
-  Error string `json:"error" binding:"required"`
+  Code  int    `json:"code"  validate:"required"`
+  Error string `json:"error" validate:"required"`
 }
 
 type BulkResponse struct {
-  Index  int             `json:"index" binding:"required"`
-  Status int             `json:"status" binding:"required"`
+  Index  int             `json:"index"  validate:"required"`
+  Status int             `json:"status" validate:"required"`
   Errors []ErrorResponse `json:"errors,omitempty"`
 }
 
@@ -133,7 +133,6 @@ func UnmarshalResponse(iIndex int, iResponses interface{}) (rStatus int, rOk int
       if err.CanInterface() {
         rErr = err.Interface().([]ErrorResponse)
       }
-
       return rStatus, rOk, rErr
     }
 

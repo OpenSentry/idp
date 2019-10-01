@@ -6,20 +6,20 @@ import (
 )
 
 type Invite struct {
-  Id        string `json:"id" validate:"required,uuid"`
+  Id        string `json:"id"  validate:"required,uuid"`
   IssuedAt  int64  `json:"iat" validate:"required"`
   ExpiresAt int64  `json:"exp" validate:"required"`
 
-  Email string `json:"email" validate:"email"`
-  Invited string `json:"id" validate:"uuid"`
+  Email        string `json:"email" validate:"email"`
+  Invited      string `json:"id"    validate:"uuid"`
   HintUsername string `json:"hint_username"`
 
   InvitedBy string `json:"id" validate:"required,uuid"`
 }
 
 type CreateInvitesRequest struct {
-  Email          string `json:"email,omitempty" validate:"email"`
-  Invited        string `json:"invited_id" validate:"uuid"` // FIXME: Mututal exclusive with email
+  Email          string `json:"email,omitempty" validate:"omitempty,email"`
+  Invited        string `json:"invited_id,omitempty" validate:"omitempty,uuid"` // FIXME: Mututal exclusive with email
   HintUsername   string `json:"hint_username,omitempty"`
 }
 
@@ -29,8 +29,8 @@ type CreateInvitesResponse struct {
 }
 
 type ReadInvitesRequest struct {
-  Id       string `json:"id,omitempty"        validate:"uuid"`
-  Email    string `json:"email,omitempty"     validate:"email"`
+  Id       string `json:"id,omitempty"        validate:"omitempty,uuid"`
+  Email    string `json:"email,omitempty"     validate:"omitempty,email"`
   Username string `json:"username,omitempty"`
 }
 

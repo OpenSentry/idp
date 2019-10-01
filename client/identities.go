@@ -10,7 +10,7 @@ type Identity struct {
 }
 
 type ReadIdentitiesRequest struct {
-  Id       string `json:"id,omitempty"        validate:"uuid"`
+  Id string `json:"id,omitempty" validate:"uuid"`
 }
 
 type ReadIdentitiesResponse struct {

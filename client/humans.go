@@ -21,13 +21,13 @@ type Human struct {
 }
 
 type HumanAuthentication struct {
-  Id                 string `json:"id"            validate:"required,uuid"`
-  Authenticated      bool   `json:"authenticated" validate:"required"`
-  RedirectTo         string `json:"redirect_to"   validate:"required,url"`
-  TotpRequired       bool   `json:"totp_required" validate:"required"`
+  Id                 string `json:"id"            validate:"omitempty,uuid"`
+  Authenticated      bool   `json:"authenticated" validate:"omitempty"`
+  RedirectTo         string `json:"redirect_to"   validate:"omitempty,url"`
+  TotpRequired       bool   `json:"totp_required" validate:"omitempty"`
 
-  IsPasswordInvalid  bool `json:"is_password_invalid" validate:"required"`
-  IdentityExists     bool `json:"identity_exists"     validate:"required"`
+  IsPasswordInvalid  bool `json:"is_password_invalid" validate:"omitempty"`
+  IdentityExists     bool `json:"identity_exists"     validate:"omitempty"`
 }
 
 type HumanRedirect struct {
@@ -120,8 +120,8 @@ type UpdateHumansTotpResponse struct {
 }
 
 type CreateHumansAuthenticateRequest struct {
-  Challenge    string `json:"challenge"                validate:"required,uuid"`
-  Id           string `json:"id,omitempty"             validate:"uuid"`
+  Challenge    string `json:"challenge"                validate:"required"`
+  Id           string `json:"id,omitempty"             validate:"omitempty,uuid"`
   Password     string `json:"password,omitempty"`
   OtpChallenge string `json:"otp_challenge,omitempty"`
 }
