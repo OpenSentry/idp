@@ -269,11 +269,11 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
           }
 
-          // Deny by default
-          log.WithFields(logrus.Fields{"id": r.Id}).Debug("Authentication denied")
-          request.Response = deny
         }
 
+        // Deny by default
+        log.WithFields(logrus.Fields{"id": r.Id}).Debug("Authentication denied")
+        request.Response = deny
       }
     }
 
