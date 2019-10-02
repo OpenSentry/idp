@@ -54,15 +54,15 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
 
       //requestedByIdentity := c.MustGet("sub").(string)
 
-      var humans []idp.Human
+      var humanIds []string
       for _, request := range iRequests {
         if request.Request != nil {
           var r client.CreateHumansRecoverRequest
           r = request.Request.(client.CreateHumansRecoverRequest)
-          humans = append(humans, idp.Human{ Identity:idp.Identity{Id:r.Id} })
+          humanIds = append(humanIds, r.Id)
         }
       }
-      dbHumans, err := idp.FetchHumans(env.Driver, humans)
+      dbHumans, err := idp.FetchHumansById(env.Driver, humanIds)
       if err != nil {
         log.Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)

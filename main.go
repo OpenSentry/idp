@@ -242,7 +242,7 @@ func serve(env *environment.State) {
 
   r.GET(    "/identities",    utils.AuthorizationRequired(aconf, "read:identity"), identities.GetIdentities(env) )
 
-  r.GET(    "/humans", utils.AuthorizationRequired(aconf, "read:human"), humans.GetHumans(env))
+  r.GET(    "/humans", utils.AuthorizationRequired(aconf, "read:identity"), humans.GetHumans(env))
   r.POST(   "/humans",   utils.AuthorizationRequired(aconf, "authenticate:identity"), humans.PostHumans(env) )
   r.PUT(    "/humans",    utils.AuthorizationRequired(aconf, "update:identity"), humans.PutHumans(env) )
   r.DELETE( "/humans", utils.AuthorizationRequired(aconf, "delete:identity"), humans.DeleteHumans(env) )
