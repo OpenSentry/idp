@@ -40,21 +40,21 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
           RedirectTo: "",
         }
 
-        identities, err := idp.FetchHumansById(env.Driver, []string{r.Id})
+        humans, err := idp.FetchHumansById(env.Driver, []string{r.Id})
         if err != nil {
           log.Debug(err.Error())
           request.Response = utils.NewInternalErrorResponse(request.Index)
           continue
         }
 
-        if identities == nil {
+        if humans == nil {
           log.WithFields(logrus.Fields{"id":r.Id}).Debug("Human not found")
           request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
           continue
         }
-        identity := identities[0]
+        human := humans[0]
 
-        valid, err := idp.ValidatePassword(identity.OtpDeleteCode, r.Code)
+        valid, err := idp.ValidatePassword(human.OtpDeleteCode, r.Code)
         if err != nil {
           log.Debug(err.Error())
           request.Response = utils.NewInternalErrorResponse(request.Index)
@@ -68,10 +68,10 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
 
           n := idp.Human{
             Identity: idp.Identity{
-              Id: identity.Id,
+              Id: human.Id,
             },
           }
-          updatedIdentity, err := idp.DeleteHuman(env.Driver, n)
+          deletedHuman, err := idp.DeleteHuman(env.Driver, n)
           if err != nil {
             log.Debug(err.Error())
             request.Response = utils.NewInternalErrorResponse(request.Index)
@@ -79,7 +79,7 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
           }
 
           accept := client.HumanVerification{
-            Id: updatedIdentity.Id,
+            Id: deletedHuman.Id,
             Verified: true,
             RedirectTo: r.RedirectTo,
           }

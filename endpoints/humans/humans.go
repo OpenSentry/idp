@@ -328,36 +328,30 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
 
       //requestedByIdentity := c.MustGet("sub").(string)
 
-      var humanIds []string
-      for _, request := range iRequests {
-        if request.Request != nil {
-          var r client.DeleteHumansRequest
-          r = request.Request.(client.DeleteHumansRequest)
-          humanIds = append(humanIds, r.Id)
-        }
-      }
-      dbHumans, err := idp.FetchHumansById(env.Driver, humanIds)
-      if err != nil {
-        log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
-      }
-      var mapHumans map[string]*idp.Human
-      if ( iRequests[0] != nil ) {
-        for _, human := range dbHumans {
-          mapHumans[human.Id] = &human
-        }
-      }
-
       for _, request := range iRequests {
         r := request.Request.(client.DeleteHumansRequest)
 
-        var i = mapHumans[r.Id]
-        if i != nil {
+        log = log.WithFields(logrus.Fields{"id": r.Id})
+
+        humans, err := idp.FetchHumansById( env.Driver, []string{r.Id} )
+        if err != nil {
+          log.Debug(err.Error())
+          request.Response = utils.NewInternalErrorResponse(request.Index)
+          continue
+        }
+
+        if humans == nil {
+          log.WithFields(logrus.Fields{"id": r.Id}).Debug("Human not found")
+          request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+          continue
+        }
+        human := humans[0]
+
+        if human != (idp.Human{}) {
 
           // FIXME: Use challenge system!
 
-          challenge, err := idp.CreateDeleteChallenge(config.GetString("delete.link"), *i, 60 * 5) // Fixme configfy 60*5
+          challenge, err := idp.CreateDeleteChallenge(config.GetString("delete.link"), human, 60 * 5) // Fixme configfy 60*5
           if err != nil {
             log.Debug(err.Error())
             request.Response = utils.NewInternalErrorResponse(request.Index)
@@ -373,7 +367,7 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
 
           n := idp.Human{
             Identity: idp.Identity{
-              Id: i.Id,
+              Id: human.Id,
               OtpDeleteCode: hashedCode,
               OtpDeleteCodeExpire: challenge.Expire,
             },
