@@ -254,7 +254,7 @@ func serve(env *environment.State) {
 
   r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "logout:identity"), humans.PostLogout(env) )
 
-  r.POST( "/humans/deleteverification", utils.AuthorizationRequired(aconf, "delete:identity"), humans.PutDeleteVerification(env) )
+  r.PUT( "/humans/deleteverification", utils.AuthorizationRequired(aconf, "delete:identity"), humans.PutDeleteVerification(env) )
 
   r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "recover:identity"), humans.PostRecover(env) )
   r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "authenticate:identity"), humans.PutRecoverVerification(env) )
