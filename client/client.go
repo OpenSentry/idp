@@ -53,16 +53,14 @@ func callService(client *IdpClient, method string, url string, data *bytes.Buffe
   req.Header.Set("X-HTTP-Method-Override", method)
 
   res, err := client.Do(req)
-
-  defer res.Body.Close()
-
   if err != nil {
-    return res.StatusCode, nil, err
+    return http.StatusInternalServerError, nil, err
   }
+  defer res.Body.Close()
 
   resData, err := ioutil.ReadAll(res.Body)
   if err != nil {
-    return http.StatusInternalServerError, nil, err
+    return res.StatusCode, nil, err
   }
 
   err = parseStatusCode(res.StatusCode)
