@@ -34,8 +34,16 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
       for _, request := range iRequests {
         r := request.Request.(client.CreateHumansLogoutRequest)
 
-        hydraLogoutAcceptResponse, err := hydra.AcceptLogout(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.logoutAccept"), hydraClient, r.Challenge, hydra.LogoutAcceptRequest{
-        })
+        hydraLogoutResponse, err := hydra.GetLogout(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.logout"), hydraClient, r.Challenge)
+        if err != nil {
+          log.Debug(err.Error())
+          request.Response = utils.NewInternalErrorResponse(request.Index)
+          continue
+        }
+
+        log.Debug(hydraLogoutResponse)
+
+        hydraLogoutAcceptResponse, err := hydra.AcceptLogout(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.logoutAccept"), hydraClient, r.Challenge, hydra.LogoutAcceptRequest{})
         if err != nil {
           log.Debug(err.Error())
           request.Response = utils.NewInternalErrorResponse(request.Index)
@@ -43,7 +51,7 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
         }
 
         ok := client.HumanRedirect{
-          // Id: hydraLogoutAcceptResponse.Subject,
+          Id: hydraLogoutResponse.Subject,
           RedirectTo: hydraLogoutAcceptResponse.RedirectTo,
         }
 
@@ -53,7 +61,7 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
         response.Ok = ok
         request.Response = response
 
-        log.WithFields(logrus.Fields{ /*"id": ok.Id,*/ "redirect_to":ok.RedirectTo }).Debug("Logout successful")
+        log.WithFields(logrus.Fields{ "id": ok.Id, "redirect_to":ok.RedirectTo }).Debug("Logout successful")
         continue
       }
 
