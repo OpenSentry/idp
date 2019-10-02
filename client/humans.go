@@ -12,22 +12,21 @@ type Human struct {
   Name                 string `json:"name"                    validate:"required`
   Email                string `json:"email"                   validate:"required,email"`
   AllowLogin           bool   `json:"allow_login"             validate:"required"`
-  TotpRequired         bool   `json:"totp_required"           validate:"required"`
-  TotpSecret           string `json:"totp_secret"             validate:"required"`
-  OtpRecoverCode       string `json:"otp_recover_code"        validate:"required"`
-  OtpRecoverCodeExpire int64  `json:"otp_recover_code_expire" validate:"required"`
-  OtpDeleteCode        string `json:"otp_delete_code"         validate:"required"`
-  OtpDeleteCodeExpire  int64  `json:"otp_delete_code_expire"  validate:"required"`
+  TotpRequired         bool   `json:"totp_required"           `
+  TotpSecret           string `json:"totp_secret"             `
+  OtpRecoverCode       string `json:"otp_recover_code"        `
+  OtpRecoverCodeExpire int64  `json:"otp_recover_code_expire" `
+  OtpDeleteCode        string `json:"otp_delete_code"         `
+  OtpDeleteCodeExpire  int64  `json:"otp_delete_code_expire"  `
 }
 
 type HumanAuthentication struct {
   Id                 string `json:"id"            validate:"omitempty,uuid"`
-  Authenticated      bool   `json:"authenticated" validate:"omitempty"`
+  Authenticated      bool   `json:"authenticated"`
   RedirectTo         string `json:"redirect_to"   validate:"omitempty,url"`
-  TotpRequired       bool   `json:"totp_required" validate:"omitempty"`
-
-  IsPasswordInvalid  bool `json:"is_password_invalid" validate:"omitempty"`
-  IdentityExists     bool `json:"identity_exists"     validate:"omitempty"`
+  TotpRequired       bool   `json:"totp_required"`
+  IsPasswordInvalid  bool `json:"is_password_invalid"`
+  IdentityExists     bool `json:"identity_exists"`
 }
 
 type HumanRedirect struct {
@@ -38,7 +37,7 @@ type HumanRedirect struct {
 type HumanVerification struct {
   Id         string `json:"id"          validate:"required,uuid"`
   RedirectTo string `json:"redirect_to" validate:"required,url"`
-  Verified   bool   `json:"verified"    validate:"required"`
+  Verified   bool   `json:"verified"`
 }
 
 // Endpoints
@@ -48,7 +47,7 @@ type CreateHumansRequest struct {
   Username   string `json:"username,omitempty" validate:"required"`
   Email      string `json:"email,omitempty"    validate:"required,email"`
   Name       string `json:"name,omitempty"     validate:"required"`
-  AllowLogin bool   `json:"allow_login"        validate:"required"`
+  AllowLogin bool   `json:"allow_login"`
 }
 
 type CreateHumansResponse struct {
@@ -57,8 +56,8 @@ type CreateHumansResponse struct {
 }
 
 type ReadHumansRequest struct {
-  Id       string `json:"id,omitempty"        validate:"uuid"`
-  Email    string `json:"email,omitempty"     validate:"email"`
+  Id       string `json:"id,omitempty"        validate:"omitempty,uuid"`
+  Email    string `json:"email,omitempty"     validate:"omitempty,email"`
   Username string `json:"username,omitempty"`
 }
 
@@ -110,7 +109,7 @@ type UpdateHumansPasswordResponse struct {
 
 type UpdateHumansTotpRequest struct {
   Id           string `json:"id"            validate:"required,uuid"`
-  TotpRequired bool   `json:"totp_required" validate:"required"`
+  TotpRequired bool   `json:"totp_required"`
   TotpSecret   string `json:"totp_secret"   validate:"required"`
 }
 

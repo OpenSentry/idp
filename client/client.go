@@ -36,7 +36,7 @@ type ErrorResponse struct {
 }
 
 type BulkResponse struct {
-  Index  int             `json:"index"  validate:"required"`
+  Index  int             `json:"index"  validate:"omitempty"`
   Status int             `json:"status" validate:"required"`
   Errors []ErrorResponse `json:"errors,omitempty"`
 }

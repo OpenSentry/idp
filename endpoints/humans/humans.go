@@ -39,35 +39,23 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*utils.Request) {
-      var identities []idp.Human
 
       for _, request := range iRequests {
-        if request.Request != nil {
-          var r client.ReadHumansRequest
-          r = request.Request.(client.ReadHumansRequest)
-          identities = append(identities, idp.Human{ Identity: idp.Identity{Id:r.Id}, Email:r.Email, Username:r.Username })
-        }
-      }
 
-      dbHumans, err := idp.FetchHumans(env.Driver, identities)
-      if err != nil {
-        log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
-      }
-
-      var mapHumans map[string]*idp.Human
-      if ( iRequests[0] != nil ) {
-        for _, human := range dbHumans {
-          mapHumans[human.Id] = &human
-        }
-      }
-
-      for _, request := range iRequests {
+        var dbHumans []idp.Human
+        var err error
 
         if request.Request == nil {
 
-          // The empty fetch
+          // Fetch all, that the token is allowed to.
+
+          dbHumans, err = idp.FetchHumansAll(env.Driver)
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
           var ok []client.Human
           for _, i := range dbHumans {
             ok = append(ok, client.Human{
@@ -96,8 +84,22 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
 
           r := request.Request.(client.ReadHumansRequest)
 
-          var i = mapHumans[r.Id]
-          if i != nil {
+          if r.Id != "" {
+            dbHumans, err = idp.FetchHumansById(env.Driver, []string{r.Id})
+          } else if r.Email != "" {
+            dbHumans, err = idp.FetchHumansByEmail(env.Driver, []string{r.Email})
+          } else if r.Username != "" {
+            dbHumans, err = idp.FetchHumansByUsername(env.Driver, []string{r.Username})
+          }
+
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          if len(dbHumans) > 0 {
+            i := dbHumans[0]
             ok := []client.Human{ {
                 Id:                   i.Id,
                 Username:             i.Username,
@@ -326,15 +328,15 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
 
       //requestedByIdentity := c.MustGet("sub").(string)
 
-      var humans []idp.Human
+      var humanIds []string
       for _, request := range iRequests {
         if request.Request != nil {
           var r client.DeleteHumansRequest
           r = request.Request.(client.DeleteHumansRequest)
-          humans = append(humans, idp.Human{ Identity:idp.Identity{Id:r.Id} })
+          humanIds = append(humanIds, r.Id)
         }
       }
-      dbHumans, err := idp.FetchHumans(env.Driver, humans)
+      dbHumans, err := idp.FetchHumansById(env.Driver, humanIds)
       if err != nil {
         log.Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)

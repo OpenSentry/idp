@@ -33,8 +33,6 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
     hydraClient := hydra.NewHydraClient(env.HydraConfig)
 
-    deny := client.HumanAuthentication{}
-
     var handleRequest = func(iRequests []*utils.Request) {
 
       for _, request := range iRequests {
@@ -48,6 +46,9 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           log.Debug(err.Error())
           continue
         }
+
+        deny := client.HumanAuthentication{}
+        deny.Id = hydraLoginResponse.Subject
 
         // Skip if hydra dictated it.
         if hydraLoginResponse.Skip == true {
@@ -146,7 +147,6 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             response.Status = http.StatusOK
             response.Ok = accept
             request.Response = response
-
             log.WithFields(logrus.Fields{"acr":"totp", "id":accept.Id}).Debug("Authenticated")
             continue
           }
@@ -185,6 +185,8 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             continue
           }
           human := humans[0]
+
+          deny.Id = human.Id
 
           if human.AllowLogin == true {
 
@@ -273,7 +275,11 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
         // Deny by default
         log.WithFields(logrus.Fields{"id": r.Id}).Debug("Authentication denied")
-        request.Response = deny
+        var response client.CreateHumansAuthenticateResponse
+        response.Index = request.Index
+        response.Status = http.StatusOK
+        response.Ok = deny
+        request.Response = response
       }
     }
 
