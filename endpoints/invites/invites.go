@@ -29,20 +29,20 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
 
     var handleRequest = func(iRequests []*utils.Request) {
 
-      var humans []idp.Human
+      var humanIds []string
 
       invitedByIdentityId := c.MustGet("sub").(string)
-      humans = append(humans, idp.Human{ Identity: idp.Identity{Id:invitedByIdentityId} })
+      humanIds = append(humanIds, invitedByIdentityId)
 
       for _, request := range iRequests {
         if request.Request != nil {
           var r client.CreateInvitesRequest
           r = request.Request.(client.CreateInvitesRequest)
-          humans = append(humans, idp.Human{ Identity: idp.Identity{Id:r.Invited} })
+          humanIds = append(humanIds, r.Invited)
         }
       }
 
-      dbHumans, err := idp.FetchHumans(env.Driver, humans)
+      dbHumans, err := idp.FetchHumansById(env.Driver, humanIds)
       if err != nil {
         log.Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)

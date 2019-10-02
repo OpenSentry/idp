@@ -42,7 +42,7 @@ type ReadChallengesResponse struct {
 
 type ChallengeVerification struct {
   OtpChallenge string `json:"otp_challenge" validate:"required"`
-  Verified     bool   `json:"verified"      validate:"required"`
+  Verified     bool   `json:"verified"      `
   RedirectTo   string `json:"redirect_to"   validate:"required,url"`
 }
 
