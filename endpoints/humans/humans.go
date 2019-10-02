@@ -206,6 +206,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
           response.Status = http.StatusOK
           response.Ok = ok
           request.Response = response
+          idp.EmitEventHumanCreated(env.Nats, human)
           continue
         }
 

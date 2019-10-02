@@ -15,6 +15,8 @@ import (
   "github.com/dgrijalva/jwt-go"
   "fmt"
 
+  nats "github.com/nats-io/nats.go"
+
   "github.com/charmixer/idp/utils"
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
@@ -176,6 +178,13 @@ func main() {
     return
   }
 
+  natsConnection, err := nats.Connect(config.GetString("nats.url"))
+  if err != nil {
+    log.WithFields(appFields).Panic(err.Error())
+    return
+  }
+  defer natsConnection.Close()
+
   // Setup app state variables. Can be used in handler functions by doing closures see exchangeAuthorizationCodeCallback
   env := &environment.State{
     Provider: provider,
@@ -184,6 +193,7 @@ func main() {
     BannedUsernames: bannedUsernames,
     IssuerSignKey: signKey,
     IssuerVerifyKey: verifyKey,
+    Nats: natsConnection,
   }
 
   //if *optServe {
