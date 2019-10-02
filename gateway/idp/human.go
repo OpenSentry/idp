@@ -118,12 +118,16 @@ func CreateHuman(driver neo4j.Driver, human Human) (Human, error) {
   return neoResult.(NeoReturnType).Human, nil
 }
 
-func FetchHumans(driver neo4j.Driver, humans []Human) ([]Human, error) {
-  ids := []string{}
-  for _, human := range humans {
-    ids = append(ids, human.Id)
-  }
-  return FetchHumansById(driver, ids)
+func FetchHumansAll(driver neo4j.Driver) ([]Human, error) {
+  var cypher string
+  var params map[string]interface{}
+
+  cypher = `
+    MATCH (i:Human:Identity)
+    RETURN i
+  `
+  params = map[string]interface{}{}
+  return fetchHumansByQuery(driver, cypher, params)
 }
 
 func FetchHumansById(driver neo4j.Driver, ids []string) ([]Human, error) {

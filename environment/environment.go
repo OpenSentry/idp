@@ -5,6 +5,7 @@ import (
   "golang.org/x/oauth2/clientcredentials"
   oidc "github.com/coreos/go-oidc"
   "github.com/neo4j/neo4j-go-driver/neo4j"
+  nats "github.com/nats-io/nats.go"
 )
 
 const (
@@ -21,6 +22,7 @@ type State struct {
   BannedUsernames map[string]bool
   IssuerSignKey *rsa.PrivateKey
   IssuerVerifyKey *rsa.PublicKey
+  Nats *nats.Conn
 }
 
 type Route struct {

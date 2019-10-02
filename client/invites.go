@@ -5,77 +5,118 @@ import (
   "encoding/json"
 )
 
-type InviteResponse struct {
-  Id string `json:"id" binding:"required"`
-  InvitedBy string `json:"invited_by" binding:"required"`
-  TTL int64 `json:"ttl" binding:"required"`
-  IssuedAt int64 `json:"iat" binding:"required"`
-  ExpiresAt int64 `json:"exp" binding:"required"`
-  Email string `json:"email,omitempty"`
+type Invite struct {
+  Id        string `json:"id"  validate:"required,uuid"`
+  IssuedAt  int64  `json:"iat" validate:"required"`
+  ExpiresAt int64  `json:"exp" validate:"required"`
+
+  Email        string `json:"email" validate:"email"`
+  Invited      string `json:"id"    validate:"uuid"`
+  HintUsername string `json:"hint_username"`
+
+  InvitedBy string `json:"id" validate:"required,uuid"`
+}
+
+type CreateInvitesRequest struct {
+  Email          string `json:"email,omitempty" validate:"omitempty,email"`
+  Invited        string `json:"invited_id,omitempty" validate:"omitempty,uuid"` // FIXME: Mututal exclusive with email
+  HintUsername   string `json:"hint_username,omitempty"`
+}
+
+type CreateInvitesResponse struct {
+  BulkResponse
+  Ok Invite `json:"ok,omitempty" validate:"dive"`
+}
+
+type ReadInvitesRequest struct {
+  Id       string `json:"id,omitempty"        validate:"omitempty,uuid"`
+  Email    string `json:"email,omitempty"     validate:"omitempty,email"`
   Username string `json:"username,omitempty"`
-  Invited string `json:"invited,omitempty"`
 }
 
-// CRUD
-
-type InviteCreateRequest struct {
-  InvitedByIdentity string `json:"ibi" binding:"required"`
-  TTL int64 `json:"ttl" binding:"required"`
-  InvitedIdentity string `json:"ii,omitempty"`
-  Email string `json:"email,omitempty"`
-  HintUsername string `json:"hint_username,omitempty"`
+type ReadInvitesResponse struct {
+  BulkResponse
+  Ok []Invite `json:"ok,omitempty" validate:"dive"`
 }
 
-type InviteCreateResponse struct {
-  *InviteResponse
+type UpdateInvitesAcceptRequest struct {
+  Id string `json:"id" validate:"required,uuid"`
 }
 
-type InviteReadRequest struct {
-  Id string `json:"id,omitempty"`
+type UpdateInvitesAcceptResponse struct {
+  BulkResponse
+  Ok []Invite `json:"ok,omitempty" validate:"dive"`
 }
 
-type InviteReadResponse struct {
-  *InviteResponse
+type CreateInvitesSendRequest struct {
+  Id string `json:"id" validate:"required,uuid"`
 }
 
-// Actions
-
-func ReadInvites(client *IdpClient, challengeUrl string, request []InviteReadRequest) ([]InviteReadResponse, error) {
-  var response []InviteReadResponse
-
-  body, err := json.Marshal(request)
-  if err != nil {
-    return nil, err
-  }
-
-  result, err := callService(client, "GET", challengeUrl, bytes.NewBuffer(body))
-  if err != nil {
-    return nil, err
-  }
-
-  err = json.Unmarshal(result, &response)
-  if err != nil {
-    return nil, err
-  }
-  return response, nil
+type CreateInvitesSendResponse struct {
+  BulkResponse
+  Ok []Invite `json:"ok,omitempty" validate:"dive"`
 }
 
-func CreateInvites(client *IdpClient, challengeUrl string, request *InviteCreateRequest) (*InviteCreateResponse, error) {
-  var response InviteCreateResponse
 
-  body, err := json.Marshal(request)
+func CreateInvites(client *IdpClient, url string, requests []CreateInvitesRequest) (int, []CreateInvitesResponse, error) {
+  var response []CreateInvitesResponse
+
+  body, err := json.Marshal(requests)
   if err != nil {
-    return nil, err
+    return 999, nil, err // Client system was unable marshal request
   }
 
-  result, err := callService(client, "POST", challengeUrl, bytes.NewBuffer(body))
+  status, responseData, err := callService(client, "POST", url, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
-  err = json.Unmarshal(result, &response)
+  err = json.Unmarshal(responseData, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
   }
-  return &response, nil
+
+  return status, response, nil
+}
+
+func ReadInvites(client *IdpClient, url string, requests []ReadInvitesRequest) (int, []ReadInvitesResponse, error) {
+  var response []ReadInvitesResponse
+
+  body, err := json.Marshal(requests)
+  if err != nil {
+    return 999, nil, err // Client system was unable marshal request
+  }
+
+  status, responseData, err := callService(client, "GET", url, bytes.NewBuffer(body))
+  if err != nil {
+    return status, nil, err
+  }
+
+  err = json.Unmarshal(responseData, &response)
+  if err != nil {
+    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
+  }
+
+  return status, response, nil
+}
+
+func UpdateInvitesAccept(client *IdpClient, url string, requests []UpdateInvitesAcceptRequest) (int, []UpdateInvitesAcceptResponse, error) {
+  var response []UpdateInvitesAcceptResponse
+
+  body, err := json.Marshal(requests)
+  if err != nil {
+    return 999, nil, err // Client system was unable marshal request
+  }
+
+  status, responseData, err := callService(client, "PUT", url, bytes.NewBuffer(body))
+  if err != nil {
+    return status, nil, err
+  }
+
+  err = json.Unmarshal(responseData, &response)
+  if err != nil {
+    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
+  }
+
+  return status, response, nil
 }

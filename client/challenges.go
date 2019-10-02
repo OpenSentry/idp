@@ -5,110 +5,117 @@ import (
   "encoding/json"
 )
 
-type ChallengeResponse struct {
-  OtpChallenge string `json:"otp_challenge" binding:"required"`
-  Subject      string `json:"sub" binding:"required"`
-  Audience     string `json:"aud" binding:"required"`
-  IssuedAt     int64  `json:"iat" binding:"required"`
-  ExpiresAt    int64  `json:"exp" binding:"required"`
-  TTL          int    `json:"ttl" binding:"required"`
-  RedirectTo   string `json:"redirect_to" binding:"required"`
-  CodeType     string `json:"code_type" binding:"required"`
-  Code         string `json:"code" binding:"required"`
+type Challenge struct {
+  OtpChallenge string `json:"otp_challenge" validate:"required"`
+  Subject      string `json:"sub"           validate:"required,uuid"`
+  Audience     string `json:"aud"           validate:"required"`
+  IssuedAt     int64  `json:"iat"           validate:"required"`
+  ExpiresAt    int64  `json:"exp"           validate:"required"`
+  TTL          int64  `json:"ttl"           validate:"required"`
+  RedirectTo   string `json:"redirect_to"   validate:"required,url"`
+  CodeType     string `json:"code_type"     validate:"required"`
+  Code         string `json:"code"          validate:"required"`
 }
 
-// CRUD
-
-type ChallengeCreateRequest struct {
-  Subject     string `json:"sub" binding:"required"`
-  Audience     string `json:"aud" binding:"required"`
-  TTL          int    `json:"ttl" binding:"required"`
-  RedirectTo   string `json:"redirect_to" binding:"required"`
-  CodeType     string `json:"code_type" binding:"required"`
-  Code         string `json:"code" binding:"required"`
+type CreateChallengesRequest struct {
+  Subject     string `json:"sub"         validate:"required,uuid"`
+  Audience    string `json:"aud"         validate:"required"`
+  TTL         int64  `json:"ttl"         validate:"required"`
+  RedirectTo  string `json:"redirect_to" validate:"required,url"`
+  CodeType    string `json:"code_type"   validate:"required"`
+  Code        string `json:"code"        validate:"required"`
 }
 
-type ChallengeCreateResponse struct {
-  *ChallengeResponse
+type CreateChallengesResponse struct {
+  BulkResponse
+  Ok Challenge `json:"ok,omitempty" validate:"dive"`
 }
 
-type ChallengesReadRequest struct {
-  OtpChallenge string `form:"otp_challenge" json:"otp_challenge" binding:"required"`
+type ReadChallengesRequest struct {
+  OtpChallenge  string `json:"otp_challenge" validate:"required"`
 }
 
-type ChallengesReadResponse struct {
-  *ChallengeResponse
+type ReadChallengesResponse struct {
+  BulkResponse
+  Ok []Challenge `json:"ok,omitempty" validate:"dive"`
 }
 
-// Actions
-
-type ChallengeVerifyRequest struct {
-  OtpChallenge string `json:"otp_challenge" binding:"required"`
-  Code       string `json:"code" binding:"required"`
+type ChallengeVerification struct {
+  OtpChallenge string `json:"otp_challenge" validate:"required"`
+  Verified     bool   `json:"verified"      `
+  RedirectTo   string `json:"redirect_to"   validate:"required,url"`
 }
 
-type ChallengeVerifyResponse struct {
-  OtpChallenge string `json:"otp_challenge" binding:"required"`
-  Verified     bool   `json:"verified" binding:"required"`
-  RedirectTo   string `json:"redirect_to" binding:"required"`
+type UpdateChallengesVerifyRequest struct {
+  OtpChallenge string `json:"otp_challenge" validate:"required"`
+  Code         string `json:"code"          validate:"required"`
 }
 
-func ReadChallenge(client *IdpClient, challengeUrl string, request *ChallengesReadRequest) (*ChallengesReadResponse, error) {
-  var response ChallengesReadResponse
+type UpdateChallengesVerifyResponse struct {
+  BulkResponse
+  Ok ChallengeVerification `json:"ok,omitempty" validate:"dive"`
+}
 
-  body, err := json.Marshal(request)
+func ReadChallenges(client *IdpClient, url string, requests []ReadChallengesRequest) (int, []ReadChallengesResponse, error) {
+  var response []ReadChallengesResponse
+
+  body, err := json.Marshal(requests)
   if err != nil {
-    return nil, err
+    return 999, nil, err // Client system was unable marshal request
   }
 
-  result, err := callService(client, "GET", challengeUrl, bytes.NewBuffer(body))
+  status, responseData, err := callService(client, "GET", url, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
-  err = json.Unmarshal(result, &response)
+  err = json.Unmarshal(responseData, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
   }
-  return &response, nil
+
+  return status, response, nil
 }
 
-func CreateChallenge(client *IdpClient, challengeUrl string, request *ChallengeCreateRequest) (*ChallengeCreateResponse, error) {
-  var response ChallengeCreateResponse
+func CreateChallenges(client *IdpClient, url string, requests []CreateChallengesRequest) (int, []CreateChallengesResponse, error) {
+  var response []CreateChallengesResponse
 
-  body, err := json.Marshal(request)
+  body, err := json.Marshal(requests)
   if err != nil {
-    return nil, err
+    return 999, nil, err // Client system was unable marshal request
   }
 
-  result, err := callService(client, "POST", challengeUrl, bytes.NewBuffer(body))
+  status, responseData, err := callService(client, "POST", url, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
-  err = json.Unmarshal(result, &response)
+  err = json.Unmarshal(responseData, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
   }
-  return &response, nil
+
+  return status, response, nil
 }
 
-func VerifyChallenge(client *IdpClient, verifyUrl string, request *ChallengeVerifyRequest) (*ChallengeVerifyResponse, error) {
-  var response ChallengeVerifyResponse
+func VerifyChallenges(client *IdpClient, url string, requests []UpdateChallengesVerifyRequest) (int, []UpdateChallengesVerifyResponse, error) {
+  var response []UpdateChallengesVerifyResponse
 
-  body, err := json.Marshal(request)
+  body, err := json.Marshal(requests)
   if err != nil {
-    return nil, err
+    return 999, nil, err // Client system was unable marshal request
   }
 
-  result, err := callService(client, "POST", verifyUrl, bytes.NewBuffer(body))
+  status, responseData, err := callService(client, "PUT", url, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
-  err = json.Unmarshal(result, &response)
+  err = json.Unmarshal(responseData, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
   }
-  return &response, nil
+
+  return status, response, nil
 }
+

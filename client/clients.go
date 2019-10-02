@@ -5,21 +5,24 @@ import (
   "encoding/json"
 )
 
-type Identity struct {
-  Id string `json:"id" validate:"required,uuid"`
+type Client struct {
+  Id           string `json:"id"            validate:"required,uuid"`
+  ClientSecret string `json:"client_secret" validate:"required"`
+  Name         string `json:"name"          validate:"required"`
+  Description  string `json:"description"   validate:"required"`
 }
 
-type ReadIdentitiesRequest struct {
+type ReadClientsRequest struct {
   Id string `json:"id,omitempty" validate:"uuid"`
 }
 
-type ReadIdentitiesResponse struct {
+type ReadClientsResponse struct {
   BulkResponse
-  Ok []Identity `json:"ok,omitempty" validate:"dive"`
+  Ok []Client `json:"ok,omitempty" validate:"dive"`
 }
 
-func ReadIdentities(client *IdpClient, url string, requests []ReadIdentitiesRequest) (int, []ReadIdentitiesResponse, error) {
-  var response []ReadIdentitiesResponse
+func ReadClients(client *IdpClient, url string, requests []ReadClientsRequest) (int, []ReadClientsResponse, error) {
+  var response []ReadClientsResponse
 
   body, err := json.Marshal(requests)
   if err != nil {
