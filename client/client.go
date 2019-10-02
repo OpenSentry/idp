@@ -8,6 +8,9 @@ import (
   "golang.org/x/net/context"
   "golang.org/x/oauth2"
   "golang.org/x/oauth2/clientcredentials"
+  "fmt"
+  "encoding/json"
+  "reflect"
 )
 
 type IdpClient struct {
@@ -26,43 +29,112 @@ func NewIdpClientWithUserAccessToken(config *oauth2.Config, token *oauth2.Token)
   return &IdpClient{client}
 }
 
-func callService(client *IdpClient, method string, url string, data *bytes.Buffer) ([]byte, error) {
+
+type ErrorResponse struct {
+  Code  int    `json:"code"  validate:"required"`
+  Error string `json:"error" validate:"required"`
+}
+
+type BulkResponse struct {
+  Index  int             `json:"index"  validate:"omitempty"`
+  Status int             `json:"status" validate:"required"`
+  Errors []ErrorResponse `json:"errors,omitempty"`
+}
+
+func callService(client *IdpClient, method string, url string, data *bytes.Buffer) (int, []byte, error) {
+  // for logging only
+  reqData := (*data).Bytes()
+
   req, err := http.NewRequest("POST", url, data)
   if err != nil {
-    return nil, err
+    return http.StatusBadRequest, nil, err
   }
+
   req.Header.Set("X-HTTP-Method-Override", method)
 
   res, err := client.Do(req)
   if err != nil {
-    return nil, err
+    return http.StatusInternalServerError, nil, err
   }
   defer res.Body.Close()
 
-  return parseResponse(res)
-}
-
-func parseResponse(res *http.Response) ([]byte, error) {
-
   resData, err := ioutil.ReadAll(res.Body)
   if err != nil {
-    return nil, err
+    return res.StatusCode, nil, err
   }
 
-  switch (res.StatusCode) {
-  case 200:
-    return resData, nil
-  case 400:
-    return nil, errors.New("Bad Request: " + string(resData))
-  case 401:
-    return nil, errors.New("Unauthorized: " + string(resData))
-  case 403:
-    return nil, errors.New("Forbidden: " + string(resData))
-  case 404:
-    return nil, errors.New("Not Found: " + string(resData))
-  case 500:
-    return nil, errors.New("Internal Server Error")
-  default:
-    return nil, errors.New("Unhandled error")
+  err = parseStatusCode(res.StatusCode)
+  if err != nil {
+    return res.StatusCode, nil, err
   }
+
+  logRequestResponse(method, url, reqData, res.Status, resData, err)
+
+  return res.StatusCode, resData, nil
+}
+
+func logRequestResponse(method string, url string, reqData []byte, resStatus string, resData []byte, err error) {
+  var prettyJsonRequest bytes.Buffer
+  e := json.Indent(&prettyJsonRequest, reqData, "", "  ")
+
+  if e != nil {
+    fmt.Println(e.Error())
+  }
+
+  var response string
+  if err == nil {
+    var prettyJsonResponse bytes.Buffer
+    json.Indent(&prettyJsonResponse, resData, "", "  ")
+    response = string(prettyJsonResponse.Bytes())
+  } else {
+    response = "Error: " + err.Error()
+  }
+
+  request := string(prettyJsonRequest.Bytes())
+
+  fmt.Println("\n============== REST DEBUGGING ===============\n" + method + " " + url + " " + request + " -> [" + resStatus + "] " + response + "\n\n")
+}
+
+func parseStatusCode(statusCode int) (error) {
+  switch statusCode {
+    case http.StatusOK,
+         http.StatusBadRequest,
+         http.StatusUnauthorized,
+         http.StatusForbidden,
+         http.StatusNotFound,
+         http.StatusInternalServerError,
+         http.StatusServiceUnavailable:
+         return nil
+  }
+  return errors.New(fmt.Sprintf("Unsupported status code: '%d'", statusCode))
+}
+
+
+func UnmarshalResponse(iIndex int, iResponses interface{}) (rStatus int, rOk interface{}, rErr []ErrorResponse) {
+  responses := reflect.ValueOf(iResponses)
+  for index := 0; index < responses.Len(); index++ {
+    response := responses.Index(index)
+
+    i := response.FieldByName("Index").Interface().(int)
+
+    if i == iIndex {
+      // found response with given index
+
+      rStatus := response.FieldByName("Status").Interface().(int)
+      err    := response.FieldByName("Errors")
+      ok     := response.FieldByName("Ok")
+
+      if ok.CanInterface() {
+        rOk = ok.Interface()
+      }
+
+      if err.CanInterface() {
+        rErr = err.Interface().([]ErrorResponse)
+      }
+      return rStatus, rOk, rErr
+    }
+
+  }
+
+  panic("Given index not found")
 }

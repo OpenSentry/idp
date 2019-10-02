@@ -5,40 +5,65 @@ import (
   "encoding/json"
 )
 
-type FollowResponse struct {
-  Id string `json:"id" binding:"required"`
-  Follow string `json:"follow" binding:"required"`
+type Follow struct {
+  From string `json:"from" validate:"required,uuid"`
+  To   string `json:"to"   validate:"required,uuid"`
 }
 
-// CRUD
-
-type FollowCreateRequest struct {
-  Id string `json:"id" binding:"required"`
-  Follow string `json:"follow" binding:"required"`
+type CreateFollowsRequest struct {
+  From string `json:"from" validate:"required,uuid"`
+  To   string `json:"to"   validate:"required,uuid"`
 }
 
-type FollowCreateResponse struct {
-  *FollowResponse
+type CreateFollowsResponse struct {
+  BulkResponse
+  Ok Follow `json:"ok,omitempty" validate:"dive"`
 }
 
-// Actions
+type ReadFollowsRequest struct {
+  From string `json:"id,omitempty" validate:"required,uuid"`
+}
 
-func CreateFollow(client *IdpClient, challengeUrl string, request *FollowCreateRequest) (*FollowCreateResponse, error) {
-  var response FollowCreateResponse
+type ReadFollowsResponse struct {
+  BulkResponse
+  Ok []Follow `json:"ok,omitempty" validate:"dive"`
+}
 
-  body, err := json.Marshal(request)
+
+func CreateFollows(client *IdpClient, url string, requests []CreateFollowsRequest) (status int, response []CreateFollowsResponse, err error) {
+  body, err := json.Marshal(requests)
   if err != nil {
-    return nil, err
+    return 999, nil, err // Client system was unable marshal request
   }
 
-  result, err := callService(client, "POST", challengeUrl, bytes.NewBuffer(body))
+  status, responseData, err := callService(client, "POST", url, bytes.NewBuffer(body))
   if err != nil {
-    return nil, err
+    return status, nil, err
   }
 
-  err = json.Unmarshal(result, &response)
+  err = json.Unmarshal(responseData, &response)
   if err != nil {
-    return nil, err
+    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
   }
-  return &response, nil
+
+  return status, response, nil
+}
+
+func ReadFollows(client *IdpClient, url string, requests []ReadFollowsRequest) (status int, response []ReadFollowsResponse, err error) {
+  body, err := json.Marshal(requests)
+  if err != nil {
+    return 999, nil, err // Client system was unable marshal request
+  }
+
+  status, responseData, err := callService(client, "GET", url, bytes.NewBuffer(body))
+  if err != nil {
+    return status, nil, err
+  }
+
+  err = json.Unmarshal(responseData, &response)
+  if err != nil {
+    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
+  }
+
+  return status, response, nil
 }
