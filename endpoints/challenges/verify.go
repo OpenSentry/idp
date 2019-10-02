@@ -8,131 +8,125 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
+  "github.com/charmixer/idp/client"
+  "github.com/charmixer/idp/utils"
+  E "github.com/charmixer/idp/client/errors"
 )
 
-type VerifyRequest struct {
-  OtpChallenge string `json:"otp_challenge" binding:"required"`
-  Code       string `json:"code" binding:"required"`
-}
-
-type VerifyResponse struct {
-  OtpChallenge string `json:"otp_challenge" binding:"required"`
-  Verified     bool   `json:"verified" binding:"required"`
-  RedirectTo   string `json:"redirect_to" binding:"required"`
-}
-
-func PostVerify(env *environment.State) gin.HandlerFunc {
+func PutVerify(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PostVerify",
+      "func": "PutVerify",
     })
 
-    var input VerifyRequest
-    err := c.BindJSON(&input)
+    var requests []client.UpdateChallengesVerifyRequest
+    err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
-    denyResponse := VerifyResponse{
-      OtpChallenge: input.OtpChallenge,
-      Verified: false,
-      RedirectTo: "",
-    }
+    var handleRequest = func(iRequests []*utils.Request) {
 
-    challenges, err := idp.FetchChallengesById(env.Driver, []string{input.OtpChallenge})
-    if err != nil {
-      log.WithFields(logrus.Fields{
-        "otp_challenge": input.OtpChallenge,
-      }).Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
+      requestedByIdentityId := c.MustGet("sub").(string)
 
-    if challenges == nil {
-      log.WithFields(logrus.Fields{
-        "otp_challenge": input.OtpChallenge,
-      }).Debug("Challenge not found")
-      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found"})
-      return
-    }
-    challenge := challenges[0]
+      for _, request := range iRequests {
+        r := request.Request.(client.UpdateChallengesVerifyRequest)
 
-    identities, err := idp.FetchHumansById(env.Driver, []string{challenge.Subject})
-    if err != nil {
-      log.WithFields(logrus.Fields{
-        "otp_challenge": challenge.Id,
-        "id": challenge.Subject,
-      }).Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-
-    if identities == nil {
-      log.WithFields(logrus.Fields{
-        "otp_challenge": challenge.Id,
-        "id": challenge.Subject,
-      }).Debug("Identity not found")
-      c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Identity not found"})
-      return
-    }
-    identity := identities[0]
-
-    var valid bool = false
-
-    if challenge.CodeType == "TOTP" {
-
-      if identity.TotpRequired == true {
-
-        decryptedSecret, err := idp.Decrypt(identity.TotpSecret, config.GetString("totp.cryptkey"))
+        var aChallenge []idp.Challenge
+        aChallenge = append(aChallenge, idp.Challenge{Id: r.OtpChallenge})
+        dbChallenges, err := idp.FetchChallenges(env.Driver, aChallenge)
         if err != nil {
           log.Debug(err.Error())
-          c.AbortWithStatus(http.StatusInternalServerError)
-          return
+          request.Response = utils.NewInternalErrorResponse(request.Index)
+          continue
+        }
+        if dbChallenges == nil {
+          log.WithFields(logrus.Fields{ "otp_challenge": r.OtpChallenge, "id": requestedByIdentityId, }).Debug("Challenge not found")
+          request.Response = utils.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
+          continue
+        }
+        challenge := dbChallenges[0]
+
+        identities, err := idp.FetchHumansById(env.Driver, []string{challenge.Subject})
+        if err != nil {
+          log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug(err.Error())
+          request.Response = utils.NewInternalErrorResponse(request.Index)
+          continue
+        }
+        if identities == nil {
+          log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("Human not found")
+          request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+          continue
+        }
+        identity := identities[0]
+
+        var valid bool = false
+
+        if challenge.CodeType == "TOTP" {
+
+          if identity.TotpRequired == true {
+
+            decryptedSecret, err := idp.Decrypt(identity.TotpSecret, config.GetString("totp.cryptkey"))
+            if err != nil {
+              log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug(err.Error())
+              request.Response = utils.NewInternalErrorResponse(request.Index)
+              continue
+            }
+
+            valid, _ = idp.ValidateOtp(r.Code, decryptedSecret)
+
+          } else {
+            log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("TOTP not required for Human")
+            request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_TOTP_NOT_REQUIRED)
+            continue
+          }
+
+        } else {
+
+          valid, _ = idp.ValidatePassword(challenge.Code, r.Code)
+
         }
 
-        valid, _ = idp.ValidateOtp(input.Code, decryptedSecret)
+        if valid == true {
+          verifiedChallenge, err := idp.VerifyChallenge(env.Driver, challenge, requestedByIdentityId)
+          if err != nil {
+            log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
 
-      } else {
-        log.WithFields(logrus.Fields{
-          "otp_challenge": challenge.Id,
-          "id": challenge.Subject,
-        }).Debug("TOTP not enabled for Identity")
-        c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "TOTP not enabled for Identity. Hint: Use a code of digits instead."})
-        return
+          ok := client.ChallengeVerification{
+            OtpChallenge: verifiedChallenge.Id,
+            Verified: true,
+            RedirectTo: verifiedChallenge.RedirectTo,
+          }
+
+          response := client.UpdateChallengesVerifyResponse{Ok: ok}
+          response.Index = request.Index
+          response.Status = http.StatusOK
+          request.Response = response
+        } else {
+          // Deny by default
+          ok := client.ChallengeVerification{
+            OtpChallenge: challenge.Id,
+            Verified: false,
+            RedirectTo: challenge.RedirectTo,
+          }
+
+          response := client.UpdateChallengesVerifyResponse{Ok: ok}
+          response.Index = request.Index
+          response.Status = http.StatusOK
+          request.Response = response
+        }
+
       }
-
-    } else {
-
-      valid, _ = idp.ValidatePassword(challenge.Code, input.Code)
-
     }
 
-    if valid == true {
-      verifiedChallenge, err := idp.VerifyChallenge(env.Driver, challenge)
-      if err != nil {
-        log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
-      }
+    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{})
 
-      c.JSON(http.StatusOK, VerifyResponse{
-        OtpChallenge: verifiedChallenge.Id,
-        Verified: true,
-        RedirectTo: verifiedChallenge.RedirectTo,
-      })
-      return
-    }
-
-    // Deny by default
-    log.WithFields(logrus.Fields{
-      "otp_challenge": denyResponse.OtpChallenge,
-      "verified": denyResponse.Verified,
-      "redirect_to": denyResponse.RedirectTo,
-    }).Debug("Verify denied")
-    c.JSON(http.StatusOK, denyResponse)
+    c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
 }

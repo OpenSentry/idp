@@ -1,4 +1,4 @@
-package identities
+package clients
 
 import (
   "net/http"
@@ -9,19 +9,19 @@ import (
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
-  "github.com/charmixer/idp/utils"
   E "github.com/charmixer/idp/client/errors"
+  "github.com/charmixer/idp/utils"
 )
 
-func GetIdentities(env *environment.State) gin.HandlerFunc {
+func GetClients(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "GetIdentities",
+      "func": "GetClients",
     })
 
-    var requests []client.ReadIdentitiesRequest
+    var requests []client.ReadClientsRequest
     err := c.BindJSON(&requests)
     if err != nil {
       log.Debug(err.Error())
@@ -30,42 +30,45 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*utils.Request) {
-      var identities []idp.Identity
+      var clients []idp.Client
 
       for _, request := range iRequests {
         if request.Request != nil {
-          var r client.ReadIdentitiesRequest
-          r = request.Request.(client.ReadIdentitiesRequest)
-          identities = append(identities, idp.Identity{ Id:r.Id })
+          var r client.ReadClientsRequest
+          r = request.Request.(client.ReadClientsRequest)
+          clients = append(clients, idp.Client{ Identity: idp.Identity{Id:r.Id} })
         }
       }
 
-      dbIdentities, err := idp.FetchIdentities(env.Driver, identities)
+      dbClients, err := idp.FetchClients(env.Driver, clients)
       if err != nil {
         log.Debug(err.Error())
         c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
 
-      var mapIdentities map[string]*idp.Identity
+      var mapClients map[string]*idp.Client
       if ( iRequests[0] != nil ) {
-        for _, identity := range dbIdentities {
-          mapIdentities[identity.Id] = &identity
+        for _, client := range dbClients {
+          mapClients[client.Id] = &client
         }
       }
-      
+
       for _, request := range iRequests {
 
         if request.Request == nil {
 
           // The empty fetch
-          var ok []client.Identity
-          for _, i := range dbIdentities {
-            ok = append(ok, client.Identity{
+          var ok []client.Client
+          for _, i := range dbClients {
+            ok = append(ok, client.Client{
               Id: i.Id,
+              ClientSecret: i.ClientSecret,
+              Name: i.Name,
+              Description: i.Description,
             })
           }
-          var response client.ReadIdentitiesResponse
+          var response client.ReadClientsResponse
           response.Index = request.Index
           response.Status = http.StatusOK
           response.Ok = ok
@@ -74,12 +77,18 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
 
         } else {
 
-          r := request.Request.(client.ReadIdentitiesRequest)
+          r := request.Request.(client.ReadClientsRequest)
 
-          var i = mapIdentities[r.Id]
+          var i = mapClients[r.Id]
           if i != nil {
-            ok := []client.Identity{ { Id: i.Id, } }
-            var response client.ReadIdentitiesResponse
+            ok := []client.Client{ {
+                Id: i.Id,
+                ClientSecret: i.ClientSecret,
+                Name: i.Name,
+                Description: i.Description,
+              },
+            }
+            var response client.ReadClientsResponse
             response.Index = request.Index
             response.Status = http.StatusOK
             response.Ok = ok
@@ -90,7 +99,7 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
         }
 
         // Deny by default
-        request.Response = utils.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
+        request.Response = utils.NewClientErrorResponse(request.Index, E.CLIENT_NOT_FOUND)
         continue
       }
     }
