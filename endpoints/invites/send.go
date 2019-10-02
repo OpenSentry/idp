@@ -18,14 +18,6 @@ import (
   "github.com/charmixer/idp/utils"
 )
 
-type InviteSendRequest struct {
-  Id string `json:"id" binding:"required"`
-}
-
-type InviteSendResponse struct {
-  Id string `json:"id" binding:"required"`
-}
-
 type InviteTemplateData struct {
   Id string
   InvitedBy string
@@ -76,38 +68,20 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
 
     var handleRequest = func(iRequests []*utils.Request) {
 
-      var invites []idp.Invite
-
       //sendByIdentityId := c.MustGet("sub").(string)
-      //humans = append(humans, idp.Invite { Human:idp.Human{ Identity: idp.Identity{Id:sendByIdentityId} } })
-
-      for _, request := range iRequests {
-        if request.Request != nil {
-          var r client.CreateInvitesSendRequest
-          r = request.Request.(client.CreateInvitesSendRequest)
-          invites = append(invites, idp.Invite { Human:idp.Human{ Identity: idp.Identity{Id:r.Id} } })
-        }
-      }
-
-      dbInvites, err := idp.FetchInvites(env.Driver, invites)
-      if err != nil {
-        log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
-      }
-
-      var mapInvites map[string]*idp.Invite
-      if ( iRequests[0] != nil ) {
-        for _, invite := range dbInvites {
-          mapInvites[invite.Id] = &invite
-        }
-      }
 
       for _, request := range iRequests {
         r := request.Request.(client.CreateInvitesSendRequest)
 
-        invite := mapInvites[r.Id]
-        if invite != nil {
+        dbInvite, err := idp.FetchInvitesById(env.Driver, []string{r.Id})
+        if err != nil {
+          log.Debug(err.Error())
+          request.Response = utils.NewInternalErrorResponse(request.Index)
+          continue
+        }
+
+        if len(dbInvite) > 0 {
+          invite := dbInvite[0]
 
           u, err := url.Parse( config.GetString("invite.url") )
           if err != nil {
@@ -148,13 +122,13 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
           }
 
           ok := client.Invite{
-              Id: invite.Id,
-              IssuedAt: invite.IssuedAt,
-              ExpiresAt: invite.ExpiresAt,
-              Email: invite.Email,
-              Invited: invite.Invited.Id,
-              HintUsername: invite.HintUsername,
-              InvitedBy: invite.InvitedBy.Id,
+            Id: invite.Id,
+            IssuedAt: invite.IssuedAt,
+            ExpiresAt: invite.ExpiresAt,
+            Email: invite.SentTo.Email,
+            Invited: invite.Invited.Id,
+            HintUsername: invite.HintUsername,
+            InvitedBy: invite.InvitedBy.Id,
           }
           var response client.CreateInvitesResponse
           response.Index = request.Index
