@@ -10,11 +10,11 @@ type Invite struct {
   IssuedAt  int64  `json:"iat" validate:"required"`
   ExpiresAt int64  `json:"exp" validate:"required"`
 
-  Email        string `json:"email" validate:"email"`
-  Invited      string `json:"id"    validate:"uuid"`
+  Email        string `json:"email"          validate:"required,email"`
+  Invited      string `json:"invited,omitempty"   validate:"omitempty,uuid"`
   HintUsername string `json:"hint_username"`
 
-  InvitedBy string `json:"id" validate:"required,uuid"`
+  InvitedBy string `json:"invited_by" validate:"required,uuid"`
 }
 
 type CreateInvitesRequest struct {

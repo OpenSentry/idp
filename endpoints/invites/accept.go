@@ -29,37 +29,22 @@ func PutInvitesAccept(env *environment.State) gin.HandlerFunc {
 
     var handleRequest = func(iRequests []*utils.Request) {
 
-      //requestedByIdentity := c.MustGet("sub").(string)
-
-      var invites []idp.Invite
-      for _, request := range iRequests {
-        if request.Request != nil {
-          var r client.UpdateInvitesAcceptRequest
-          r = request.Request.(client.UpdateInvitesAcceptRequest)
-          invites = append(invites, idp.Invite{ Human:idp.Human{ Identity:idp.Identity{Id: r.Id}} })
-        }
-      }
-
-      dbInvites, err := idp.FetchInvites(env.Driver, invites)
-      if err != nil {
-        log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
-      }
-
-      var mapInvites map[string]*idp.Invite
-      if ( iRequests[0] != nil ) {
-        for _, invite := range dbInvites {
-          mapInvites[invite.Id] = &invite
-        }
-      }
+      acceptedBy := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
         r := request.Request.(client.UpdateInvitesAcceptRequest)
 
-        var i = mapInvites[r.Id]
-        if i != nil {
-          accept, err := idp.AcceptInvite(env.Driver, *i)
+        dbInvite, err := idp.FetchInvitesById(env.Driver, []string{r.Id})
+        if err != nil {
+          log.Debug(err.Error())
+          request.Response = utils.NewInternalErrorResponse(request.Index)
+          continue
+        }
+
+        if len(dbInvite) > 0 {
+          invite := dbInvite[0]
+
+          accept, err := idp.AcceptInvite(env.Driver, invite, idp.Identity{ Id:acceptedBy})
           if err != nil {
             log.Debug(err.Error())
             request.Response = utils.NewInternalErrorResponse(request.Index)
@@ -69,8 +54,8 @@ func PutInvitesAccept(env *environment.State) gin.HandlerFunc {
           ok := []client.Invite{ {
               Id: accept.Id,
               IssuedAt: accept.IssuedAt,
-              //ExpiresAt: accept.ExpiredAt,
-              Email: accept.Email,
+              ExpiresAt: accept.ExpiresAt,
+              Email: accept.SentTo.Email,
               Invited: accept.Invited.Id,
               HintUsername: accept.HintUsername,
               InvitedBy: accept.InvitedBy.Id,
@@ -82,7 +67,7 @@ func PutInvitesAccept(env *environment.State) gin.HandlerFunc {
           response.Status = http.StatusOK
           response.Ok = ok
           request.Response = response
-          log.WithFields(logrus.Fields{ "id": accept.Id, }).Debug("Invite accepted")
+          log.WithFields(logrus.Fields{ "id": accept.Id }).Debug("Invite accepted")
           continue
         }
 
