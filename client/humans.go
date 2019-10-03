@@ -23,7 +23,7 @@ type Human struct {
 type HumanAuthentication struct {
   Id                 string `json:"id"            validate:"omitempty,uuid"`
   Authenticated      bool   `json:"authenticated"`
-  RedirectTo         string `json:"redirect_to"   validate:"omitempty,url"`
+  RedirectTo         string `json:"redirect_to"   validate:"omitempty,uri"`
   TotpRequired       bool   `json:"totp_required"`
   IsPasswordInvalid  bool `json:"is_password_invalid"`
   IdentityExists     bool `json:"identity_exists"`
@@ -31,12 +31,12 @@ type HumanAuthentication struct {
 
 type HumanRedirect struct {
   Id         string `json:"id"          validate:"required,uuid"`
-  RedirectTo string `json:"redirect_to" validate:"required,url"`
+  RedirectTo string `json:"redirect_to" validate:"required,uri"`
 }
 
 type HumanVerification struct {
   Id         string `json:"id"          validate:"required,uuid"`
-  RedirectTo string `json:"redirect_to" validate:"required,url"`
+  RedirectTo string `json:"redirect_to" validate:"required,uri"`
   Verified   bool   `json:"verified"`
 }
 
@@ -89,7 +89,7 @@ type DeleteHumansResponse struct {
 type UpdateHumansDeleteVerifyRequest struct {
   Id         string `json:"id"          validate:"required,uuid"`
   Code       string `json:"code"        validate:"required"`
-  RedirectTo string `json:"redirect_to" validate:"required,url"`
+  RedirectTo string `json:"redirect_to" validate:"required,uri"`
 }
 
 type UpdateHumansDeleteVerifyResponse struct {
@@ -143,7 +143,7 @@ type UpdateHumansRecoverVerifyRequest struct {
   Id         string `json:"id"          validate:"required,uuid"`
   Code       string `json:"code"        validate:"required"`
   Password   string `json:"password"    validate:"required"`
-  RedirectTo string `json:"redirect_to" validate:"required,url"`
+  RedirectTo string `json:"redirect_to" validate:"required,uri"`
 }
 
 type UpdateHumansRecoverVerifyResponse struct {
@@ -336,7 +336,7 @@ func RecoverHumans(client *IdpClient, url string, requests []CreateHumansRecover
     return 999, nil, err // Client system was unable marshal request
   }
 
-  status, responseData, err := callService(client, "PUT", url, bytes.NewBuffer(body))
+  status, responseData, err := callService(client, "POST", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
