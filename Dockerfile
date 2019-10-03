@@ -19,18 +19,20 @@ WORKDIR /seabolt/build
 RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
 
 # Set the Current Working Directory inside the container
-WORKDIR /app
-
-# Copy go mod and sum files
-COPY go.mod go.sum ./
-
-# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
-RUN go mod download
+WORKDIR $GOPATH/src/github.com/charmixer/idp
 
 # Copy everything from the current directory to the PWD(Present Working Directory) inside the container
 COPY . .
 
-RUN go build -o idp .
+# Download all the dependencies
+# https://stackoverflow.com/questions/28031603/what-do-three-dots-mean-in-go-command-line-invocations
+RUN go get -d -v ./...
+
+# Development requires fresh
+#RUN go get -v github.com/pilu/fresh
+
+# Install the package
+RUN go install -v ./...
 
 # This container exposes port 443 to the docker network
 EXPOSE 443
