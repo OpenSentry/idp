@@ -7,3 +7,8 @@ så det er scope på app niveaue.
 
 
 Tilføj bruger: Er invitation
+
+
+
+= Password, secrets codes etc =
+Må kun komme tilbage i rest kald hvis det var dig der lavede create ellers skal den være tom.
