@@ -3,6 +3,7 @@ MERGE (:Identity:Human {
   id:randomUUID(),
   username:"root",
   email:"root@localhost",
+  email_confirmed_at: 0,
   password:"$2a$10$SOyUCy0KLFQJa3xN90UgMe9q5wE.LfakmkCsfKLCIjRY6.CcRDYwu",
   allow_login:true,
   name:"Root",
