@@ -122,7 +122,8 @@ type CreateHumansAuthenticateRequest struct {
   Challenge    string `json:"challenge"                validate:"required"`
   Id           string `json:"id,omitempty"             validate:"omitempty,uuid"`
   Password     string `json:"password,omitempty"`
-  OtpChallenge string `json:"otp_challenge,omitempty"`
+  OtpChallenge string `json:"otp_challenge,omitempty"     validate:"omitempty,uuid"`
+  EmailChallenge string `json:"email_challenge,omitempty" validate:"omitempty,uuid"`
 }
 
 type CreateHumansAuthenticateResponse struct {
