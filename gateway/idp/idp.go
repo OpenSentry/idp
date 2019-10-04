@@ -32,6 +32,10 @@ type DeleteChallenge struct {
   RedirectTo string
 }
 
+type ChallengeCode struct {
+  Code string
+}
+
 func ValidatePassword(storedPassword string, password string) (bool, error) {
   err := bcrypt.CompareHashAndPassword([]byte(storedPassword), []byte(password))
   if err != nil {
@@ -89,6 +93,14 @@ func CreateRecoverChallenge(url string, identity Human, challengeTimeoutInSecond
     Expire: expiresAt,
     RedirectTo: redirectTo,
   }, nil
+}
+
+func CreateChallengeCode() (ChallengeCode, error) {
+  code, err := GenerateRandomDigits(6);
+  if err != nil {
+    return ChallengeCode{}, err
+  }
+  return ChallengeCode{Code: code}, nil
 }
 
 var table = [...]byte{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0'}

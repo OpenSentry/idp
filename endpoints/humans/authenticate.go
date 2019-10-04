@@ -4,6 +4,9 @@ import (
   "time"
   "net/url"
   "net/http"
+  "text/template"
+  "io/ioutil"
+  "bytes"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
   hydra "github.com/charmixer/hydra/client"
@@ -15,6 +18,12 @@ import (
   "github.com/charmixer/idp/utils"
   E "github.com/charmixer/idp/client/errors"
 )
+
+type EmailConfirmTemplateData struct {
+  Name string
+  Code string
+  Sender string
+}
 
 func PostAuthenticate(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
@@ -84,26 +93,41 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           continue
         }
 
+        // Check that email is confirmed before allowing login
+        if r.EmailChallenge != "" {
+          log = log.WithFields(logrus.Fields{ "email_challenge": r.EmailChallenge })
+
+          dbChallenges, err := idp.FetchChallenges(env.Driver, []idp.Challenge{ {Id: r.EmailChallenge} })
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+          if dbChallenges == nil {
+            log.Debug("Challenge not found")
+            request.Response = utils.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
+            continue
+          }
+          challenge := dbChallenges[0]
+
+          if challenge.VerifiedAt > 0 {
+            _, err := idp.ConfirmEmail(env.Driver, idp.Human{ Identity: idp.Identity{Id: challenge.Subject} })
+            if err != nil {
+              log.Debug(err.Error())
+              request.Response = utils.NewInternalErrorResponse(request.Index)
+              continue
+            }
+
+            log.WithFields(logrus.Fields{"id":challenge.Subject}).Debug("Email Confirmed")
+          }
+
+        }
+
         // Check for OTP. Gets set when authenticated using password then redirected here after otp verification.
         if r.OtpChallenge != "" {
+          log = log.WithFields(logrus.Fields{ "otp_challenge": r.OtpChallenge })
 
-          // Cases:
-          // 1. User needs to authenticate
-          //   1. User passes, call accept login
-          //   2. User passes, but require otp before accept login
-          //     3. Generate otp challenge and redirect to verify
-          //     4. User verifies and redirect back to authenticate on login_challenge but now with verified otp_challenge.
-
-          // Check that login_challenge url and login_challenge in otp_challenge is the same. (CSRF)
-          // Accept login based on verified otp data
-
-          log = log.WithFields(logrus.Fields{
-            "otp_challenge": r.OtpChallenge,
-          })
-
-          var otpChallenge []idp.Challenge
-          otpChallenge = append(otpChallenge, idp.Challenge{Id: r.OtpChallenge})
-          dbChallenges, err := idp.FetchChallenges(env.Driver, otpChallenge)
+          dbChallenges, err := idp.FetchChallenges(env.Driver, []idp.Challenge{ {Id: r.OtpChallenge} })
           if err != nil {
             log.Debug(err.Error())
             request.Response = utils.NewInternalErrorResponse(request.Index)
@@ -202,44 +226,128 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                 IdentityExists: true,
               }
 
-              if human.TotpRequired == true {
-                // Do not call hydra yet we need totp authentication aswell. Create a totp request instaed.
+              redirectToUrlWhenVerified, err := url.Parse( config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.login") )
+              if err != nil {
+                log.Debug(err.Error())
+                request.Response = utils.NewInternalErrorResponse(request.Index)
+                continue
+              }
+              // When challenge is verified where should the controller redirect to and append its challenge
+              q := redirectToUrlWhenVerified.Query()
+              q.Add("login_challenge", r.Challenge)
+              redirectToUrlWhenVerified.RawQuery = q.Encode()
 
-                log.WithFields(logrus.Fields{"fixme": 1}).Debug("Move idpui redirect into config")
-                redirectTo := "https://id.localhost/login?login_challenge=" + r.Challenge
+              if human.EmailConfirmedAt <= 0 || human.TotpRequired == true {
 
-                newChallenge := idp.Challenge{
-                  JwtRegisteredClaims: idp.JwtRegisteredClaims{
-                    Issuer: config.GetString("idp.public.issuer"),
-                    ExpiresAt: time.Now().Unix() + 300, // 5 min
-                    Audience: "https://id.localhost/api/authenticate",
-                  },
-                  CodeType: "TOTP", // means the code is not stored in DB, but calculated from otp_secret
-                  Code: "",
-                  RedirectTo: redirectTo, // When challenge is verified where should the verify controller redirect to and append otp_challenge=
+                var err error
+                var challengeKey string
+                var redirectToConfirm *url.URL
+                var challenge idp.Challenge
+                var newChallenge idp.Challenge
+                var sendChallengeEmail string
+                var challengeCode string
+
+                if human.EmailConfirmedAt <= 0 {
+
+                  challengeKey = "email_challenge"
+                  sendChallengeEmail = human.Email
+
+                  epVerifyController := config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.emailconfirm")
+                  redirectToConfirm, err = url.Parse(epVerifyController)
+                  if err != nil {
+                    log.WithFields(logrus.Fields{ "url":epVerifyController }).Debug(err.Error())
+                    request.Response = utils.NewInternalErrorResponse(request.Index)
+                    continue
+                  }
+
+                  emailChallenge, err := idp.CreateChallengeCode()
+                  if err != nil {
+                    log.Debug(err.Error())
+                    request.Response = utils.NewInternalErrorResponse(request.Index)
+                    continue
+                  }
+                  challengeCode = emailChallenge.Code
+
+                  hashedCode, err := idp.CreatePassword(challengeCode)
+                  if err != nil {
+                    log.Debug(err.Error())
+                    request.Response = utils.NewInternalErrorResponse(request.Index)
+                    continue
+                  }
+
+                  newChallenge = idp.Challenge{
+                    JwtRegisteredClaims: idp.JwtRegisteredClaims{
+                      Issuer: config.GetString("idp.public.issuer"),
+                      ExpiresAt: time.Now().Unix() + 900, // 15 min
+                      Audience: "https://id.localhost/api/challenges/verify",
+                    },
+                    CodeType: "OTP",
+                    Code: hashedCode,
+                    RedirectTo: redirectToUrlWhenVerified.String(),
+                  }
+
+                } else if human.TotpRequired == true {
+
+                  challengeKey = "otp_challenge"
+
+                  // Do not call hydra yet we need totp authentication aswell. Create a totp request instaed.
+                  epVerifyController := config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.verify")
+                  redirectToConfirm, err = url.Parse(epVerifyController)
+                  if err != nil {
+                    log.WithFields(logrus.Fields{ "url":epVerifyController }).Debug(err.Error())
+                    request.Response = utils.NewInternalErrorResponse(request.Index)
+                    continue
+                  }
+
+                  newChallenge = idp.Challenge{
+                    JwtRegisteredClaims: idp.JwtRegisteredClaims{
+                      Issuer: config.GetString("idp.public.issuer"),
+                      ExpiresAt: time.Now().Unix() + 300, // 5 min
+                      Audience: "https://id.localhost/api/authenticate",
+                    },
+                    CodeType: "TOTP", // means the code is not stored in DB, but calculated from otp_secret
+                    Code: "",
+                    RedirectTo: redirectToUrlWhenVerified.String(),
+                  }
+
                 }
 
-                otpChallenge, _, err := idp.CreateChallenge(env.Driver, newChallenge, human.Id)
+                challenge, _, err = idp.CreateChallenge(env.Driver, newChallenge, human.Id)
                 if err != nil {
                   log.Debug(err.Error())
                   request.Response = utils.NewInternalErrorResponse(request.Index)
                   continue
                 }
 
-                log.WithFields(logrus.Fields{"fixme": 1}).Debug("IDP _MUST_ NOT HAVE BINDING TO IDPUI! - Find a way to make verify redirect setup")
-                u, err := url.Parse( config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.verify") )
-                if err != nil {
-                  log.Debug(err.Error())
-                  request.Response = utils.NewInternalErrorResponse(request.Index)
-                  continue
-                }
-                q := u.Query()
-                q.Add("otp_challenge", otpChallenge.Id)
-                u.RawQuery = q.Encode()
+                if sendChallengeEmail != "" {
 
-                accept.RedirectTo = u.String()
+                  log.WithFields(logrus.Fields{ "code":challengeCode, "email_challenge":challenge.Id }).Debug("EMAIL CONFIRMATION CODE - Do not log this in production!!!")
+
+                  sender := idp.SMTPSender{ Name: config.GetString("emailconfirm.sender.name"), Email: config.GetString("emailconfirm.sender.email") }
+                  templateFile := config.GetString("emailconfirm.template.email.file")
+                  emailSubject := config.GetString("emailconfirm.template.email.subject")
+                  _, err = sendChallengeToEmail(challenge, human.Email, human.Name, sender, templateFile, emailSubject, EmailConfirmTemplateData{
+                    Sender: sender.Name,
+                    Name: human.Name,
+                    Code: challengeCode, // Note this is the clear text generated code and not the hashed one stored in DB.
+                  })
+                  if err != nil {
+                    log.Debug(err.Error())
+                    request.Response = utils.NewInternalErrorResponse(request.Index)
+                    continue
+                  }
+                }
+
+                q = redirectToConfirm.Query()
+                q.Add(challengeKey, challenge.Id)
+                redirectToConfirm.RawQuery = q.Encode()
+
+                accept.RedirectTo = redirectToConfirm.String()
 
               } else {
+
+                // All verification requirements completed, so call accept in hydra.
+
                 hydraLoginAcceptRequest := hydra.LoginAcceptRequest{
                   Subject: human.Id,
                   Remember: true,
@@ -262,7 +370,8 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               request.Response = response
 
               log.WithFields(logrus.Fields{"id":accept.Id}).Debug("Authenticated")
-              continue;
+              continue
+
             } else {
 
               deny.IsPasswordInvalid = true
@@ -288,4 +397,36 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
+}
+
+func sendChallengeToEmail(challenge idp.Challenge, email string, name string, sender idp.SMTPSender, templateFile string, emailSubject string, data interface{}) (bool, error) {
+
+  smtpConfig := idp.SMTPConfig{
+    Host: config.GetString("mail.smtp.host"),
+    Username: config.GetString("mail.smtp.user"),
+    Password: config.GetString("mail.smtp.password"),
+    Sender: sender,
+    SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
+  }
+
+  tplRecover, err := ioutil.ReadFile(templateFile)
+  if err != nil {
+    return false, err
+  }
+
+  t := template.Must(template.New(templateFile).Parse(string(tplRecover)))
+
+  var tpl bytes.Buffer
+  if err := t.Execute(&tpl, data); err != nil {
+    return false, err
+  }
+
+  anEmail := idp.AnEmail{ Subject: emailSubject, Body: tpl.String()}
+
+  _, err = idp.SendAnEmailToAnonymous(smtpConfig, name, email, anEmail)
+  if err != nil {
+    return false, err
+  }
+
+  return true, nil
 }
