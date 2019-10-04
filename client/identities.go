@@ -7,6 +7,7 @@ import (
 
 type Identity struct {
   Id string `json:"id" validate:"required,uuid"`
+  Labels []string `json:"labels"`
 }
 
 type ReadIdentitiesRequest struct {
