@@ -11,6 +11,7 @@ type Human struct {
 
   // Identity.Id aliasses
   Email                string
+  EmailConfirmedAt     int64
   Username             string
 
   Name                 string
@@ -33,6 +34,7 @@ func marshalNodeToHuman(node neo4j.Node) (Human) {
     Identity: marshalNodeToIdentity(node),
 
     Email:                p["email"].(string),
+    EmailConfirmedAt:     p["email_confirmed_at"].(int64),
     Username:             p["username"].(string),
 
     Name:                 p["name"].(string),
@@ -68,7 +70,7 @@ func CreateHuman(driver neo4j.Driver, human Human) (Human, error) {
       CREATE (i:Human:Identity {
         id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp,
 
-        email:$email, username:$username,
+        email:$email, email_confirmed_at:0, username:$username,
 
         name:$name,
 
@@ -316,6 +318,50 @@ func UpdateOtpRecoverCode(driver neo4j.Driver, human Human) (Human, error) {
       }
     } else {
       return nil, errors.New("Unable to update otp recover code")
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+    return human, nil
+  })
+
+  if err != nil {
+    return Human{}, err
+  }
+  return obj.(Human), nil
+}
+
+func ConfirmEmail(driver neo4j.Driver, human Human) (Human, error) {
+  var err error
+
+  session, err := driver.Session(neo4j.AccessModeWrite);
+  if err != nil {
+    return Human{}, err
+  }
+  defer session.Close()
+
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+    cypher := `
+      MATCH (i:Human:Identity {id:$id, email:$email}) SET i.email_confirmed_at=datetime().epochSeconds
+      RETURN i
+    `
+    params := map[string]interface{}{ "id":human.Id, "email":human.Email }
+    if result, err = tx.Run(cypher, params); err != nil {
+      return Human{}, err
+    }
+
+    var human Human
+    if result.Next() {
+      record := result.Record()
+      humanNode := record.GetByIndex(0)
+      if humanNode != nil {
+        human = marshalNodeToHuman(humanNode.(neo4j.Node))
+      }
+    } else {
+      return nil, errors.New("Unable to confirm email")
     }
 
     // Check if we encountered any error during record streaming
