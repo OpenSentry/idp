@@ -2,6 +2,7 @@ package identities
 
 import (
   "net/http"
+  "strings"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -30,39 +31,27 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*utils.Request) {
-      var identities []idp.Identity
 
       for _, request := range iRequests {
-        if request.Request != nil {
-          var r client.ReadIdentitiesRequest
-          r = request.Request.(client.ReadIdentitiesRequest)
-          identities = append(identities, idp.Identity{ Id:r.Id })
-        }
-      }
 
-      dbIdentities, err := idp.FetchIdentities(env.Driver, identities)
-      if err != nil {
-        log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
-      }
-
-      var mapIdentities map[string]*idp.Identity
-      if ( iRequests[0] != nil ) {
-        for _, identity := range dbIdentities {
-          mapIdentities[identity.Id] = &identity
-        }
-      }
-      
-      for _, request := range iRequests {
+        var dbIdentities []idp.Identity
+        var err error
 
         if request.Request == nil {
+
+          dbIdentities, err = idp.FetchIdentitiesAll(env.Driver)
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
 
           // The empty fetch
           var ok []client.Identity
           for _, i := range dbIdentities {
             ok = append(ok, client.Identity{
               Id: i.Id,
+              Labels: strings.Split(i.Labels, ":"),
             })
           }
           var response client.ReadIdentitiesResponse
@@ -76,9 +65,19 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
 
           r := request.Request.(client.ReadIdentitiesRequest)
 
-          var i = mapIdentities[r.Id]
-          if i != nil {
-            ok := []client.Identity{ { Id: i.Id, } }
+          dbIdentities, err = idp.FetchIdentitiesById(env.Driver, []string{r.Id})
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          if len(dbIdentities) > 0 {
+            i := dbIdentities[0]
+            ok := []client.Identity{{
+              Id: i.Id,
+              Labels: strings.Split(i.Labels, ":"),
+            }}
             var response client.ReadIdentitiesResponse
             response.Index = request.Index
             response.Status = http.StatusOK
