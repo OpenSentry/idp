@@ -117,8 +117,38 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               request.Response = utils.NewInternalErrorResponse(request.Index)
               continue
             }
-
             log.WithFields(logrus.Fields{"id":challenge.Subject}).Debug("Email Confirmed")
+
+            log.WithFields(logrus.Fields{"fixme": 1}).Debug("Check if challenge actually matches login_challenge and that session matches?")
+
+            hydraLoginAcceptResponse, err := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, r.Challenge, hydra.LoginAcceptRequest{
+              Subject: challenge.Subject,
+              Remember: true,
+              RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
+            })
+            if err != nil {
+              log.Debug(err.Error())
+              request.Response = utils.NewInternalErrorResponse(request.Index)
+              continue
+            }
+
+            log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
+            accept := client.HumanAuthentication{
+              Id: hydraLoginResponse.Subject,
+              Authenticated: true,
+              RedirectTo: hydraLoginAcceptResponse.RedirectTo,
+              TotpRequired: false,
+              IsPasswordInvalid: false,
+              IdentityExists: true, // FIXME: Check if Identity still exists in the system
+            }
+
+            var response client.CreateHumansAuthenticateResponse
+            response.Index = request.Index
+            response.Status = http.StatusOK
+            response.Ok = accept
+            request.Response = response
+            log.WithFields(logrus.Fields{"acr":"otp,email", "id":accept.Id}).Debug("Authenticated")
+            continue
           }
 
         }
