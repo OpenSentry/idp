@@ -8,6 +8,7 @@ import (
 
 type Identity struct {
   Id        string
+  Labels    string
 
   // JWT
   // Subject string // Renamed it to Identity.Id
@@ -31,6 +32,7 @@ func marshalNodeToIdentity(node neo4j.Node) (Identity) {
 
   return Identity{
     Id:        p["id"].(string),
+    Labels:    strings.Join(node.Labels(), ":"),
     Issuer:    p["iss"].(string),
     ExpiresAt: p["exp"].(int64),
     IssuedAt:  p["iat"].(int64),
@@ -83,6 +85,10 @@ func FetchIdentities(driver neo4j.Driver, identities []Identity) ([]Identity, er
     ids = append(ids, identity.Id)
   }
   return FetchIdentitiesById(driver, ids)
+}
+
+func FetchIdentitiesAll(driver neo4j.Driver) ([]Identity, error) {  
+  return FetchIdentitiesById(driver, nil)
 }
 
 func FetchIdentitiesById(driver neo4j.Driver, ids []string) ([]Identity, error) {
