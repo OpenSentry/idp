@@ -345,7 +345,7 @@ func ConfirmEmail(driver neo4j.Driver, human Human) (Human, error) {
   obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      MATCH (i:Human:Identity {id:$id}) SET i.email_confirmed_at=datetime().epochSeconds
+      MATCH (i:Human:Identity {id:$id, email_confirmed_at:0}) SET i.email_confirmed_at=datetime().epochSeconds
       RETURN i
     `
     params := map[string]interface{}{ "id":human.Id }
