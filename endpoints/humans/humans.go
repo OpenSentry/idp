@@ -164,6 +164,34 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
           continue
         }
 
+        // Sanity check. Email must be unique
+        if r.Email != "" {
+          humansFoundByEmail, err := idp.FetchHumansByEmail(env.Driver, []string{r.Email})
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+          if len(humansFoundByEmail) > 0 {
+            request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
+            continue
+          }
+        }
+
+        // Sanity check. Username must be unique
+        if r.Username != "" {
+          humansFoundByUsername, err := idp.FetchHumansByUsername(env.Driver, []string{r.Username})
+          if err != nil {
+            log.Debug(err.Error())
+            request.Response = utils.NewInternalErrorResponse(request.Index)
+            continue
+          }
+          if len(humansFoundByUsername) > 0 {
+            request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
+            continue
+          }
+        }
+
         hashedPassword, err := idp.CreatePassword(r.Password) // @SecurityRisk: Please _NEVER_ log the cleartext password
         if err != nil {
           log.Debug(err.Error())
