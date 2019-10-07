@@ -16,6 +16,7 @@ const HUMAN_NOT_FOUND = 20
 const HUMAN_NOT_CREATED = 21
 const HUMAN_NOT_UPDATED = 22
 const HUMAN_TOTP_NOT_REQUIRED = 23
+const HUMAN_ALREADY_EXISTS = 24
 
 const CHALLENGE_NOT_FOUND = 30
 
@@ -58,6 +59,11 @@ var ERRORS = map[int]map[int]string{
       DEV: "Internal server error occured. Please wait until it has been fixed, before you try again",
     },
 
+  HUMAN_ALREADY_EXISTS:
+    {
+      EN:  "Already exists",
+      DEV: "Human already exists",
+    },
   HUMAN_NOT_CREATED:
     {
       EN:  "Not created",
