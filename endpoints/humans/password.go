@@ -9,7 +9,8 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
-  "github.com/charmixer/idp/utils"
+
+  bulky "github.com/charmixer/bulky/server"
 )
 
 func PutPassword(env *environment.State) gin.HandlerFunc {
@@ -27,23 +28,23 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
-        r := request.Request.(client.UpdateHumansPasswordRequest)
+        r := request.Input.(client.UpdateHumansPasswordRequest)
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
         humans, err := idp.FetchHumansById( env.Driver, []string{r.Id} )
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
         if humans == nil {
           log.WithFields(logrus.Fields{"id": r.Id}).Debug("Human not found")
-          request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
           continue
         }
         human := humans[0]
@@ -53,10 +54,7 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
         if valid == true {
           // Nothing to change was the new password is same as current password
 
-          var response client.UpdateHumansPasswordResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = client.Human{
+          ok := client.UpdateHumansPasswordResponse{
             Id: human.Id,
             Username: human.Username,
             Password: human.Password,
@@ -70,16 +68,16 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
             OtpDeleteCode: human.OtpDeleteCode,
             OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
           }
-          request.Response = response
 
           log.WithFields(logrus.Fields{ "id":human.Id }).Debug("Password updated. Hint: No change")
+          request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
         }
 
         hashedPassword, err := idp.CreatePassword(r.Password)
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
@@ -91,14 +89,11 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
         })
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
-        var response client.UpdateHumansPasswordResponse
-        response.Index = request.Index
-        response.Status = http.StatusOK
-        response.Ok = client.Human{
+        ok := client.UpdateHumansPasswordResponse{
           Id: updatedHuman.Id,
           Username: updatedHuman.Username,
           Password: updatedHuman.Password,
@@ -112,15 +107,15 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
           OtpDeleteCode: updatedHuman.OtpDeleteCode,
           OtpDeleteCodeExpire: updatedHuman.OtpDeleteCodeExpire,
         }
-        request.Response = response
 
         log.WithFields(logrus.Fields{ "id":updatedHuman.Id }).Debug("Password updated")
+        request.Output = bulky.NewOkResponse(request.Index, ok)
         continue
       }
 
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

@@ -9,7 +9,8 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/client"
-  "github.com/charmixer/idp/utils"
+
+  bulky "github.com/charmixer/bulky/server"  
 )
 
 func PostLogout(env *environment.State) gin.HandlerFunc {
@@ -29,15 +30,15 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
 
     hydraClient := hydra.NewHydraClient(env.HydraConfig)
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
-        r := request.Request.(client.CreateHumansLogoutRequest)
+        r := request.Input.(client.CreateHumansLogoutRequest)
 
         hydraLogoutResponse, err := hydra.GetLogout(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.logout"), hydraClient, r.Challenge)
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
@@ -46,28 +47,23 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
         hydraLogoutAcceptResponse, err := hydra.AcceptLogout(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.logoutAccept"), hydraClient, r.Challenge, hydra.LogoutAcceptRequest{})
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
-        ok := client.HumanRedirect{
+        ok := client.CreateHumansLogoutResponse{
           Id: hydraLogoutResponse.Subject,
           RedirectTo: hydraLogoutAcceptResponse.RedirectTo,
         }
 
-        var response client.CreateHumansLogoutResponse
-        response.Index = request.Index
-        response.Status = http.StatusOK
-        response.Ok = ok
-        request.Response = response
-
         log.WithFields(logrus.Fields{ "id": ok.Id, "redirect_to":ok.RedirectTo }).Debug("Logout successful")
+        request.Output = bulky.NewOkResponse(request.Index, ok)
         continue
       }
 
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

@@ -12,8 +12,9 @@ import (
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
-  "github.com/charmixer/idp/utils"
   E "github.com/charmixer/idp/client/errors"
+
+  bulky "github.com/charmixer/bulky/server"
 )
 
 type DeleteTemplateData struct {
@@ -38,25 +39,44 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequests = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
 
         var dbHumans []idp.Human
         var err error
+        var ok client.ReadHumansResponse
 
-        if request.Request == nil {
+        if request.Input == nil {
 
           // Fetch all, that the token is allowed to.
-
           dbHumans, err = idp.FetchHumansAll(env.Driver)
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
-          var ok []client.Human
+        } else {
+
+          r := request.Input.(client.ReadHumansRequest)
+          if r.Id != "" {
+            dbHumans, err = idp.FetchHumansById(env.Driver, []string{r.Id})
+          } else if r.Email != "" {
+            dbHumans, err = idp.FetchHumansByEmail(env.Driver, []string{r.Email})
+          } else if r.Username != "" {
+            dbHumans, err = idp.FetchHumansByUsername(env.Driver, []string{r.Username})
+          }
+
+          if err != nil {
+            log.Debug(err.Error())
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+        }
+
+        if len(dbHumans) > 0 {
           for _, i := range dbHumans {
             ok = append(ok, client.Human{
               Id:                   i.Id,
@@ -73,65 +93,17 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
               OtpDeleteCodeExpire:  i.OtpDeleteCodeExpire,
             })
           }
-          var response client.ReadHumansResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = ok
-          request.Response = response
-          continue
-
-        } else {
-
-          r := request.Request.(client.ReadHumansRequest)
-
-          if r.Id != "" {
-            dbHumans, err = idp.FetchHumansById(env.Driver, []string{r.Id})
-          } else if r.Email != "" {
-            dbHumans, err = idp.FetchHumansByEmail(env.Driver, []string{r.Email})
-          } else if r.Username != "" {
-            dbHumans, err = idp.FetchHumansByUsername(env.Driver, []string{r.Username})
-          }
-
-          if err != nil {
-            log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
-            continue
-          }
-
-          if len(dbHumans) > 0 {
-            i := dbHumans[0]
-            ok := []client.Human{ {
-                Id:                   i.Id,
-                Username:             i.Username,
-                Password:             i.Password,
-                Name:                 i.Name,
-                Email:                i.Email,
-                AllowLogin:           i.AllowLogin,
-                TotpRequired:         i.TotpRequired,
-                TotpSecret:           i.TotpSecret,
-                OtpRecoverCode:       i.OtpRecoverCode,
-                OtpRecoverCodeExpire: i.OtpRecoverCodeExpire,
-                OtpDeleteCode:        i.OtpDeleteCode,
-                OtpDeleteCodeExpire:  i.OtpDeleteCodeExpire,
-              },
-            }
-            var response client.ReadHumansResponse
-            response.Index = request.Index
-            response.Status = http.StatusOK
-            response.Ok = ok
-            request.Response = response
-            continue
-          }
-
+          request.Output = bulky.NewOkResponse(request.Index, ok)
+          continue;
         }
 
         // Deny by default
-        request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
         continue
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequests, utils.HandleBulkRequestParams{EnableEmptyRequest: true})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{EnableEmptyRequest: true})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
@@ -152,15 +124,15 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       // requestedByIdentity := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
-        r := request.Request.(client.CreateHumansRequest)
+        r := request.Input.(client.CreateHumansRequest)
 
         if env.BannedUsernames[r.Username] == true {
-          request.Response = utils.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
           continue
         }
 
@@ -169,11 +141,11 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
           humansFoundByEmail, err := idp.FetchHumansByEmail(env.Driver, []string{r.Email})
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
           if len(humansFoundByEmail) > 0 {
-            request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
+            request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
             continue
           }
         }
@@ -183,11 +155,11 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
           humansFoundByUsername, err := idp.FetchHumansByUsername(env.Driver, []string{r.Username})
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
           if len(humansFoundByUsername) > 0 {
-            request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
+            request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
             continue
           }
         }
@@ -195,7 +167,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
         hashedPassword, err := idp.CreatePassword(r.Password) // @SecurityRisk: Please _NEVER_ log the cleartext password
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
@@ -210,12 +182,12 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
         if err != nil {
           // @SecurityRisk: Please _NEVER_ log the hashed password
           log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin }).Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
         if human != (idp.Human{}) {
-          ok := client.Human{
+          ok := client.CreateHumansResponse{
               Id: human.Id,
               Username: human.Username,
               Password: human.Password,
@@ -229,11 +201,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
               OtpDeleteCode: human.OtpDeleteCode,
               OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
           }
-          var response client.CreateHumansResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = ok
-          request.Response = response
+          request.Output = bulky.NewOkResponse(request.Index, ok)
           idp.EmitEventHumanCreated(env.Nats, human)
           continue
         }
@@ -241,12 +209,12 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
         // Deny by default
         // @SecurityRisk: Please _NEVER_ log the hashed password
         log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin }).Debug(err.Error())
-        request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_CREATED)
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_CREATED)
         continue
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
@@ -267,12 +235,12 @@ func PutHumans(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       //requestedByIdentity := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
-        r := request.Request.(client.UpdateHumansRequest)
+        r := request.Input.(client.UpdateHumansRequest)
 
         updateHuman := idp.Human{
           Identity: idp.Identity{
@@ -284,12 +252,12 @@ func PutHumans(env *environment.State) gin.HandlerFunc {
         human, err := idp.UpdateHuman(env.Driver, updateHuman)
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
         if human != (idp.Human{}) {
-          ok := client.Human{
+          ok := client.UpdateHumansResponse{
             Id: human.Id,
             Username: human.Username,
             Password: human.Password,
@@ -303,23 +271,19 @@ func PutHumans(env *environment.State) gin.HandlerFunc {
             OtpDeleteCode: human.OtpDeleteCode,
             OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
           }
-          var response client.UpdateHumansResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = ok
-          request.Response = response
+          request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
         }
 
         // Deny by default
         // @SecurityRisk: Please _NEVER_ log the hashed password
         log.WithFields(logrus.Fields{ "username": updateHuman.Username, "name": updateHuman.Name, "email": updateHuman.Email, /* "password": updateHuman.Password, */ "allow_login":updateHuman.AllowLogin }).Debug(err.Error())
-        request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_UPDATED)
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_UPDATED)
         continue
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
@@ -353,25 +317,25 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
       SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       //requestedByIdentity := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
-        r := request.Request.(client.DeleteHumansRequest)
+        r := request.Input.(client.DeleteHumansRequest)
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
         humans, err := idp.FetchHumansById( env.Driver, []string{r.Id} )
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
         if humans == nil {
           log.WithFields(logrus.Fields{"id": r.Id}).Debug("Human not found")
-          request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
           continue
         }
         human := humans[0]
@@ -383,14 +347,14 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
           challenge, err := idp.CreateDeleteChallenge(config.GetString("delete.link"), human, 60 * 5) // Fixme configfy 60*5
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
           hashedCode, err := idp.CreatePassword(challenge.Code)
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -404,7 +368,7 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
           updatedHuman, err := idp.UpdateOtpDeleteCode(env.Driver, n)
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -416,7 +380,7 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
           tplRecover, err := ioutil.ReadFile(templateFile)
           if err != nil {
             log.WithFields(logrus.Fields{ "file": templateFile }).Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -431,7 +395,7 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
           var tpl bytes.Buffer
           if err := t.Execute(&tpl, data); err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -443,30 +407,27 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
           _, err = idp.SendAnEmailToHuman(smtpConfig, updatedHuman, anEmail)
           if err != nil {
             log.WithFields(logrus.Fields{ "id": updatedHuman.Id, "file": templateFile }).Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
-          ok := client.HumanRedirect{
+          ok := client.DeleteHumansResponse{
             Id: updatedHuman.Id,
             RedirectTo: challenge.RedirectTo,
-          }
-          var response client.DeleteHumansResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = ok
-          request.Response = response
+          }          
+
           log.WithFields(logrus.Fields{"id":ok.Id, "redirect_to":ok.RedirectTo}).Debug("Delete Verification Requested")
+          request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
         }
 
         // Deny by default
-        request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
         continue
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

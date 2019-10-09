@@ -15,7 +15,8 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
-  "github.com/charmixer/idp/utils"
+
+  bulky "github.com/charmixer/bulky/server"
 )
 
 type InviteTemplateData struct {
@@ -66,17 +67,17 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
     t := template.Must(template.New(emailTemplateFile).Parse(string(tplEmail)))
 
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       //sendByIdentityId := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
-        r := request.Request.(client.CreateInvitesSendRequest)
+        r := request.Input.(client.CreateInvitesSendRequest)
 
         dbInvite, err := idp.FetchInvitesById(env.Driver, []string{r.Id})
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
@@ -86,7 +87,7 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
           u, err := url.Parse( config.GetString("invite.url") )
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -105,7 +106,7 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
           var tpl bytes.Buffer
           if err := t.Execute(&tpl, data); err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -117,11 +118,11 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
           _, err = idp.SendAnEmailToAnonymous(smtpConfig, invite.SentTo.Email, invite.SentTo.Email, mail)
           if err != nil {
             log.WithFields(logrus.Fields{ "email": invite.SentTo.Email, "file": emailTemplateFile }).Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
-          ok := client.Invite{
+          ok := client.CreateInvitesResponse{
             Id: invite.Id,
             IssuedAt: invite.IssuedAt,
             ExpiresAt: invite.ExpiresAt,
@@ -130,23 +131,20 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
             HintUsername: invite.HintUsername,
             InvitedBy: invite.InvitedBy.Id,
           }
-          var response client.CreateInvitesResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = ok
-          request.Response = response
+
           log.WithFields(logrus.Fields{ "id": ok.Id, }).Debug("Invite sent")
+          request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
         }
 
         log.WithFields(logrus.Fields{ "id":r.Id }).Debug(err.Error())
-        request.Response = utils.NewClientErrorResponse(request.Index, E.INVITE_NOT_FOUND)
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_NOT_FOUND)
         continue
       }
 
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
