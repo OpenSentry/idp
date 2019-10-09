@@ -9,7 +9,8 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
-  "github.com/charmixer/idp/utils"
+
+  bulky "github.com/charmixer/bulky/server"
 )
 
 func PutInvitesAccept(env *environment.State) gin.HandlerFunc {
@@ -27,18 +28,18 @@ func PutInvitesAccept(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       acceptedBy := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
-        r := request.Request.(client.UpdateInvitesAcceptRequest)
+        r := request.Input.(client.UpdateInvitesAcceptRequest)
 
         dbInvite, err := idp.FetchInvitesById(env.Driver, []string{r.Id})
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
-          continue
+          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+          return
         }
 
         if len(dbInvite) > 0 {
@@ -47,37 +48,32 @@ func PutInvitesAccept(env *environment.State) gin.HandlerFunc {
           accept, err := idp.AcceptInvite(env.Driver, invite, idp.Identity{ Id:acceptedBy})
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
-          ok := []client.Invite{ {
-              Id: accept.Id,
-              IssuedAt: accept.IssuedAt,
-              ExpiresAt: accept.ExpiresAt,
-              Email: accept.SentTo.Email,
-              Invited: accept.Invited.Id,
-              HintUsername: accept.HintUsername,
-              InvitedBy: accept.InvitedBy.Id,
-            },
+          ok := client.UpdateInvitesAcceptResponse{
+            Id: accept.Id,
+            IssuedAt: accept.IssuedAt,
+            ExpiresAt: accept.ExpiresAt,
+            Email: accept.SentTo.Email,
+            Invited: accept.Invited.Id,
+            HintUsername: accept.HintUsername,
+            InvitedBy: accept.InvitedBy.Id,
           }
 
-          var response client.UpdateInvitesAcceptResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = ok
-          request.Response = response
+          request.Output = bulky.NewOkResponse(request.Index, ok)
           log.WithFields(logrus.Fields{ "id": accept.Id }).Debug("Invite accepted")
           continue
         }
 
         // Deny by default
-        request.Response = utils.NewClientErrorResponse(request.Index, E.INVITE_NOT_FOUND)
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
         continue
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

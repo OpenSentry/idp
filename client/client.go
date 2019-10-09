@@ -10,7 +10,6 @@ import (
   "golang.org/x/oauth2/clientcredentials"
   "fmt"
   "encoding/json"
-  "reflect"
 )
 
 type IdpClient struct {
@@ -29,16 +28,25 @@ func NewIdpClientWithUserAccessToken(config *oauth2.Config, token *oauth2.Token)
   return &IdpClient{client}
 }
 
+func handleRequest(client *IdpClient, request interface{}, method string, url string, response interface{}) (status int, err error) {
+  body, err := json.Marshal(request)
+  if err != nil {
+    return 999, err
+  }
 
-type ErrorResponse struct {
-  Code  int    `json:"code"  validate:"required"`
-  Error string `json:"error" validate:"required"`
-}
+  status, responseData, err := callService(client, method, url, bytes.NewBuffer(body))
+  if err != nil {
+    return status, err
+  }
 
-type BulkResponse struct {
-  Index  int             `json:"index"  validate:"omitempty"`
-  Status int             `json:"status" validate:"required"`
-  Errors []ErrorResponse `json:"errors,omitempty"`
+  if status == 200 {
+    err = json.Unmarshal(responseData, &response)
+    if err != nil {
+      return 666, err
+    }
+  }
+
+  return status, nil
 }
 
 func callService(client *IdpClient, method string, url string, data *bytes.Buffer) (int, []byte, error) {
@@ -107,34 +115,4 @@ func parseStatusCode(statusCode int) (error) {
          return nil
   }
   return errors.New(fmt.Sprintf("Unsupported status code: '%d'", statusCode))
-}
-
-
-func UnmarshalResponse(iIndex int, iResponses interface{}) (rStatus int, rOk interface{}, rErr []ErrorResponse) {
-  responses := reflect.ValueOf(iResponses)
-  for index := 0; index < responses.Len(); index++ {
-    response := responses.Index(index)
-
-    i := response.FieldByName("Index").Interface().(int)
-
-    if i == iIndex {
-      // found response with given index
-
-      rStatus := response.FieldByName("Status").Interface().(int)
-      err    := response.FieldByName("Errors")
-      ok     := response.FieldByName("Ok")
-
-      if ok.CanInterface() {
-        rOk = ok.Interface()
-      }
-
-      if err.CanInterface() {
-        rErr = err.Interface().([]ErrorResponse)
-      }
-      return rStatus, rOk, rErr
-    }
-
-  }
-
-  panic("Given index not found")
 }

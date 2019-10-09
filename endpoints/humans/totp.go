@@ -10,7 +10,8 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
-  "github.com/charmixer/idp/utils"
+
+  bulky "github.com/charmixer/bulky/server"
 )
 
 type TotpResponse struct {
@@ -32,23 +33,23 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
-        r := request.Request.(client.UpdateHumansTotpRequest)
+        r := request.Input.(client.UpdateHumansTotpRequest)
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
         humans, err := idp.FetchHumansById( env.Driver, []string{r.Id} )
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
         if humans == nil {
           log.WithFields(logrus.Fields{"id": r.Id}).Debug("Human not found")
-          request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
           continue
         }
         human := humans[0]
@@ -56,7 +57,7 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
         encryptedSecret, err := idp.Encrypt(r.TotpSecret, config.GetString("totp.cryptkey"))
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
@@ -69,14 +70,11 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
         })
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
-        var response client.UpdateHumansTotpResponse
-        response.Index = request.Index
-        response.Status = http.StatusOK
-        response.Ok = client.Human{
+        ok := client.UpdateHumansTotpResponse{
           Id: updatedHuman.Id,
           Username: updatedHuman.Username,
           Password: updatedHuman.Password,
@@ -90,15 +88,15 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
           OtpDeleteCode: updatedHuman.OtpDeleteCode,
           OtpDeleteCodeExpire: updatedHuman.OtpDeleteCodeExpire,
         }
-        request.Response = response
 
         log.WithFields(logrus.Fields{ "id":updatedHuman.Id }).Debug("TOTP updated")
+        request.Output = bulky.NewOkResponse(request.Index, ok)
         continue
       }
 
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

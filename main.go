@@ -27,6 +27,8 @@ import (
   "github.com/charmixer/idp/endpoints/challenges"
   "github.com/charmixer/idp/endpoints/invites"
   "github.com/charmixer/idp/endpoints/follows"
+
+  E "github.com/charmixer/idp/client/errors"
 )
 
 const app = "idp"
@@ -68,6 +70,8 @@ func init() {
     "log.debug": logDebug,
     "log.format": logFormat,
   }
+
+  E.InitRestErrors()
 }
 
 func createBanList(file string) (map[string]bool, error) {
