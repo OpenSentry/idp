@@ -9,7 +9,8 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
-  "github.com/charmixer/idp/utils"
+
+  bulky "github.com/charmixer/bulky/server"
 )
 
 func PostFollows(env *environment.State) gin.HandlerFunc {
@@ -27,7 +28,7 @@ func PostFollows(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       var identities []idp.Identity
 
@@ -35,9 +36,9 @@ func PostFollows(env *environment.State) gin.HandlerFunc {
       identities = append(identities, idp.Identity{Id:createdByIdentityId})
 
       for _, request := range iRequests {
-        if request.Request != nil {
+        if request.Input != nil {
           var r client.CreateFollowsRequest
-          r = request.Request.(client.CreateFollowsRequest)
+          r = request.Input.(client.CreateFollowsRequest)
           identities = append(identities, idp.Identity{Id:r.From})
           identities = append(identities, idp.Identity{Id:r.To})
         }
@@ -46,7 +47,7 @@ func PostFollows(env *environment.State) gin.HandlerFunc {
       dbIdentities, err := idp.FetchIdentities(env.Driver, identities)
       if err != nil {
         log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         return
       }
 
@@ -58,55 +59,50 @@ func PostFollows(env *environment.State) gin.HandlerFunc {
       }
 
       for _, request := range iRequests {
-        r := request.Request.(client.CreateFollowsRequest)
+        r := request.Input.(client.CreateFollowsRequest)
 
         createdBy := mapIdentities[createdByIdentityId]
         if createdBy == nil {
-          request.Response = utils.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
           continue
         }
 
         from := mapIdentities[r.From]
         if from == nil {
-          request.Response = utils.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
           continue
         }
 
         to := mapIdentities[r.To]
         if from == nil {
-          request.Response = utils.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
           continue
         }
 
         follow, err := idp.CreateFollow(env.Driver, *from, *to)
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
         if follow != (idp.Follow{}) {
-          ok := client.Follow{
+          ok := client.CreateFollowsResponse{
             From: follow.From.Id,
             To: follow.To.Id,
           }
-          var response client.CreateFollowsResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = ok
-          request.Response = response
-          log.WithFields(logrus.Fields{ "from": follow.From.Id, "to": follow.To.Id }).Debug("Follow created")
+          request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
         }
 
         // Deny by default
         log.WithFields(logrus.Fields{  }).Debug(err.Error())
-        request.Response = utils.NewClientErrorResponse(request.Index, E.FOLLOW_NOT_CREATED)
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.FOLLOW_NOT_CREATED)
         continue
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
@@ -128,18 +124,18 @@ func GetFollows(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequests = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
 
-        var ok []client.Follow
+        var ok client.ReadFollowsResponse
 
-        if request.Request == nil {
+        if request.Input == nil {
 
           dbFollows, err := idp.FetchFollows(env.Driver, nil)
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -150,21 +146,18 @@ func GetFollows(env *environment.State) gin.HandlerFunc {
               To: f.To.Id,
             })
           }
-          var response client.ReadFollowsResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = ok
-          request.Response = response
+
+          request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
 
         } else {
 
-          r := request.Request.(client.ReadFollowsRequest)
+          r := request.Input.(client.ReadFollowsRequest)
 
           dbFollows, err := idp.FetchFollows(env.Driver, []idp.Follow{{From: idp.Identity{Id:r.From}}})
           if err != nil {
             log.WithFields(logrus.Fields{ "id":r.From }).Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -174,21 +167,18 @@ func GetFollows(env *environment.State) gin.HandlerFunc {
               To: f.To.Id,
             })
           }
-          var response client.ReadFollowsResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = ok
-          request.Response = response
+
+          request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
         }
 
         // Deny by default
-        request.Response = utils.NewClientErrorResponse(request.Index, E.FOLLOW_NOT_FOUND)
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.FOLLOW_NOT_FOUND)
         continue
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequests, utils.HandleBulkRequestParams{EnableEmptyRequest: true})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{EnableEmptyRequest: true})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

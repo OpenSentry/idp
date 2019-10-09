@@ -7,22 +7,13 @@ import (
   "net/http"
   "crypto/rand"
   "encoding/base64"
-  "encoding/json"
-  "time"
+    "time"
   "golang.org/x/oauth2"
   "golang.org/x/oauth2/clientcredentials"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
   "github.com/gofrs/uuid"
   hydra "github.com/charmixer/hydra/client"
-
-  // HandleRestBulkRequests ->
-  "fmt"
-  "reflect"
-  "gopkg.in/go-playground/validator.v9"
-  "github.com/charmixer/idp/client"
-  E "github.com/charmixer/idp/client/errors"
-  // <-
 )
 
 const ERROR_INVALID_ACCESS_TOKEN = 1
@@ -405,157 +396,11 @@ func RequestId() gin.HandlerFunc {
   }
 }
 
-
-type Request struct {
-  Index int
-  Request interface{}
-  Response interface{}
-}
-type HandleBulkRequestParams struct {
-  EnableEmptyRequest bool
-  DisableInputValidation bool
-  DisableOutputValidation bool
-  MaxRequests int64
-}
-type IHandleRequests func(requests []*Request)
-func HandleBulkRestRequest(iRequests interface{}, iHandleRequests IHandleRequests, params HandleBulkRequestParams) (responses []interface{}) {
-  var requests []*Request
-
-  var start time.Time
-
-  // initialize structs
-  tmpRequests := reflect.ValueOf(iRequests)
-  for index := 0; index < tmpRequests.Len() || (tmpRequests.Len() == 0 && index == 0); index++ {
-    var request interface{}
-    if tmpRequests.Len() > 0 {
-      request = tmpRequests.Index(index).Interface()
-    }
-    requests = append(requests, &Request{
-      Index: index,
-      Request: request,
-      Response: nil, // someone needs to fill this
-    })
-  }
-
-  start = time.Now()
-
-  if params.MaxRequests != 0 && int64(len(requests)) > params.MaxRequests { // deny all requests if too many was given
-    // fail all
-    for _,request := range requests {
-      if request.Response == nil {
-        request.Response = NewClientErrorResponse(request.Index, E.MAX_REQUESTS_EXCEEDED)
-      }
-
-      responses = append(responses, request.Response)
-    }
-
-    return responses
-  }
-
-  // TODO this should come from main init or something
-  validate := validator.New()
-
-  if !params.DisableInputValidation {
-
-    var errorsFound = false
-
-    for _,request := range requests {
-
-      if request.Request == nil {
-        // if we dont allow the empty set, return an error to the user
-        if !params.EnableEmptyRequest {
-          request.Response = NewClientErrorResponse(request.Index, E.EMPTY_REQUEST_NOT_ALLOWED)
-
-          errorsFound = true
-          continue
-        }
-      }
-
-      // validate requests
-      if request.Request != nil { // if not the empty set, then validate
-        fmt.Println(request.Request)
-        err := validate.Struct(request.Request)
-        if err != nil {
-
-          var errorResponses []client.ErrorResponse
-          for _, e := range err.(validator.ValidationErrors) {
-            errorResponses = append(errorResponses, client.ErrorResponse{Code: E.INPUT_VALIDATION_FAILED, Error: e.Translate(nil)})
-          }
-
-          request.Response = client.BulkResponse{
-            Index: request.Index,
-            Status: http.StatusNotFound,
-            Errors: errorResponses,
-          }
-
-          errorsFound = true
-          continue
-        }
-      }
-
-    }
-
-    fmt.Printf("%s took %v\n", "input validation", time.Since(start))
-
-    if errorsFound { // make sure if something fails, others will fail too
-      // fail all
-      for _,request := range requests {
-        if request.Response == nil {
-          request.Response = NewClientErrorResponse(request.Index, E.FAILED_DUE_TO_OTHER_ERRORS)
-        }
-
-        responses = append(responses, request.Response)
-      }
-
-      return responses
+func stringInSlice(a string, list []string) (bool) {
+  for _, b := range list {
+    if b == a {
+      return true
     }
   }
-
-  // handle requests
-  start = time.Now()
-  iHandleRequests(requests)
-  fmt.Printf("%s took %v\n", "iHandleRequests", time.Since(start))
-
-  for _,request := range requests {
-    if request.Response == nil {
-      panic("Not all requests have been handled")
-    }
-
-    if !params.DisableOutputValidation {
-      // output validation
-      err := validate.Struct(request.Response)
-      if err != nil {
-        i, _ := json.MarshalIndent(request.Request, "", "  ")
-        o, _ := json.MarshalIndent(request.Response, "", "  ")
-        fmt.Printf("ATTENTION! Response validation failed. \nErrors:\n%s\n\nRequest: %s\n\nResponse: %s\n", err.Error(), i, o)
-
-        request.Response = NewInternalErrorResponse(request.Index)
-      }
-    }
-    responses = append(responses, request.Response)
-  }
-
-  return responses
-}
-func NewInternalErrorResponse(index int) (client.BulkResponse) {
-  c := E.INTERNAL_SERVER_ERROR
-  e := E.ERRORS[c][E.DEFAULT_LANG]
-  return client.BulkResponse{
-    Index: index,
-    Status: http.StatusInternalServerError,
-    Errors: []client.ErrorResponse{{Code: c, Error: e}},
-  }
-}
-func NewClientErrorResponse(index int, code... int) (client.BulkResponse) {
-  var data []client.ErrorResponse
-  for _, c := range code {
-    e := E.ERRORS[c][E.DEFAULT_LANG]
-    data = append(data, client.ErrorResponse{Code: c, Error: e})
-  }
-
-  return client.BulkResponse{
-    Index: index,
-    Status: http.StatusNotFound,
-    Errors: data,
-  }
+  return false
 }

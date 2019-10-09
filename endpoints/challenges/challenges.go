@@ -9,12 +9,12 @@ import (
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
-  "github.com/charmixer/idp/utils"
+
+  bulky "github.com/charmixer/bulky/server"
 )
 
 func GetChallenges(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "GetChallenges",
@@ -23,18 +23,17 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
     var requests []client.ReadChallengesRequest
     err := c.BindJSON(&requests)
     if err != nil {
-      log.Debug(err.Error())
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
 
-    var handleRequests = func(iRequests []*utils.Request){
+    var handleRequests = func(iRequests []*bulky.Request) {
       var challenges []idp.Challenge
 
       for _, request := range iRequests {
-        if request.Request != nil {
+        if request.Input != nil {
           var r client.ReadChallengesRequest
-          r = request.Request.(client.ReadChallengesRequest)
+          r = request.Input.(client.ReadChallengesRequest)
 
           // Translate from rest model to db
           v := idp.Challenge{
@@ -47,41 +46,34 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
       dbChallenges, err := idp.FetchChallenges(env.Driver, challenges)
       if err != nil {
         log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         return
       }
 
       for _, request := range iRequests {
         var r client.ReadChallengesRequest
-        if request.Request != nil {
-          r = request.Request.(client.ReadChallengesRequest)
+        if request.Input != nil {
+          r = request.Input.(client.ReadChallengesRequest)
         }
 
-        var ok []client.Challenge
+        var ok client.ReadChallengesResponse
         for _, d := range dbChallenges {
-          if request.Request != nil && d.Id != r.OtpChallenge {
+          if request.Input != nil && d.Id != r.OtpChallenge {
             continue
           }
 
+          // Translate from db model to rest model
           ok = append(ok, client.Challenge{
             OtpChallenge: d.Id,
           })
         }
 
-        var response client.ReadChallengesResponse
-        response.Index = request.Index
-        response.Status = http.StatusOK
-        response.Ok = ok
-        request.Response = response
+        request.Output = bulky.NewOkResponse(request.Index, ok)
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequests, utils.HandleBulkRequestParams{EnableEmptyRequest: true})
-
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{EnableEmptyRequest: true})
     c.JSON(http.StatusOK, responses)
-
-    // Deny by default
-    //c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not found"})
   }
   return gin.HandlerFunc(fn)
 }
@@ -100,12 +92,12 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       requestedByIdentity := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
-        r := request.Request.(client.CreateChallengesRequest)
+        r := request.Input.(client.CreateChallengesRequest)
 
         var hashedCode string
         if r.CodeType == "TOTP" {
@@ -113,8 +105,8 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
         } else {
           hashedCode, err = idp.CreatePassword(r.Code)
           if err != nil {
-            request.Response = utils.NewInternalErrorResponse(request.Index)
             log.Debug(err.Error())
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
         }
@@ -132,14 +124,14 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
 
         rChallenge, _, err := idp.CreateChallenge(env.Driver, challenge, requestedByIdentity)
         if err != nil {
-          request.Response = utils.NewInternalErrorResponse(request.Index)
           log.WithFields(logrus.Fields{
             "sub": challenge.Subject, "aud":challenge.Audience, "exp": challenge.ExpiresAt, "redirect_to": challenge.RedirectTo, "code": hashedCode, "code_type": challenge.CodeType,
           }).Debug(err.Error())
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
-        ok := client.Challenge{
+        ok := client.CreateChallengesResponse{
           OtpChallenge: rChallenge.Id,
           Subject: rChallenge.Subject,
           Audience: rChallenge.Audience,
@@ -150,23 +142,12 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
           CodeType: rChallenge.CodeType,
           Code: rChallenge.Code,
         }
-
-        response := client.CreateChallengesResponse{Ok: ok}
-        response.Index = request.Index
-        response.Status = http.StatusOK
-        request.Response = response
+        request.Output = bulky.NewOkResponse(request.Index, ok)
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{})
-
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
-
-    // Deny by default
-    //log.WithFields(logrus.Fields{
-    //  "sub": input.Subject, "aud":input.Audience, "ttl": input.TTL, "redirect_to": input.RedirectTo, "code": hashedCode, "code_type": input.CodeType,
-    //}).Debug("Challenge not created")
-    //c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Challenge not created"})
   }
   return gin.HandlerFunc(fn)
 }

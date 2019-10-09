@@ -1,8 +1,7 @@
 package client
 
 import (
-  "bytes"
-  "encoding/json"
+  bulky "github.com/charmixer/bulky/client"
 )
 
 type Follow struct {
@@ -10,60 +9,34 @@ type Follow struct {
   To   string `json:"to"   validate:"required,uuid"`
 }
 
+type CreateFollowsResponse Follow
 type CreateFollowsRequest struct {
   From string `json:"from" validate:"required,uuid"`
   To   string `json:"to"   validate:"required,uuid"`
 }
 
-type CreateFollowsResponse struct {
-  BulkResponse
-  Ok Follow `json:"ok,omitempty" validate:"dive"`
-}
-
+type ReadFollowsResponse []Follow
 type ReadFollowsRequest struct {
   From string `json:"id,omitempty" validate:"required,uuid"`
 }
 
-type ReadFollowsResponse struct {
-  BulkResponse
-  Ok []Follow `json:"ok,omitempty" validate:"dive"`
-}
 
+func CreateFollows(client *IdpClient, url string, requests []CreateFollowsRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "POST", url, &responses)
 
-func CreateFollows(client *IdpClient, url string, requests []CreateFollowsRequest) (status int, response []CreateFollowsResponse, err error) {
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
-
-  status, responseData, err := callService(client, "POST", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func ReadFollows(client *IdpClient, url string, requests []ReadFollowsRequest) (status int, response []ReadFollowsResponse, err error) {
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
+func ReadFollows(client *IdpClient, url string, requests []ReadFollowsRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "GET", url, &responses)
 
-  status, responseData, err := callService(client, "GET", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }

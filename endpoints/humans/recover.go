@@ -13,7 +13,8 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
-  "github.com/charmixer/idp/utils"
+
+  bulky "github.com/charmixer/bulky/server"  
 )
 
 type RecoverTemplateData struct {
@@ -50,17 +51,17 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       //requestedByIdentity := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
-        r := request.Request.(client.CreateHumansRecoverRequest)
+        r := request.Input.(client.CreateHumansRecoverRequest)
 
         humans, err := idp.FetchHumansById( env.Driver, []string{r.Id} )
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
@@ -74,14 +75,14 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
           challenge, err := idp.CreateRecoverChallenge(config.GetString("recover.link"), human, 60 * 5) // Fixme configfy 60*5
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
           hashedCode, err := idp.CreatePassword(challenge.Code)
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -95,7 +96,7 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
           updatedHuman, err := idp.UpdateOtpRecoverCode(env.Driver, n)
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -107,7 +108,7 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
           tplRecover, err := ioutil.ReadFile(templateFile)
           if err != nil {
             log.WithFields(logrus.Fields{ "file": templateFile }).Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -122,7 +123,7 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
           var tpl bytes.Buffer
           if err := t.Execute(&tpl, data); err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -134,30 +135,27 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
           _, err = idp.SendAnEmailToHuman(smtpConfig, updatedHuman, anEmail)
           if err != nil {
             log.WithFields(logrus.Fields{ "id": updatedHuman.Id, "file": templateFile }).Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
-          ok := client.HumanRedirect{
+          ok := client.CreateHumansRecoverResponse{
             Id: updatedHuman.Id,
             RedirectTo: challenge.RedirectTo,
           }
-          var response client.CreateHumansRecoverResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = ok
-          request.Response = response
+
           log.WithFields(logrus.Fields{"id":ok.Id, "redirect_to":ok.RedirectTo}).Debug("Recover Verification Requested")
+          request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
         }
 
         // Deny by default
-        request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
         continue
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

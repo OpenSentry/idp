@@ -1,8 +1,7 @@
 package client
 
 import (
-  "bytes"
-  "encoding/json"
+  bulky "github.com/charmixer/bulky/client"
 )
 
 type Human struct {
@@ -42,6 +41,7 @@ type HumanVerification struct {
 
 // Endpoints
 
+type CreateHumansResponse Human
 type CreateHumansRequest struct {
   Password   string `json:"password"           validate:"required"`
   Username   string `json:"username,omitempty" validate:"required"`
@@ -50,74 +50,46 @@ type CreateHumansRequest struct {
   AllowLogin bool   `json:"allow_login"`
 }
 
-type CreateHumansResponse struct {
-  BulkResponse
-  Ok Human `json:"ok,omitempty" validate:"dive"`
-}
-
+type ReadHumansResponse []Human
 type ReadHumansRequest struct {
   Id       string `json:"id,omitempty"        validate:"omitempty,uuid"`
   Email    string `json:"email,omitempty"     validate:"omitempty,email"`
   Username string `json:"username,omitempty"`
 }
 
-type ReadHumansResponse struct {
-  BulkResponse
-  Ok []Human `json:"ok,omitempty" validate:"dive"`
-}
-
+type UpdateHumansResponse Human
 type UpdateHumansRequest struct {
   Id    string `json:"id" validate:"required,uuid"`
   Email string `json:"email,omitempty" validate:"email"`
   Name  string `json:"name,omitempty"`
 }
 
-type UpdateHumansResponse struct {
-  BulkResponse
-  Ok Human `json:"ok,omitempty" validate:"dive"`
-}
-
+type DeleteHumansResponse HumanRedirect
 type DeleteHumansRequest struct {
   Id string `json:"id" validate:"required,uuid"`
 }
 
-type DeleteHumansResponse struct {
-  BulkResponse
-  Ok HumanRedirect `json:"ok,omitempty" validate:"dive"`
-}
-
+type UpdateHumansDeleteVerifyResponse HumanVerification
 type UpdateHumansDeleteVerifyRequest struct {
   Id         string `json:"id"          validate:"required,uuid"`
   Code       string `json:"code"        validate:"required"`
   RedirectTo string `json:"redirect_to" validate:"required,uri"`
 }
 
-type UpdateHumansDeleteVerifyResponse struct {
-  BulkResponse
-  Ok HumanVerification `json:"ok,omitempty" validate:"dive"`
-}
-
+type UpdateHumansPasswordResponse Human
 type UpdateHumansPasswordRequest struct {
   Id       string `json:"id"       validate:"required,uuid"`
   Password string `json:"password" validate:"required"`
 }
 
-type UpdateHumansPasswordResponse struct {
-  BulkResponse
-  Ok Human `json:"ok,omitempty" validate:"dive"`
-}
-
+type UpdateHumansTotpResponse Human
 type UpdateHumansTotpRequest struct {
   Id           string `json:"id"            validate:"required,uuid"`
   TotpRequired bool   `json:"totp_required"`
   TotpSecret   string `json:"totp_secret"   validate:"required"`
 }
 
-type UpdateHumansTotpResponse struct {
-  BulkResponse
-  Ok Human `json:"ok,omitempty" validate:"dive"`
-}
-
+type CreateHumansAuthenticateResponse HumanAuthentication
 type CreateHumansAuthenticateRequest struct {
   Challenge    string `json:"challenge"                validate:"required"`
   Id           string `json:"id,omitempty"             validate:"omitempty,uuid"`
@@ -126,20 +98,12 @@ type CreateHumansAuthenticateRequest struct {
   EmailChallenge string `json:"email_challenge,omitempty" validate:"omitempty,uuid"`
 }
 
-type CreateHumansAuthenticateResponse struct {
-  BulkResponse
-  Ok HumanAuthentication `json:"ok,omitempty" validate:"dive"`
-}
-
+type CreateHumansRecoverResponse HumanRedirect
 type CreateHumansRecoverRequest struct {
   Id string `json:"id" validate:"required,uuid"`
 }
 
-type CreateHumansRecoverResponse struct {
-  BulkResponse
-  Ok HumanRedirect `json:"ok,omitempty" validate:"dive"`
-}
-
+type UpdateHumansRecoverVerifyResponse HumanVerification
 type UpdateHumansRecoverVerifyRequest struct {
   Id         string `json:"id"          validate:"required,uuid"`
   Code       string `json:"code"        validate:"required"`
@@ -147,248 +111,127 @@ type UpdateHumansRecoverVerifyRequest struct {
   RedirectTo string `json:"redirect_to" validate:"required,uri"`
 }
 
-type UpdateHumansRecoverVerifyResponse struct {
-  BulkResponse
-  Ok HumanVerification `json:"ok,omitempty" validate:"dive"`
-}
-
+type CreateHumansLogoutResponse HumanRedirect
 type CreateHumansLogoutRequest struct {
   Challenge string `json:"challenge" validate:"required,uuid"`
 }
 
-type CreateHumansLogoutResponse struct {
-  BulkResponse
-  Ok HumanRedirect `json:"ok,omitempty" validate:"dive"`
-}
+func CreateHumans(client *IdpClient, url string, requests []CreateHumansRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "POST", url, &responses)
 
-func CreateHumans(client *IdpClient, url string, requests []CreateHumansRequest) (int, []CreateHumansResponse, error) {
-  var response []CreateHumansResponse
-
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
-
-  status, responseData, err := callService(client, "POST", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func ReadHumans(client *IdpClient, url string, requests []ReadHumansRequest) (int, []ReadHumansResponse, error) {
-  var response []ReadHumansResponse
 
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
+func ReadHumans(client *IdpClient, url string, requests []ReadHumansRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "GET", url, &responses)
 
-  status, responseData, err := callService(client, "GET", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func UpdateHumans(client *IdpClient, url string, requests []UpdateHumansRequest) (int, []UpdateHumansResponse, error) {
-  var response []UpdateHumansResponse
 
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
+func UpdateHumans(client *IdpClient, url string, requests []UpdateHumansRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "PUT", url, &responses)
 
-  status, responseData, err := callService(client, "PUT", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func DeleteHumans(client *IdpClient, url string, requests []DeleteHumansRequest) (int, []DeleteHumansResponse, error) {
-  var response []DeleteHumansResponse
 
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
+func DeleteHumans(client *IdpClient, url string, requests []DeleteHumansRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "DELETE", url, &responses)
 
-  status, responseData, err := callService(client, "DELETE", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func DeleteHumansVerify(client *IdpClient, url string, requests []UpdateHumansDeleteVerifyRequest) (int, []UpdateHumansDeleteVerifyResponse, error) {
-  var response []UpdateHumansDeleteVerifyResponse
 
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
+func DeleteHumansVerify(client *IdpClient, url string, requests []UpdateHumansDeleteVerifyRequest)  (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "PUT", url, &responses)
 
-  status, responseData, err := callService(client, "PUT", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func UpdateHumansPassword(client *IdpClient, url string, requests []UpdateHumansPasswordRequest) (int, []UpdateHumansPasswordResponse, error) {
-  var response []UpdateHumansPasswordResponse
 
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
+func UpdateHumansPassword(client *IdpClient, url string, requests []UpdateHumansPasswordRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "PUT", url, &responses)
 
-  status, responseData, err := callService(client, "PUT", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func UpdateHumansTotp(client *IdpClient, url string, requests []UpdateHumansTotpRequest) (int, []UpdateHumansTotpResponse, error) {
-  var response []UpdateHumansTotpResponse
 
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
+func UpdateHumansTotp(client *IdpClient, url string, requests []UpdateHumansTotpRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "PUT", url, &responses)
 
-  status, responseData, err := callService(client, "PUT", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func CreateHumansAuthenticate(client *IdpClient, url string, requests []CreateHumansAuthenticateRequest) (int, []CreateHumansAuthenticateResponse, error) {
-  var response []CreateHumansAuthenticateResponse
 
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
+func CreateHumansAuthenticate(client *IdpClient, url string, requests []CreateHumansAuthenticateRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "POST", url, &responses)
 
-  status, responseData, err := callService(client, "POST", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func RecoverHumans(client *IdpClient, url string, requests []CreateHumansRecoverRequest) (int, []CreateHumansRecoverResponse, error) {
-  var response []CreateHumansRecoverResponse
 
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
+func RecoverHumans(client *IdpClient, url string, requests []CreateHumansRecoverRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "PUT", url, &responses)
 
-  status, responseData, err := callService(client, "POST", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func RecoverHumansVerify(client *IdpClient, url string, requests []UpdateHumansRecoverVerifyRequest) (int, []UpdateHumansRecoverVerifyResponse, error) {
-  var response []UpdateHumansRecoverVerifyResponse
 
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
+func RecoverHumansVerify(client *IdpClient, url string, requests []UpdateHumansRecoverVerifyRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "POST", url, &responses)
 
-  status, responseData, err := callService(client, "PUT", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 
-func LogoutHumans(client *IdpClient, url string, requests []CreateHumansLogoutRequest) (int, []CreateHumansLogoutResponse, error) {
-  var response []CreateHumansLogoutResponse
+func LogoutHumans(client *IdpClient, url string, requests []CreateHumansLogoutRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "POST", url, &responses)
 
-  body, err := json.Marshal(requests)
-  if err != nil {
-    return 999, nil, err // Client system was unable marshal request
-  }
-
-  status, responseData, err := callService(client, "POST", url, bytes.NewBuffer(body))
   if err != nil {
     return status, nil, err
   }
 
-  err = json.Unmarshal(responseData, &response)
-  if err != nil {
-    return 666, nil, err // Client system was unable to unmarshal request, but server already executed
-  }
-
-  return status, response, nil
+  return status, responses, nil
 }
 

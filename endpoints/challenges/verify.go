@@ -9,8 +9,9 @@ import (
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
-  "github.com/charmixer/idp/utils"
   E "github.com/charmixer/idp/client/errors"
+
+  bulky "github.com/charmixer/bulky/server"
 )
 
 func PutVerify(env *environment.State) gin.HandlerFunc {
@@ -27,24 +28,24 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       requestedByIdentityId := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
-        r := request.Request.(client.UpdateChallengesVerifyRequest)
+        r := request.Input.(client.UpdateChallengesVerifyRequest)
 
         var aChallenge []idp.Challenge
         aChallenge = append(aChallenge, idp.Challenge{Id: r.OtpChallenge})
         dbChallenges, err := idp.FetchChallenges(env.Driver, aChallenge)
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
         if dbChallenges == nil {
           log.WithFields(logrus.Fields{ "otp_challenge": r.OtpChallenge, "id": requestedByIdentityId, }).Debug("Challenge not found")
-          request.Response = utils.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
           continue
         }
         challenge := dbChallenges[0]
@@ -52,12 +53,12 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
         identities, err := idp.FetchHumansById(env.Driver, []string{challenge.Subject})
         if err != nil {
           log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
         if identities == nil {
           log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("Human not found")
-          request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
           continue
         }
         identity := identities[0]
@@ -71,7 +72,7 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
             decryptedSecret, err := idp.Decrypt(identity.TotpSecret, config.GetString("totp.cryptkey"))
             if err != nil {
               log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug(err.Error())
-              request.Response = utils.NewInternalErrorResponse(request.Index)
+              request.Output = bulky.NewInternalErrorResponse(request.Index)
               continue
             }
 
@@ -79,7 +80,7 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
 
           } else {
             log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("TOTP not required for Human")
-            request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_TOTP_NOT_REQUIRED)
+            request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_TOTP_NOT_REQUIRED)
             continue
           }
 
@@ -89,43 +90,37 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
 
         }
 
+        var ok client.UpdateChallengesVerifyResponse
+
         if valid == true {
           verifiedChallenge, err := idp.VerifyChallenge(env.Driver, challenge, requestedByIdentityId)
           if err != nil {
             log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
-          ok := client.ChallengeVerification{
+          ok = client.UpdateChallengesVerifyResponse{
             OtpChallenge: verifiedChallenge.Id,
             Verified: true,
             RedirectTo: verifiedChallenge.RedirectTo,
           }
-
-          response := client.UpdateChallengesVerifyResponse{Ok: ok}
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          request.Response = response
         } else {
+
           // Deny by default
-          ok := client.ChallengeVerification{
+          ok = client.UpdateChallengesVerifyResponse{
             OtpChallenge: challenge.Id,
             Verified: false,
             RedirectTo: challenge.RedirectTo,
           }
-
-          response := client.UpdateChallengesVerifyResponse{Ok: ok}
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          request.Response = response
         }
+
+        request.Output = bulky.NewOkResponse(request.Index, ok)
 
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{})
-
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

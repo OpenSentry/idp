@@ -9,7 +9,8 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
-  "github.com/charmixer/idp/utils"
+
+  bulky "github.com/charmixer/bulky/server"
 )
 
 func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
@@ -27,14 +28,14 @@ func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
-        r := request.Request.(client.UpdateHumansRecoverVerifyRequest)
+        r := request.Input.(client.UpdateHumansRecoverVerifyRequest)
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
-        deny := client.HumanVerification{
+        deny := client.UpdateHumansRecoverVerifyResponse{
           Id: r.Id,
           Verified: false,
           RedirectTo: "",
@@ -43,13 +44,13 @@ func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
         humans, err := idp.FetchHumansById(env.Driver, []string{r.Id})
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
         if humans == nil {
           log.WithFields(logrus.Fields{"id":r.Id}).Debug("Human not found")
-          request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
           continue
         }
         human := humans[0]
@@ -57,7 +58,7 @@ func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
         valid, err := idp.ValidatePassword(human.OtpRecoverCode, r.Code)
         if err != nil {
           log.Debug(err.Error())
-          request.Response = utils.NewInternalErrorResponse(request.Index)
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
@@ -67,7 +68,7 @@ func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
           hashedPassword, err := idp.CreatePassword(r.Password)
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
@@ -80,38 +81,29 @@ func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
           updatedHuman, err := idp.UpdatePassword(env.Driver, n)
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
-          accept := client.HumanVerification{
+          accept := client.UpdateHumansRecoverVerifyResponse{
             Id: updatedHuman.Id,
             Verified: true,
             RedirectTo: r.RedirectTo,
           }
 
-          var response client.UpdateHumansRecoverVerifyResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = accept
-          request.Response = response
-
           log.WithFields(logrus.Fields{ "verified":accept.Verified, "redirect_to":accept.RedirectTo }).Debug("Identity deleted")
+          request.Output = bulky.NewOkResponse(request.Index, accept)
           continue
         }
 
         // Deny by default
-        var response client.UpdateHumansRecoverVerifyResponse
-        response.Index = request.Index
-        response.Status = http.StatusOK
-        response.Ok = deny
-        request.Response = response
         log.Debug("Verification denied")
+        request.Output = bulky.NewOkResponse(request.Index, deny)
       }
 
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{MaxRequests: 1})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)

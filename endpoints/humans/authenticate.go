@@ -9,14 +9,15 @@ import (
   "bytes"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-  hydra "github.com/charmixer/hydra/client"
 
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
-  "github.com/charmixer/idp/client"
-  "github.com/charmixer/idp/utils"
+  "github.com/charmixer/idp/client"  
   E "github.com/charmixer/idp/client/errors"
+
+  bulky "github.com/charmixer/bulky/server"
+  hydra "github.com/charmixer/hydra/client"
 )
 
 type EmailConfirmTemplateData struct {
@@ -42,21 +43,21 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
     hydraClient := hydra.NewHydraClient(env.HydraConfig)
 
-    var handleRequest = func(iRequests []*utils.Request) {
+    var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
-        r := request.Request.(client.CreateHumansAuthenticateRequest)
+        r := request.Input.(client.CreateHumansAuthenticateRequest)
 
         log = log.WithFields(logrus.Fields{"challenge": r.Challenge})
 
         hydraLoginResponse, err := hydra.GetLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.login"), hydraClient, r.Challenge)
         if err != nil {
-          request.Response = utils.NewInternalErrorResponse(request.Index)
           log.Debug(err.Error())
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
 
-        deny := client.HumanAuthentication{}
+        deny := client.CreateHumansAuthenticateResponse{}
         deny.Id = hydraLoginResponse.Subject
 
         // Skip if hydra dictated it.
@@ -68,13 +69,13 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
           })
           if err != nil {
-            request.Response = utils.NewInternalErrorResponse(request.Index)
             log.Debug(err.Error())
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
           log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
-          accept := client.HumanAuthentication{
+          accept := client.CreateHumansAuthenticateResponse{
             Id: hydraLoginResponse.Subject,
             Authenticated: true,
             RedirectTo: hydraLoginAcceptResponse.RedirectTo,
@@ -83,13 +84,8 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             IdentityExists: true, // FIXME: Check if Identity still exists in the system
           }
 
-          var response client.CreateHumansAuthenticateResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = accept
-          request.Response = response
-
           log.WithFields(logrus.Fields{"skip":1, "id":accept.Id}).Debug("Authenticated")
+          request.Output = bulky.NewOkResponse(request.Index, accept)
           continue
         }
 
@@ -100,12 +96,12 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           dbChallenges, err := idp.FetchChallenges(env.Driver, []idp.Challenge{ {Id: r.EmailChallenge} })
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
           if dbChallenges == nil {
             log.Debug("Challenge not found")
-            request.Response = utils.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
+            request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
             continue
           }
           challenge := dbChallenges[0]
@@ -114,7 +110,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             _, err := idp.ConfirmEmail(env.Driver, idp.Human{ Identity: idp.Identity{Id: challenge.Subject} })
             if err != nil {
               log.Debug(err.Error())
-              request.Response = utils.NewInternalErrorResponse(request.Index)
+              request.Output = bulky.NewInternalErrorResponse(request.Index)
               continue
             }
             log.WithFields(logrus.Fields{"id":challenge.Subject}).Debug("Email Confirmed")
@@ -128,12 +124,12 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             })
             if err != nil {
               log.Debug(err.Error())
-              request.Response = utils.NewInternalErrorResponse(request.Index)
+              request.Output = bulky.NewInternalErrorResponse(request.Index)
               continue
             }
 
             log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
-            accept := client.HumanAuthentication{
+            accept := client.CreateHumansAuthenticateResponse{
               Id: hydraLoginResponse.Subject,
               Authenticated: true,
               RedirectTo: hydraLoginAcceptResponse.RedirectTo,
@@ -142,12 +138,8 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               IdentityExists: true, // FIXME: Check if Identity still exists in the system
             }
 
-            var response client.CreateHumansAuthenticateResponse
-            response.Index = request.Index
-            response.Status = http.StatusOK
-            response.Ok = accept
-            request.Response = response
             log.WithFields(logrus.Fields{"acr":"otp,email", "id":accept.Id}).Debug("Authenticated")
+            request.Output = bulky.NewOkResponse(request.Index, accept)
             continue
           }
 
@@ -160,12 +152,12 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           dbChallenges, err := idp.FetchChallenges(env.Driver, []idp.Challenge{ {Id: r.OtpChallenge} })
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
           if dbChallenges == nil {
             log.Debug("Challenge not found")
-            request.Response = utils.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
+            request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
             continue
           }
           challenge := dbChallenges[0]
@@ -182,12 +174,12 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             })
             if err != nil {
               log.Debug(err.Error())
-              request.Response = utils.NewInternalErrorResponse(request.Index)
+              request.Output = bulky.NewInternalErrorResponse(request.Index)
               continue
             }
 
             log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
-            accept := client.HumanAuthentication{
+            accept := client.CreateHumansAuthenticateResponse{
               Id: hydraLoginResponse.Subject,
               Authenticated: true,
               RedirectTo: hydraLoginAcceptResponse.RedirectTo,
@@ -196,22 +188,14 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               IdentityExists: true, // FIXME: Check if Identity still exists in the system
             }
 
-            var response client.CreateHumansAuthenticateResponse
-            response.Index = request.Index
-            response.Status = http.StatusOK
-            response.Ok = accept
-            request.Response = response
             log.WithFields(logrus.Fields{"acr":"totp", "id":accept.Id}).Debug("Authenticated")
+            request.Output = bulky.NewOkResponse(request.Index, accept)
             continue
           }
 
           // Deny by default
-          var response client.CreateHumansAuthenticateResponse
-          response.Index = request.Index
-          response.Status = http.StatusOK
-          response.Ok = deny
-          request.Response = response
           log.WithFields(logrus.Fields{"2fa":"totp"}).Debug("Authentication denied")
+          request.Output = bulky.NewOkResponse(request.Index, deny)
           continue
         }
 
@@ -229,13 +213,13 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           humans, err := idp.FetchHumansById( env.Driver, []string{r.Id} )
           if err != nil {
             log.Debug(err.Error())
-            request.Response = utils.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
 
           if humans == nil {
             log.WithFields(logrus.Fields{"id": r.Id}).Debug("Human not found")
-            request.Response = utils.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+            request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
             continue
           }
           human := humans[0]
@@ -247,7 +231,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             valid, _ := idp.ValidatePassword(human.Password, r.Password)
             if valid == true {
 
-              accept := client.HumanAuthentication{
+              accept := client.CreateHumansAuthenticateResponse{
                 Id: human.Id,
                 Authenticated: true,
                 RedirectTo: "",
@@ -259,7 +243,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               redirectToUrlWhenVerified, err := url.Parse( config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.login") )
               if err != nil {
                 log.Debug(err.Error())
-                request.Response = utils.NewInternalErrorResponse(request.Index)
+                request.Output = bulky.NewInternalErrorResponse(request.Index)
                 continue
               }
               // When challenge is verified where should the controller redirect to and append its challenge
@@ -286,14 +270,14 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                   redirectToConfirm, err = url.Parse(epVerifyController)
                   if err != nil {
                     log.WithFields(logrus.Fields{ "url":epVerifyController }).Debug(err.Error())
-                    request.Response = utils.NewInternalErrorResponse(request.Index)
+                    request.Output = bulky.NewInternalErrorResponse(request.Index)
                     continue
                   }
 
                   emailChallenge, err := idp.CreateChallengeCode()
                   if err != nil {
                     log.Debug(err.Error())
-                    request.Response = utils.NewInternalErrorResponse(request.Index)
+                    request.Output = bulky.NewInternalErrorResponse(request.Index)
                     continue
                   }
                   challengeCode = emailChallenge.Code
@@ -301,7 +285,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                   hashedCode, err := idp.CreatePassword(challengeCode)
                   if err != nil {
                     log.Debug(err.Error())
-                    request.Response = utils.NewInternalErrorResponse(request.Index)
+                    request.Output = bulky.NewInternalErrorResponse(request.Index)
                     continue
                   }
 
@@ -325,7 +309,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                   redirectToConfirm, err = url.Parse(epVerifyController)
                   if err != nil {
                     log.WithFields(logrus.Fields{ "url":epVerifyController }).Debug(err.Error())
-                    request.Response = utils.NewInternalErrorResponse(request.Index)
+                    request.Output = bulky.NewInternalErrorResponse(request.Index)
                     continue
                   }
 
@@ -345,7 +329,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                 challenge, _, err = idp.CreateChallenge(env.Driver, newChallenge, human.Id)
                 if err != nil {
                   log.Debug(err.Error())
-                  request.Response = utils.NewInternalErrorResponse(request.Index)
+                  request.Output = bulky.NewInternalErrorResponse(request.Index)
                   continue
                 }
 
@@ -363,7 +347,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                   })
                   if err != nil {
                     log.Debug(err.Error())
-                    request.Response = utils.NewInternalErrorResponse(request.Index)
+                    request.Output = bulky.NewInternalErrorResponse(request.Index)
                     continue
                   }
                 }
@@ -386,20 +370,15 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                 hydraLoginAcceptResponse, err := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, r.Challenge, hydraLoginAcceptRequest)
                 if err != nil {
                   log.Debug(err.Error())
-                  request.Response = utils.NewInternalErrorResponse(request.Index)
+                  request.Output = bulky.NewInternalErrorResponse(request.Index)
                   continue
                 }
 
                 accept.RedirectTo = hydraLoginAcceptResponse.RedirectTo
               }
 
-              var response client.CreateHumansAuthenticateResponse
-              response.Index = request.Index
-              response.Status = http.StatusOK
-              response.Ok = accept
-              request.Response = response
-
               log.WithFields(logrus.Fields{"id":accept.Id}).Debug("Authenticated")
+              request.Output = bulky.NewOkResponse(request.Index, accept)
               continue
 
             } else {
@@ -414,16 +393,11 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
         // Deny by default
         log.WithFields(logrus.Fields{"id": r.Id}).Debug("Authentication denied")
-        var response client.CreateHumansAuthenticateResponse
-        response.Index = request.Index
-        response.Status = http.StatusOK
-        response.Ok = deny
-        request.Response = response
+        request.Output = bulky.NewOkResponse(request.Index, deny)
       }
     }
 
-    responses := utils.HandleBulkRestRequest(requests, handleRequest, utils.HandleBulkRequestParams{})
-
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
