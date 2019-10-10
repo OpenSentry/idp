@@ -10,9 +10,9 @@ func EmitEventHumanCreated(natsConnection *nats.Conn, human Human) {
   natsConnection.Publish("idp.human.created", []byte(e))
 }
 
-func EmitEventHumanAuthenticated(natsConnection *nats.Conn, human Human) {
-  e := fmt.Sprintf("{id:%s}", human.Id)
-  natsConnection.Publish("idp.human.authenticated", []byte(e))
+func EmitEventIdentityAuthenticated(natsConnection *nats.Conn, i Identity, acr string) {
+  e := fmt.Sprintf("{id:%s, acr:%s}", i.Id, acr)
+  natsConnection.Publish("idp.identity.authenticated", []byte(e))
 }
 
 func EmitEventClientCreated(natsConnection *nats.Conn, client Client) {
