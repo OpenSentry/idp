@@ -274,6 +274,7 @@ func serve(env *environment.State) {
   r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:authenticate:identity"), humans.PutRecoverVerification(env) )
 
   r.GET ( "/clients", utils.AuthorizationRequired(aconf, "idp:read:client"), clients.GetClients(env))
+  r.POST( "/clients", utils.AuthorizationRequired(aconf, "idp:create:client"), clients.PostClients(env) )
 
   r.GET(  "/invites", utils.AuthorizationRequired(aconf, "idp:read:invite"), invites.GetInvites(env) )
   r.POST( "/invites", utils.AuthorizationRequired(aconf, "idp:create:invite"), invites.PostInvites(env) )
