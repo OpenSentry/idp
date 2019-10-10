@@ -6,7 +6,7 @@ import (
 )
 
 func EmitEventHumanCreated(natsConnection *nats.Conn, human Human) {
-  e := fmt.Sprintf("{id:%s, name:%s, email:%s}", human.Id, human.Name, human.Email)
+  e := fmt.Sprintf("{id:%s, username:%s}", human.Id, human.Username)
   natsConnection.Publish("idp.human.created", []byte(e))
 }
 
