@@ -60,3 +60,12 @@ func ReadInvites(client *IdpClient, url string, requests []ReadInvitesRequest) (
   return status, responses, nil
 }
 
+func CreateInvitesSend(client *IdpClient, url string, requests []CreateInvitesSendRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "POST", url, &responses)
+
+  if err != nil {
+    return status, nil, err
+  }
+
+  return status, responses, nil
+}
