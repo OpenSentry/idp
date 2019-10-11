@@ -30,7 +30,7 @@ func marshalNodeToClient(node neo4j.Node) (Client) {
 
 // CRUD
 
-func CreateClient(driver neo4j.Driver, client Client, createdBy Identity) (Client, Identity, error) {
+func CreateClient(driver neo4j.Driver, client Client) (Client, error) {
   var err error
   type NeoReturnType struct{
     Client Client
@@ -39,15 +39,13 @@ func CreateClient(driver neo4j.Driver, client Client, createdBy Identity) (Clien
 
   session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
-    return Client{}, Identity{}, err
+    return Client{}, err
   }
   defer session.Close()
 
   neoResult, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      MATCH (cbi:Identity {id:$cbi})
-
       CREATE (i:Client:Identity {
         id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp,
 
@@ -56,11 +54,10 @@ func CreateClient(driver neo4j.Driver, client Client, createdBy Identity) (Clien
         name:$name,
 
         description:$description,
-      })-[:CREATED_BY]->(cbi)
-      RETURN i, cbi
+      })
+      RETURN i
     `
     params := map[string]interface{}{
-      "cbi": createdBy.Id,
       "iss": client.Issuer, "exp": client.ExpiresAt,
       "client_secret":client.ClientSecret,
       "name": client.Name,
@@ -71,19 +68,11 @@ func CreateClient(driver neo4j.Driver, client Client, createdBy Identity) (Clien
     }
 
     var client Client
-    var cbi Identity
     if result.Next() {
       record := result.Record()
       clientNode := record.GetByIndex(0)
       if clientNode != nil {
         client = marshalNodeToClient(clientNode.(neo4j.Node))
-
-        cbiNode := record.GetByIndex(1)
-        if cbiNode != nil {
-          cbi = marshalNodeToIdentity(cbiNode.(neo4j.Node))
-          client.CreatedBy = &cbi
-        }
-
       }
     } else {
       return nil, errors.New("Unable to create Client")
@@ -93,13 +82,13 @@ func CreateClient(driver neo4j.Driver, client Client, createdBy Identity) (Clien
     if err = result.Err(); err != nil {
       return nil, err
     }
-    return NeoReturnType{Client: client, CreatedBy: cbi}, nil
+    return NeoReturnType{Client: client}, nil
   })
 
   if err != nil {
-    return Client{}, Identity{}, err
+    return Client{}, err
   }
-  return neoResult.(NeoReturnType).Client, neoResult.(NeoReturnType).CreatedBy, nil
+  return neoResult.(NeoReturnType).Client, nil
 }
 
 func FetchClients(driver neo4j.Driver, clients []Client) ([]Client, error) {
