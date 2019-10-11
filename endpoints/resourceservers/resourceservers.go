@@ -1,4 +1,4 @@
-package clients
+package resourceservers
 
 import (
   "net/http"
@@ -13,14 +13,14 @@ import (
   bulky "github.com/charmixer/bulky/server"
 )
 
-func GetClients(env *environment.State) gin.HandlerFunc {
+func GetResourceServers(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "GetClients",
+      "func": "GetResourceServers",
     })
 
-    var requests []client.ReadClientsRequest
+    var requests []client.ReadResourceServersRequest
     err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -28,41 +28,42 @@ func GetClients(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*bulky.Request) {
-      var clients []idp.Client
+      var resourceServers []idp.ResourceServer
 
       for _, request := range iRequests {
         if request.Input != nil {
-          var r client.ReadClientsRequest
-          r = request.Input.(client.ReadClientsRequest)
-          clients = append(clients, idp.Client{ Identity: idp.Identity{Id:r.Id} })
+          r := request.Input.(client.ReadResourceServersRequest)
+          resourceServers = append(resourceServers, idp.ResourceServer{ Identity: idp.Identity{Id:r.Id} })
         }
       }
 
-      dbClients, err := idp.FetchClients(env.Driver, clients)
+      dbResourceServers, err := idp.FetchResourceServers(env.Driver, resourceServers)
       if err != nil {
         log.Debug(err.Error())
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         return
       }
 
+      log.Debug(dbResourceServers)
+
       for _, request := range iRequests {
-        var r client.ReadClientsRequest
+        var r client.ReadResourceServersRequest
         if request.Input != nil {
-          r = request.Input.(client.ReadClientsRequest)
+          r = request.Input.(client.ReadResourceServersRequest)
         }
 
-        var ok client.ReadClientsResponse
-        for _, d := range dbClients {
+        var ok client.ReadResourceServersResponse
+        for _, d := range dbResourceServers {
           if request.Input != nil && d.Id != r.Id {
             continue
           }
 
           // Translate from db model to rest model
-          ok = append(ok, client.Client{
+          ok = append(ok, client.ResourceServer{
             Id: d.Id,
-            ClientSecret: d.ClientSecret,
             Name: d.Name,
             Description: d.Description,
+            Audience: d.Audience,
           })
         }
 
