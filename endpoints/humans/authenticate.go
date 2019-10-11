@@ -13,7 +13,7 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
-  "github.com/charmixer/idp/client"  
+  "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
 
   bulky "github.com/charmixer/bulky/server"
@@ -62,11 +62,13 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
         // Skip if hydra dictated it.
         if hydraLoginResponse.Skip == true {
+          acr := "skip"
 
           hydraLoginAcceptResponse, err := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, r.Challenge, hydra.LoginAcceptRequest{
             Subject: hydraLoginResponse.Subject,
             Remember: true,
             RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
+            ACR: acr,
           })
           if err != nil {
             log.Debug(err.Error())
@@ -84,14 +86,17 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             IdentityExists: true, // FIXME: Check if Identity still exists in the system
           }
 
-          log.WithFields(logrus.Fields{"skip":1, "id":accept.Id}).Debug("Authenticated")
+          log.WithFields(logrus.Fields{"acr":acr, "id":accept.Id}).Debug("Authenticated")
           request.Output = bulky.NewOkResponse(request.Index, accept)
+          idp.EmitEventIdentityAuthenticated(env.Nats, idp.Identity{Id: accept.Id}, acr)
           continue
         }
 
         // Check that email is confirmed before allowing login
         if r.EmailChallenge != "" {
           log = log.WithFields(logrus.Fields{ "email_challenge": r.EmailChallenge })
+
+          acr := "otp.email"
 
           dbChallenges, err := idp.FetchChallenges(env.Driver, []idp.Challenge{ {Id: r.EmailChallenge} })
           if err != nil {
@@ -121,6 +126,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               Subject: challenge.Subject,
               Remember: true,
               RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
+              ACR: acr,
             })
             if err != nil {
               log.Debug(err.Error())
@@ -130,7 +136,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
             log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
             accept := client.CreateHumansAuthenticateResponse{
-              Id: hydraLoginResponse.Subject,
+              Id: challenge.Subject,
               Authenticated: true,
               RedirectTo: hydraLoginAcceptResponse.RedirectTo,
               TotpRequired: false,
@@ -138,8 +144,9 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               IdentityExists: true, // FIXME: Check if Identity still exists in the system
             }
 
-            log.WithFields(logrus.Fields{"acr":"otp,email", "id":accept.Id}).Debug("Authenticated")
+            log.WithFields(logrus.Fields{"acr":acr, "id":accept.Id}).Debug("Authenticated")
             request.Output = bulky.NewOkResponse(request.Index, accept)
+            idp.EmitEventIdentityAuthenticated(env.Nats, idp.Identity{Id: accept.Id}, acr)
             continue
           }
 
@@ -148,6 +155,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         // Check for OTP. Gets set when authenticated using password then redirected here after otp verification.
         if r.OtpChallenge != "" {
           log = log.WithFields(logrus.Fields{ "otp_challenge": r.OtpChallenge })
+          acr := "otp"
 
           dbChallenges, err := idp.FetchChallenges(env.Driver, []idp.Challenge{ {Id: r.OtpChallenge} })
           if err != nil {
@@ -171,6 +179,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               Subject: challenge.Subject,
               Remember: true,
               RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
+              ACR: acr,
             })
             if err != nil {
               log.Debug(err.Error())
@@ -180,7 +189,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
             log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
             accept := client.CreateHumansAuthenticateResponse{
-              Id: hydraLoginResponse.Subject,
+              Id: challenge.Subject,
               Authenticated: true,
               RedirectTo: hydraLoginAcceptResponse.RedirectTo,
               TotpRequired: false,
@@ -188,8 +197,9 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               IdentityExists: true, // FIXME: Check if Identity still exists in the system
             }
 
-            log.WithFields(logrus.Fields{"acr":"totp", "id":accept.Id}).Debug("Authenticated")
+            log.WithFields(logrus.Fields{"acr":acr, "id":accept.Id}).Debug("Authenticated")
             request.Output = bulky.NewOkResponse(request.Index, accept)
+            idp.EmitEventIdentityAuthenticated(env.Nats, idp.Identity{Id: accept.Id}, acr)
             continue
           }
 
@@ -361,11 +371,12 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               } else {
 
                 // All verification requirements completed, so call accept in hydra.
-
+                acr := ""
                 hydraLoginAcceptRequest := hydra.LoginAcceptRequest{
                   Subject: human.Id,
                   Remember: true,
                   RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
+                  ACR: acr,
                 }
                 hydraLoginAcceptResponse, err := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, r.Challenge, hydraLoginAcceptRequest)
                 if err != nil {
@@ -375,9 +386,11 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                 }
 
                 accept.RedirectTo = hydraLoginAcceptResponse.RedirectTo
+
+                log.WithFields(logrus.Fields{"id":accept.Id, "acr":acr}).Debug("Authenticated")
+                idp.EmitEventIdentityAuthenticated(env.Nats, idp.Identity{Id: accept.Id}, acr)
               }
 
-              log.WithFields(logrus.Fields{"id":accept.Id}).Debug("Authenticated")
               request.Output = bulky.NewOkResponse(request.Index, accept)
               continue
 

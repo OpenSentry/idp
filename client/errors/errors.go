@@ -18,14 +18,15 @@ const HUMAN_NOT_UPDATED = 22
 const HUMAN_TOTP_NOT_REQUIRED = 23
 const HUMAN_ALREADY_EXISTS = 24
 
+const CLIENT_NOT_FOUND = 50
+const CLIENT_NOT_CREATED = 51
+
 const CHALLENGE_NOT_FOUND = 30
 
 const USERNAME_BANNED = 80
 
 const INVITE_NOT_FOUND = 90
 const INVITE_NOT_CREATED = 91
-
-const CLIENT_NOT_FOUND = 100
 
 const FOLLOW_NOT_FOUND = 110
 const FOLLOW_NOT_CREATED = 111
@@ -73,6 +74,18 @@ func InitRestErrors() {
           "en":  "TOTP not required",
           "dev": "TOTP not required",
         },
+
+      CLIENT_NOT_FOUND:
+        {
+          "en":  "Not found",
+          "dev": "Client not found",
+        },
+      CLIENT_NOT_CREATED:
+        {
+          "en":  "Not created",
+          "dev": "Failed to create client. This requires investigation as it should never happen with validation in place.",
+        },
+
       INVITE_NOT_FOUND:
         {
           "en":  "Not found",
@@ -82,11 +95,6 @@ func InitRestErrors() {
         {
           "en":  "Not created",
           "dev": "Failed to create invite. This requires investigation as it should never happen with validation in place.",
-        },
-      CLIENT_NOT_FOUND:
-        {
-          "en":  "Not found",
-          "dev": "Client not found",
         },
       FOLLOW_NOT_FOUND:
         {
