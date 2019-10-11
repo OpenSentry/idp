@@ -12,6 +12,8 @@ type Invite struct {
   Email        string `json:"email"              validate:"required,email"`
   Username     string `json:"username,omitempty"`
 
+  SentAt   int64 `json:"sent_at,omitempty" validate:"omitempty,numeric"`
+
   InvitedBy string `json:"invited_by"            validate:"required,uuid"`
 }
 
