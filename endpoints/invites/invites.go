@@ -98,6 +98,7 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
             Email: invite.Email,
             Username: invite.Username,
             InvitedBy: invite.InvitedBy.Id,
+            SentAt: invite.SentAt,
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)
           log.WithFields(logrus.Fields{ "id": ok.Id, }).Debug("Invite created")
@@ -173,6 +174,7 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
               Email: i.Email,
               Username: i.Username,
               InvitedBy: i.InvitedBy.Id,
+              SentAt: i.SentAt,
             })
           }
 

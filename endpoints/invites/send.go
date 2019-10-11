@@ -116,7 +116,14 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
 
           _, err = idp.SendAnEmailToAnonymous(smtpConfig, invite.Email, invite.Email, mail)
           if err != nil {
-            log.WithFields(logrus.Fields{ "email": invite.Email, "file": emailTemplateFile }).Debug(err.Error())
+            log.WithFields(logrus.Fields{ "id": invite.Id, "file": emailTemplateFile }).Debug(err.Error())
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
+            continue
+          }
+
+          _, err = idp.UpdateInviteSentAt(env.Driver, invite)
+          if err != nil {
+            log.WithFields(logrus.Fields{ "id": invite.Id }).Debug(err.Error())
             request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
