@@ -9,6 +9,7 @@ import (
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
+  E "github.com/charmixer/idp/client/errors"
 
   bulky "github.com/charmixer/bulky/server"
 )
@@ -71,6 +72,74 @@ func GetClients(env *environment.State) gin.HandlerFunc {
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{EnableEmptyRequest: true})
+    c.JSON(http.StatusOK, responses)
+  }
+  return gin.HandlerFunc(fn)
+}
+
+func PostClients(env *environment.State) gin.HandlerFunc {
+  fn := func(c *gin.Context) {
+
+    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "func": "PostClients",
+    })
+
+    var requests []client.CreateClientsRequest
+    err := c.BindJSON(&requests)
+    if err != nil {
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+      return
+    }
+
+    var handleRequests = func(iRequests []*bulky.Request) {
+
+      // requestedByIdentity := c.MustGet("sub").(string)
+
+      for _, request := range iRequests {
+        r := request.Input.(client.CreateClientsRequest)
+
+        hashedPassword, err := idp.CreatePassword(r.ClientSecret) // @SecurityRisk: Please _NEVER_ log the cleartext client_secret
+        if err != nil {
+          log.Debug(err.Error())
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
+          continue
+        }
+
+        newClient := idp.Client{
+          Name: r.Name,
+          ClientSecret: hashedPassword,
+          Description: r.Description,
+        }
+        objClient, err := idp.CreateClient(env.Driver, newClient)
+        if err != nil {
+          // @SecurityRisk: Please _NEVER_ log the hashed client_secret
+          log.WithFields(logrus.Fields{ "name": newClient.Name, /* "client_secret": newClient.ClientSecret, */ }).Debug(err.Error())
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
+          continue
+        }
+
+        if objClient != (idp.Client{}) {
+          ok := client.CreateClientsResponse{
+            Id: objClient.Id,
+            ClientSecret: objClient.ClientSecret,
+            Name: objClient.Name,
+            Description: objClient.Description,
+          }
+          request.Output = bulky.NewOkResponse(request.Index, ok)
+          idp.EmitEventClientCreated(env.Nats, objClient)
+          continue
+        }
+
+        // Deny by default
+        // @SecurityRisk: Please _NEVER_ log the hashed client_secret
+        log.WithFields(logrus.Fields{ "name": newClient.Name, /* "client_secret": newClient.ClientSecret, */ }).Debug(err.Error())
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.CLIENT_NOT_CREATED)
+        continue
+      }
+    }
+
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
