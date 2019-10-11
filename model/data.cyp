@@ -1,6 +1,6 @@
 // ### Required clients
 MERGE (:Identity:Client {
-  id:randomUUID(),
+  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   client_id:"idp",
   client_secret:"",
   name: "IDP hydra client",
@@ -8,7 +8,7 @@ MERGE (:Identity:Client {
 })
 
 MERGE (:Identity:Client {
-  id:randomUUID(),
+  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   client_id:"idpui",
   client_secret:"",
   name: "IDP api client",
@@ -17,7 +17,7 @@ MERGE (:Identity:Client {
 
 // ## IDPAPI
 MERGE (:Identity:ResourceServer {
-  id:randomUUID(),
+  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   name:"IDP",
   aud:"idp",
   description:"Identity Provider"
@@ -25,7 +25,7 @@ MERGE (:Identity:ResourceServer {
 
 // HYDRA API
 MERGE (:Identity:ResourceServer {
-  id:randomUUID(),
+  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   name:"Hydra",
   aud:"hydra",
   description:"OAuth2 API"
@@ -34,14 +34,14 @@ MERGE (:Identity:ResourceServer {
 
 // # AAP
 MERGE (:Identity:Client {
-  id:randomUUID(),
+  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   client_id:"aap",
   client_secret:"",
   name: "AAP hydra client",
   description:"Used by the Access and Authorization Provider api to call Hydra
 "})
 MERGE (:Identity:Client {
-  id:randomUUID(),
+  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   client_id:"aapui",
   client_secret:"",
   name: "AAP api client",
@@ -51,7 +51,7 @@ MERGE (:Identity:Client {
 
 // AAPAPI
 MERGE (:Identity:ResourceServer {
-  id:randomUUID(),
+  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   name:"AAP",
   aud:"aap",
   description:"Access and Authorization provider"
