@@ -98,7 +98,7 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
           data := InviteTemplateData{
             Id: invite.Id,
             InvitedBy: invite.InvitedBy.Name,
-            Email: invite.SentTo.Email,
+            Email: invite.Email,
             InvitationUrl: u.String(),
             IdentityProvider: config.GetString("provider.name"),
           }
@@ -115,9 +115,9 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
             Body: tpl.String(),
           }
 
-          _, err = idp.SendAnEmailToAnonymous(smtpConfig, invite.SentTo.Email, invite.SentTo.Email, mail)
+          _, err = idp.SendAnEmailToAnonymous(smtpConfig, invite.Email, invite.Email, mail)
           if err != nil {
-            log.WithFields(logrus.Fields{ "email": invite.SentTo.Email, "file": emailTemplateFile }).Debug(err.Error())
+            log.WithFields(logrus.Fields{ "email": invite.Email, "file": emailTemplateFile }).Debug(err.Error())
             request.Output = bulky.NewInternalErrorResponse(request.Index)
             continue
           }
@@ -126,9 +126,8 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
             Id: invite.Id,
             IssuedAt: invite.IssuedAt,
             ExpiresAt: invite.ExpiresAt,
-            Email: invite.SentTo.Email,
-            Invited: invite.Invited.Id,
-            HintUsername: invite.HintUsername,
+            Email: invite.Email,
+            Username: invite.Username,
             InvitedBy: invite.InvitedBy.Id,
           }
 
