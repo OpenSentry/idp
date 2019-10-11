@@ -2,7 +2,7 @@ Dear {{ .Email }}
 
 You are invited to join {{ .IdentityProvider }}
 
-To accept or decline the invitation please visit this link: {{ .InvitationUrl }}
+To accept the invitation please register using this link: {{ .InvitationUrl }}
 
 Kind Regards,
 {{ .InvitedBy }}

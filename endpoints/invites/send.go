@@ -27,12 +27,12 @@ type InviteTemplateData struct {
   IdentityProvider string
 }
 
-func PutInvitesSend(env *environment.State) gin.HandlerFunc {
+func PostInvitesSend(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PutInvitesSend",
+      "func": "PostInvitesSend",
     })
 
     var requests []client.CreateInvitesSendRequest
@@ -65,7 +65,6 @@ func PutInvitesSend(env *environment.State) gin.HandlerFunc {
       return
     }
     t := template.Must(template.New(emailTemplateFile).Parse(string(tplEmail)))
-
 
     var handleRequests = func(iRequests []*bulky.Request) {
 

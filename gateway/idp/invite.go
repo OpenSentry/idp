@@ -129,7 +129,7 @@ func FetchInvitesById(driver neo4j.Driver, ids []string) ([]Invite, error) {
     }
   } else {
     cypher = `
-      MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds AND inv.Id in split($ids, ",")
+      MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds AND inv.id in split($ids, ",")
       RETURN inv, ibi
     `
     params = map[string]interface{}{
