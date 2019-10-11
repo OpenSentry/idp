@@ -12,6 +12,8 @@ type Invite struct {
   Username string
   Email string
 
+  SentAt int64
+
   InvitedBy Human
 }
 func marshalNodeToInvite(node neo4j.Node) (Invite) {
@@ -22,7 +24,52 @@ func marshalNodeToInvite(node neo4j.Node) (Invite) {
 
     Username: p["username"].(string),
     Email: p["email"].(string),
+    SentAt: p["sent_at"].(int64),
   }
+}
+
+func UpdateInviteSentAt(driver neo4j.Driver, invite Invite) (Invite, error) {
+  var err error
+
+  session, err := driver.Session(neo4j.AccessModeWrite);
+  if err != nil {
+    return Invite{}, err
+  }
+  defer session.Close()
+
+  obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+    cypher := `
+      MATCH (inv:Invite:Identity {id:$id}) SET inv.sent_at=datetime().epochSeconds
+      RETURN inv
+    `
+    params := map[string]interface{}{"id": invite.Id}
+    if result, err = tx.Run(cypher, params); err != nil {
+      return nil, err
+    }
+
+    var invite Invite
+    if result.Next() {
+      record := result.Record()
+      inviteNode := record.GetByIndex(0)
+      if inviteNode != nil {
+        invite = marshalNodeToInvite(inviteNode.(neo4j.Node))
+      }
+    } else {
+      return nil, errors.New("Unable to update Invite")
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+    return invite, nil
+  })
+
+  if err != nil {
+    return Invite{}, err
+  }
+  return obj.(Invite), nil
 }
 
 func CreateInvite(driver neo4j.Driver, invite Invite, invitedBy Human) (Invite, Human, error) {
@@ -42,7 +89,7 @@ func CreateInvite(driver neo4j.Driver, invite Invite, invitedBy Human) (Invite, 
     var result neo4j.Result
     cypher := `
       MATCH (ibi:Identity {id:$ibi})
-      MERGE (ibi)-[:INVITES]->(inv:Invite:Identity {id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp, email:$email, username:$username})
+      MERGE (ibi)-[:INVITES]->(inv:Invite:Identity {id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp, email:$email, username:$username, sent_at:0})
 
       WITH inv, ibi
 
