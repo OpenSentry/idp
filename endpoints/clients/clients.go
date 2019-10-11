@@ -21,7 +21,7 @@ func GetClients(env *environment.State) gin.HandlerFunc {
       "func": "GetClients",
     })
 
-    var requests []client.ReadChallengesRequest
+    var requests []client.ReadClientsRequest
     err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})

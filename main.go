@@ -27,6 +27,7 @@ import (
   "github.com/charmixer/idp/endpoints/challenges"
   "github.com/charmixer/idp/endpoints/invites"
   "github.com/charmixer/idp/endpoints/follows"
+  "github.com/charmixer/idp/endpoints/resourceservers"
 
   E "github.com/charmixer/idp/client/errors"
 )
@@ -268,13 +269,15 @@ func serve(env *environment.State) {
 
   r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "idp:logout:identity"), humans.PostLogout(env) )
 
-  r.PUT( "/humans/deleteverification", utils.AuthorizationRequired(aconf, "idp:delete:identity"), humans.PutDeleteVerification(env) )
+  r.PUT(  "/humans/deleteverification", utils.AuthorizationRequired(aconf, "idp:delete:identity"), humans.PutDeleteVerification(env) )
 
   r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "idp:recover:identity"), humans.PostRecover(env) )
   r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:authenticate:identity"), humans.PutRecoverVerification(env) )
 
   r.GET ( "/clients", utils.AuthorizationRequired(aconf, "idp:read:client"), clients.GetClients(env))
   r.POST( "/clients", utils.AuthorizationRequired(aconf, "idp:create:client"), clients.PostClients(env) )
+
+  r.GET ( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:read:resourceservers"), resourceservers.GetResourceServers(env))
 
   r.GET(  "/invites", utils.AuthorizationRequired(aconf, "idp:read:invite"), invites.GetInvites(env) )
   r.POST( "/invites", utils.AuthorizationRequired(aconf, "idp:create:invite"), invites.PostInvites(env) )
