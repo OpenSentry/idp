@@ -124,6 +124,13 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
       return
     }
 
+    issuer := config.GetString("idp.public.issuer")
+    if issuer == "" {
+      log.Debug("Missing idp.public.issuer")
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+
     var handleRequests = func(iRequests []*bulky.Request) {
 
       // requestedByIdentity := c.MustGet("sub").(string)
@@ -172,6 +179,9 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
         }
 
         newHuman := idp.Human{
+          Identity: idp.Identity{
+            Issuer: issuer,
+          },
           Username: r.Username,
           Name: r.Name,
           Email: r.Email,
@@ -414,7 +424,7 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
           ok := client.DeleteHumansResponse{
             Id: updatedHuman.Id,
             RedirectTo: challenge.RedirectTo,
-          }          
+          }
 
           log.WithFields(logrus.Fields{"id":ok.Id, "redirect_to":ok.RedirectTo}).Debug("Delete Verification Requested")
           request.Output = bulky.NewOkResponse(request.Index, ok)
