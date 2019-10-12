@@ -4,6 +4,27 @@ import (
   bulky "github.com/charmixer/bulky/client"
 )
 
+type EmailTemplate int
+type OTPType int
+
+const (
+  OTP OTPType = OTPType(iota)
+  TOTP
+)
+func (d OTPType) String() string {
+  return [...]string{"OTP", "TOTP"}[d]
+}
+
+const (
+  ConfirmEmail EmailTemplate = EmailTemplate(iota)
+  ConfirmDelete
+  ConfirmRecover
+  ConfirmOTP
+)
+func (d EmailTemplate) String() string {
+  return [...]string{"ConfirmEmail", "ConfirmDelete", "ConfirmRecover", "ConfirmOTP"}[d]
+}
+
 type Challenge struct {
   OtpChallenge string `json:"otp_challenge" validate:"required"`
   Subject      string `json:"sub"           validate:"required,uuid"`
@@ -12,8 +33,8 @@ type Challenge struct {
   ExpiresAt    int64  `json:"exp"           validate:"required"`
   TTL          int64  `json:"ttl"           validate:"required"`
   RedirectTo   string `json:"redirect_to"   validate:"required,url"`
-  CodeType     string `json:"code_type"     validate:"required"`
-  Code         string `json:"code"          validate:"required"`
+  CodeType     int64  `json:"code_type"`
+  Code         string `json:"code,omitempty"`
 }
 
 type ChallengeVerification struct {
@@ -28,8 +49,11 @@ type CreateChallengesRequest struct {
   Audience    string `json:"aud"         validate:"required"`
   TTL         int64  `json:"ttl"         validate:"required"`
   RedirectTo  string `json:"redirect_to" validate:"required,url"`
-  CodeType    string `json:"code_type"   validate:"required"`
+  CodeType    int64  `json:"code_type"   validate:"required"`
   Code        string `json:"code"        validate:"required"`
+
+  SentTo      string `json:"email,omitempty" validate:"omitempty,email"`
+  Template    EmailTemplate `json:"tpl,omitempty" validate:"omitempty,numeric"`
 }
 
 type ReadChallengesResponse []Challenge

@@ -17,6 +17,10 @@ type Invite struct {
   InvitedBy string `json:"invited_by"            validate:"required,uuid"`
 }
 
+type InviteClaimChallenge struct {
+  RedirectTo string `json:"redirect_to"   validate:"required,url"`
+}
+
 type CreateInvitesResponse Invite
 type CreateInvitesRequest struct {
   Email    string `json:"email,omitempty"          validate:"omitempty,email"`
@@ -30,16 +34,17 @@ type ReadInvitesRequest struct {
   Username string `json:"username,omitempty"`
 }
 
-type UpdateInvitesAcceptResponse Invite
-type UpdateInvitesAcceptRequest struct {
-  Id string `json:"id" validate:"required,uuid"`
-}
-
 type CreateInvitesSendResponse Invite
 type CreateInvitesSendRequest struct {
   Id string `json:"id" validate:"required,uuid"`
 }
 
+type CreateInvitesClaimResponse InviteClaimChallenge
+type CreateInvitesClaimRequest struct {
+  Id         string `json:"id" validate:"required,uuid"`
+  RedirectTo string `json:"redirect_to" validate:"required,url"`
+  TTL        int64  `json:"ttl" validate:"required,numeric"`
+}
 
 func CreateInvites(client *IdpClient, url string, requests []CreateInvitesRequest) (status int, responses bulky.Responses, err error) {
   status, err = handleRequest(client, requests, "POST", url, &responses)
@@ -63,6 +68,16 @@ func ReadInvites(client *IdpClient, url string, requests []ReadInvitesRequest) (
 }
 
 func CreateInvitesSend(client *IdpClient, url string, requests []CreateInvitesSendRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "POST", url, &responses)
+
+  if err != nil {
+    return status, nil, err
+  }
+
+  return status, responses, nil
+}
+
+func CreateInvitesClaim(client *IdpClient, url string, requests []CreateInvitesClaimRequest) (status int, responses bulky.Responses, err error) {
   status, err = handleRequest(client, requests, "POST", url, &responses)
 
   if err != nil {

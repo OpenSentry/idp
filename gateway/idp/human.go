@@ -52,6 +52,70 @@ func marshalNodeToHuman(node neo4j.Node) (Human) {
   }
 }
 
+func CreateHumanFromInvite(driver neo4j.Driver, human Human) (Human, error) {
+  var err error
+  type NeoReturnType struct{
+    Human Human
+  }
+
+  session, err := driver.Session(neo4j.AccessModeWrite);
+  if err != nil {
+    return Human{}, err
+  }
+  defer session.Close()
+
+  neoResult, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+    var result neo4j.Result
+    cypher := `
+      MATCH (i:Invite:Identity {id:$id})
+        SET i.name=$name,
+            i.allow_login=$allow_login,
+            i.password=$password,
+            i.totp_required=false,
+            i.totp_secret="",
+            i.otp_recover_code="",
+            i.otp_recover_code_expire=0,
+            i.otp_delete_code="",
+            i.otp_delete_code_expire=0,
+            i.exp=0,
+            i:Human
+     REMOVE i:Invite
+      RETURN i
+    `
+    params := map[string]interface{}{
+      "id": human.Id,
+      "name": human.Name,
+      "allow_login": human.AllowLogin,
+      "password": human.Password,
+    }
+    if result, err = tx.Run(cypher, params); err != nil {
+      return nil, err
+    }
+
+    var human Human
+    if result.Next() {
+      record := result.Record()
+      humanNode := record.GetByIndex(0)
+      if humanNode != nil {
+        human = marshalNodeToHuman(humanNode.(neo4j.Node))
+      }
+    } else {
+      return nil, errors.New("Unable to create Human")
+    }
+
+    // Check if we encountered any error during record streaming
+    if err = result.Err(); err != nil {
+      return nil, err
+    }
+    return NeoReturnType{Human: human}, nil
+  })
+
+  if err != nil {
+    return Human{}, err
+  }
+  return neoResult.(NeoReturnType).Human, nil
+}
+
 func CreateHuman(driver neo4j.Driver, human Human) (Human, error) {
   var err error
   type NeoReturnType struct{

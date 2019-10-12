@@ -1,6 +1,6 @@
 Greetings {{ .Id }}
 
-We have received a request to gain access to your account using your email. Your verification code is:
+You are required to enter the code sent to you to continue. Your code is:
 
 {{.Code}}
 

@@ -50,26 +50,26 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
         }
         challenge := dbChallenges[0]
 
-        identities, err := idp.FetchHumansById(env.Driver, []string{challenge.Subject})
-        if err != nil {
-          log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
-        }
-        if identities == nil {
-          log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("Human not found")
-          request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
-          continue
-        }
-        identity := identities[0]
-
         var valid bool = false
 
-        if challenge.CodeType == "TOTP" {
+        if client.OTPType(challenge.CodeType) == client.TOTP {
 
-          if identity.TotpRequired == true {
+          humans, err := idp.FetchHumansById(env.Driver, []string{challenge.Subject})
+          if err != nil {
+            log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug(err.Error())
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
+            continue
+          }
+          if humans == nil {
+            log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("Human not found")
+            request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+            continue
+          }
+          human := humans[0]
 
-            decryptedSecret, err := idp.Decrypt(identity.TotpSecret, config.GetString("totp.cryptkey"))
+          if human.TotpRequired == true {
+
+            decryptedSecret, err := idp.Decrypt(human.TotpSecret, config.GetString("totp.cryptkey"))
             if err != nil {
               log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug(err.Error())
               request.Output = bulky.NewInternalErrorResponse(request.Index)
@@ -93,7 +93,7 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
         var ok client.UpdateChallengesVerifyResponse
 
         if valid == true {
-          verifiedChallenge, err := idp.VerifyChallenge(env.Driver, challenge, requestedByIdentityId)
+          verifiedChallenge, err := idp.VerifyChallenge(env.Driver, challenge)
           if err != nil {
             log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug(err.Error())
             request.Output = bulky.NewInternalErrorResponse(request.Index)

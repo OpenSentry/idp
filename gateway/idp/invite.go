@@ -186,6 +186,50 @@ func FetchInvitesById(driver neo4j.Driver, ids []string) ([]Invite, error) {
   return fetchInvitesByQuery(driver, cypher, params)
 }
 
+func FetchInvitesByEmail(driver neo4j.Driver, emails []string) ([]Invite, error) {
+  var cypher string
+  var params map[string]interface{}
+
+  if emails == nil {
+    cypher = `
+      MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
+      RETURN inv, ibi
+    `
+    params = map[string]interface{}{}
+  } else {
+    cypher = `
+      MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds AND inv.email in split($emails, ",")
+      RETURN inv, ibi
+    `
+    params = map[string]interface{}{
+      "emails": strings.Join(emails, ","),
+    }
+  }
+  return fetchInvitesByQuery(driver, cypher, params)
+}
+
+func FetchInvitesByUsername(driver neo4j.Driver, usernames []string) ([]Invite, error) {
+  var cypher string
+  var params map[string]interface{}
+
+  if usernames == nil {
+    cypher = `
+      MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
+      RETURN inv, ibi
+    `
+    params = map[string]interface{}{}
+  } else {
+    cypher = `
+      MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds AND inv.username in split($usernames, ",")
+      RETURN inv, ibi
+    `
+    params = map[string]interface{}{
+      "usernames": strings.Join(usernames, ","),
+    }
+  }
+  return fetchInvitesByQuery(driver, cypher, params)
+}
+
 func fetchInvitesByQuery(driver neo4j.Driver, cypher string, params map[string]interface{}) ([]Invite, error)  {
   var err error
   var session neo4j.Session
