@@ -62,6 +62,11 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesRequest)
 
+        if env.BannedUsernames[r.Username] == true {
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
+          continue
+        }
+
         // Does indentity on email already exists?
         dbHumans, err := idp.FetchHumansByEmail(env.Driver, []string{r.Email})
         if err != nil {
@@ -155,11 +160,16 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
           r := request.Input.(client.ReadInvitesRequest)
           if r.Id != "" {
             dbInvites, err = idp.FetchInvitesById(env.Driver, []string{r.Id})
-            if err != nil {
-              log.Debug(err.Error())
-              request.Output = bulky.NewInternalErrorResponse(request.Index)
-              continue
-            }
+          } else if r.Email != "" {
+            dbInvites, err = idp.FetchInvitesByEmail(env.Driver, []string{r.Email})
+          } else if r.Username != "" {
+            dbInvites, err = idp.FetchInvitesByUsername(env.Driver, []string{r.Username})
+          }
+
+          if err != nil {
+            log.Debug(err.Error())
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
+            continue
           }
 
         }

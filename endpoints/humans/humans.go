@@ -124,20 +124,12 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    issuer := config.GetString("idp.public.issuer")
-    if issuer == "" {
-      log.Debug("Missing idp.public.issuer")
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-
     var handleRequests = func(iRequests []*bulky.Request) {
-
-      // requestedByIdentity := c.MustGet("sub").(string)
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateHumansRequest)
 
+/*
         if env.BannedUsernames[r.Username] == true {
           request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
           continue
@@ -169,7 +161,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
             request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
             continue
           }
-        }
+        }*/
 
         hashedPassword, err := idp.CreatePassword(r.Password) // @SecurityRisk: Please _NEVER_ log the cleartext password
         if err != nil {
@@ -179,16 +171,13 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
         }
 
         newHuman := idp.Human{
-          Identity: idp.Identity{
-            Issuer: issuer,
-          },
-          Username: r.Username,
+          Identity: idp.Identity{ Id: r.Id },
+          //Username: r.Username,
           Name: r.Name,
-          Email: r.Email,
           Password: hashedPassword,
           AllowLogin: true,
         }
-        human, err := idp.CreateHuman(env.Driver, newHuman)
+        human, err := idp.CreateHumanFromInvite(env.Driver, newHuman)
         if err != nil {
           // @SecurityRisk: Please _NEVER_ log the hashed password
           log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin }).Debug(err.Error())

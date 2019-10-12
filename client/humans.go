@@ -43,6 +43,7 @@ type HumanVerification struct {
 
 type CreateHumansResponse Human
 type CreateHumansRequest struct {
+  Id         string `json:"id"                 validate:"required,uuid"`
   Password   string `json:"password"           validate:"required"`
   Username   string `json:"username,omitempty" validate:"required"`
   Email      string `json:"email,omitempty"    validate:"required,email"`

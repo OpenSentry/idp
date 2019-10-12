@@ -1,18 +1,15 @@
 package humans
 
 import (
-  "time"
   "net/url"
   "net/http"
-  "text/template"
-  "io/ioutil"
-  "bytes"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
+  "github.com/charmixer/idp/endpoints/challenges"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
 
@@ -266,15 +263,11 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                 var err error
                 var challengeKey string
                 var redirectToConfirm *url.URL
-                var challenge idp.Challenge
-                var newChallenge idp.Challenge
-                var sendChallengeEmail string
-                var challengeCode string
+                var challenge *idp.Challenge
 
                 if human.EmailConfirmedAt <= 0 {
 
                   challengeKey = "email_challenge"
-                  sendChallengeEmail = human.Email
 
                   epVerifyController := config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.emailconfirm")
                   redirectToConfirm, err = url.Parse(epVerifyController)
@@ -284,30 +277,19 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                     continue
                   }
 
-                  emailChallenge, err := idp.CreateChallengeCode()
-                  if err != nil {
-                    log.Debug(err.Error())
-                    request.Output = bulky.NewInternalErrorResponse(request.Index)
-                    continue
-                  }
-                  challengeCode = emailChallenge.Code
-
-                  hashedCode, err := idp.CreatePassword(challengeCode)
-                  if err != nil {
-                    log.Debug(err.Error())
-                    request.Output = bulky.NewInternalErrorResponse(request.Index)
-                    continue
-                  }
-
-                  newChallenge = idp.Challenge{
-                    JwtRegisteredClaims: idp.JwtRegisteredClaims{
-                      Issuer: config.GetString("idp.public.issuer"),
-                      ExpiresAt: time.Now().Unix() + 900, // 15 min
-                      Audience: "https://id.localhost/api/challenges/verify",
-                    },
-                    CodeType: "OTP",
-                    Code: hashedCode,
+                  r := client.CreateChallengesRequest{
+                    Subject: human.Id,
+                    TTL: 900, // 15 min
                     RedirectTo: redirectToUrlWhenVerified.String(),
+                    CodeType: int64(client.OTP),
+                    SentTo: human.Email,
+                    Template: client.ConfirmEmail,
+                  }
+                  challenge, err = challenges.CreateChallengeForOTP(env, r)
+                  if err != nil {
+                    log.Debug(err.Error())
+                    request.Output = bulky.NewInternalErrorResponse(request.Index)
+                    continue
                   }
 
                 } else if human.TotpRequired == true {
@@ -323,43 +305,21 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                     continue
                   }
 
-                  newChallenge = idp.Challenge{
-                    JwtRegisteredClaims: idp.JwtRegisteredClaims{
-                      Issuer: config.GetString("idp.public.issuer"),
-                      ExpiresAt: time.Now().Unix() + 300, // 5 min
-                      Audience: "https://id.localhost/api/authenticate",
-                    },
-                    CodeType: "TOTP", // means the code is not stored in DB, but calculated from otp_secret
-                    Code: "",
+                  r := client.CreateChallengesRequest{
+                    Subject: human.Id,
+                    TTL: 300, // 5 min
                     RedirectTo: redirectToUrlWhenVerified.String(),
+                    CodeType: int64(client.TOTP),
+                    SentTo: human.Email,
+                    Template: client.ConfirmEmail,
                   }
-
-                }
-
-                challenge, _, err = idp.CreateChallenge(env.Driver, newChallenge, human.Id)
-                if err != nil {
-                  log.Debug(err.Error())
-                  request.Output = bulky.NewInternalErrorResponse(request.Index)
-                  continue
-                }
-
-                if sendChallengeEmail != "" {
-
-                  log.WithFields(logrus.Fields{ "code":challengeCode, "email_challenge":challenge.Id }).Debug("EMAIL CONFIRMATION CODE - Do not log this in production!!!")
-
-                  sender := idp.SMTPSender{ Name: config.GetString("emailconfirm.sender.name"), Email: config.GetString("emailconfirm.sender.email") }
-                  templateFile := config.GetString("emailconfirm.template.email.file")
-                  emailSubject := config.GetString("emailconfirm.template.email.subject")
-                  _, err = sendChallengeToEmail(challenge, human.Email, human.Name, sender, templateFile, emailSubject, EmailConfirmTemplateData{
-                    Sender: sender.Name,
-                    Name: human.Name,
-                    Code: challengeCode, // Note this is the clear text generated code and not the hashed one stored in DB.
-                  })
+                  challenge, err = challenges.CreateChallengeForTOTP(env, r)
                   if err != nil {
                     log.Debug(err.Error())
                     request.Output = bulky.NewInternalErrorResponse(request.Index)
                     continue
                   }
+
                 }
 
                 q = redirectToConfirm.Query()
@@ -416,34 +376,3 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func sendChallengeToEmail(challenge idp.Challenge, email string, name string, sender idp.SMTPSender, templateFile string, emailSubject string, data interface{}) (bool, error) {
-
-  smtpConfig := idp.SMTPConfig{
-    Host: config.GetString("mail.smtp.host"),
-    Username: config.GetString("mail.smtp.user"),
-    Password: config.GetString("mail.smtp.password"),
-    Sender: sender,
-    SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
-  }
-
-  tplRecover, err := ioutil.ReadFile(templateFile)
-  if err != nil {
-    return false, err
-  }
-
-  t := template.Must(template.New(templateFile).Parse(string(tplRecover)))
-
-  var tpl bytes.Buffer
-  if err := t.Execute(&tpl, data); err != nil {
-    return false, err
-  }
-
-  anEmail := idp.AnEmail{ Subject: emailSubject, Body: tpl.String()}
-
-  _, err = idp.SendAnEmailToAnonymous(smtpConfig, name, email, anEmail)
-  if err != nil {
-    return false, err
-  }
-
-  return true, nil
-}
