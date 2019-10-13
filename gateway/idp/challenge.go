@@ -39,8 +39,6 @@ func marshalNodeToChallenge(node neo4j.Node) (Challenge) {
   }
 }
 
-// CRUD
-
 func CreateChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, error) {
   var err error
   type NeoReturnType struct{
@@ -67,7 +65,7 @@ func CreateChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, error
         id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp, aud:$aud, sub:$sub,
         redirect_to:$redirect_to,
         code_type:$code_type, code:$code,
-        verified_at:0
+        verified_at:0        
       })-[:CHALLENGES]->(i)
 
       WITH c
@@ -85,6 +83,7 @@ func CreateChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, error
       "code_type": challenge.CodeType,
       "code": challenge.Code,
     }
+
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
     }

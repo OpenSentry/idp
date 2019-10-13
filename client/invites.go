@@ -6,10 +6,11 @@ import (
 
 type Invite struct {
   Id        string `json:"id"                    validate:"required,uuid"`
-  IssuedAt  int64  `json:"iat"                   validate:"required"`
-  ExpiresAt int64  `json:"exp"                   validate:"required"`
+  IssuedAt  int64  `json:"iat"                   validate:"required,numeric"`
+  ExpiresAt int64  `json:"exp"                   validate:"required,numeric"`
 
   Email        string `json:"email"              validate:"required,email"`
+  Username     string `json:"username,omitempty" validate:"omitempty"`
 
   SentAt   int64 `json:"sent_at,omitempty" validate:"omitempty,numeric"`
 }
@@ -20,7 +21,9 @@ type InviteClaimChallenge struct {
 
 type CreateInvitesResponse Invite
 type CreateInvitesRequest struct {
-  Email    string `json:"email,omitempty"          validate:"omitempty,email"`
+  Email    string `json:"email"              validate:"required,email"`
+  Username string `json:"username,omitempty" validate:"omitempty"`
+  ExpiresAt int64 `json:"exp,omitempty"      validate:"omitempty,numeric"`
 }
 
 type ReadInvitesResponse []Invite

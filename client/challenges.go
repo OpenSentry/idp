@@ -4,17 +4,8 @@ import (
   bulky "github.com/charmixer/bulky/client"
 )
 
-type ChallengeType int
 type EmailTemplate int
 type OTPType int
-
-const (
-  EmailChallenge ChallengeType = ChallengeType(iota)
-  AuthenticatorChallenge
-)
-func (d ChallengeType) String() string {
-  return [...]string{"EmailChallenge", "AuthenticatorChallenge"}[d]
-}
 
 const (
   OTP OTPType = OTPType(iota)
@@ -25,26 +16,26 @@ func (d OTPType) String() string {
 }
 
 const (
+  ConfirmOTP EmailTemplate = EmailTemplate(iota)
   ConfirmEmail EmailTemplate = EmailTemplate(iota)
   ConfirmDelete
   ConfirmRecover
-  ConfirmOTP
 )
 func (d EmailTemplate) String() string {
   return [...]string{"ConfirmEmail", "ConfirmDelete", "ConfirmRecover", "ConfirmOTP"}[d]
 }
 
 type Challenge struct {
-  OtpChallenge string `json:"otp_challenge" validate:"required"`
-  Subject      string `json:"sub"           validate:"required,uuid"`
-  Audience     string `json:"aud"           validate:"required"`
-  IssuedAt     int64  `json:"iat"           validate:"required"`
-  ExpiresAt    int64  `json:"exp"           validate:"required"`
-  TTL          int64  `json:"ttl"           validate:"required"`
-  RedirectTo   string `json:"redirect_to"   validate:"required,url"`
-  CodeType     int64  `json:"code_type"`
-  Code         string `json:"code,omitempty"`
-  VerifiedAt   int64  `json:"verified_at"`
+  OtpChallenge  string `json:"otp_challenge"  validate:"required"`
+  Subject       string `json:"sub"            validate:"required,uuid"`
+  Audience      string `json:"aud"            validate:"required"`
+  IssuedAt      int64  `json:"iat"            validate:"required"`
+  ExpiresAt     int64  `json:"exp"            validate:"required"`
+  TTL           int64  `json:"ttl"            validate:"required"`
+  RedirectTo    string `json:"redirect_to"    validate:"required,url"`
+  CodeType      int64  `json:"code_type"`
+  Code          string `json:"code,omitempty"`
+  VerifiedAt    int64  `json:"verified_at"`
 }
 
 type ChallengeVerification struct {
@@ -55,15 +46,15 @@ type ChallengeVerification struct {
 
 type CreateChallengesResponse Challenge
 type CreateChallengesRequest struct {
-  Subject     string `json:"sub"         validate:"required,uuid"`
-  Audience    string `json:"aud"         validate:"required"`
-  TTL         int64  `json:"ttl"         validate:"required"`
-  RedirectTo  string `json:"redirect_to" validate:"required,url"`
-  CodeType    int64  `json:"code_type"   validate:"required"`
-  Code        string `json:"code"        validate:"required"`
+  Subject       string `json:"sub"         validate:"required,uuid"`
+  Audience      string `json:"aud"         validate:"required"`
+  TTL           int64  `json:"ttl"         validate:"required"`
+  RedirectTo    string `json:"redirect_to" validate:"required,url"`
+  CodeType      int64  `json:"code_type"   validate:"required"`
+  Code          string `json:"code"        validate:"required"`
 
-  SentTo      string `json:"email,omitempty" validate:"omitempty,email"`
-  Template    EmailTemplate `json:"tpl,omitempty" validate:"omitempty,numeric"`
+  Email         string `json:"email,omitempty" validate:"omitempty,email"`
+  Template      EmailTemplate `json:"tpl,omitempty" validate:"omitempty,numeric"`
 }
 
 type ReadChallengesResponse []Challenge

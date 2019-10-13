@@ -49,12 +49,26 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesRequest)
 
-        // if env.BannedUsernames[r.Username] == true {
-        //   request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
-        //   continue
-        // }
+        if env.BannedUsernames[r.Username] == true {
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
+          continue
+        }
 
-        // Does indentity on email already exists?
+        // Sanity check. Username must be unique
+        if r.Username != "" {
+          humansFoundByUsername, err := idp.FetchHumansByUsername(env.Driver, []string{r.Username})
+          if err != nil {
+            log.Debug(err.Error())
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
+            continue
+          }
+          if len(humansFoundByUsername) > 0 {
+            request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_EXISTS)
+            continue
+          }
+        }
+
+        // Sanity check. Email must be unique
         dbHumans, err := idp.FetchHumansByEmail(env.Driver, []string{r.Email})
         if err != nil {
           log.Debug(err.Error())
@@ -66,12 +80,25 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
           continue
         }
 
+        if (time.Now().Unix() >= r.ExpiresAt) {
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_EXPIRES_IN_THE_PAST)
+          continue
+        }
+
+        var exp int64
+        if r.ExpiresAt > 0 {
+          exp = r.ExpiresAt
+        } else {
+          exp = time.Now().Unix() + int64(ttl)
+        }
+
         newInvite := idp.Invite{
           Identity: idp.Identity{
             Issuer: issuer,
-            ExpiresAt: time.Now().Unix() + int64(ttl),
+            ExpiresAt: exp,
           },
           Email: r.Email,
+          Username: r.Username,
         }
         invite, err := idp.CreateInvite(env.Driver, newInvite)
         if err != nil {
@@ -87,6 +114,7 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
             IssuedAt: invite.IssuedAt,
             ExpiresAt: invite.ExpiresAt,
             Email: invite.Email,
+            Username: invite.Username,
             SentAt: invite.SentAt,
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)

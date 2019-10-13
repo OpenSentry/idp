@@ -282,7 +282,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                     TTL: 900, // 15 min
                     RedirectTo: redirectToUrlWhenVerified.String(),
                     CodeType: int64(client.OTP),
-                    SentTo: human.Email,
+                    Email: human.Email,
                     Template: client.ConfirmEmail,
                   }
                   challenge, err = challenges.CreateChallengeForOTP(env, r)
@@ -310,7 +310,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                     TTL: 300, // 5 min
                     RedirectTo: redirectToUrlWhenVerified.String(),
                     CodeType: int64(client.TOTP),
-                    SentTo: human.Email,
+                    Email: human.Email,
                     Template: client.ConfirmEmail,
                   }
                   challenge, err = challenges.CreateChallengeForTOTP(env, r)
