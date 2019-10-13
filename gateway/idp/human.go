@@ -68,7 +68,9 @@ func CreateHumanFromInvite(driver neo4j.Driver, human Human) (Human, error) {
     var result neo4j.Result
     cypher := `
       MATCH (i:Invite:Identity {id:$id})
-        SET i.name=$name,
+        SET i.email_confirmed_at=$email_confirmed_at,
+            i.username=$username,
+            i.name=$name,
             i.allow_login=$allow_login,
             i.password=$password,
             i.totp_required=false,
@@ -79,14 +81,20 @@ func CreateHumanFromInvite(driver neo4j.Driver, human Human) (Human, error) {
             i.otp_delete_code_expire=0,
             i.exp=0,
             i:Human
-     REMOVE i:Invite
+
+      WITH i
+
+      REMOVE i:Invite
+
       RETURN i
     `
     params := map[string]interface{}{
       "id": human.Id,
       "name": human.Name,
+      "username": human.Username,
       "allow_login": human.AllowLogin,
       "password": human.Password,
+      "email_confirmed_at": human.EmailConfirmedAt,
     }
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err

@@ -62,12 +62,13 @@ func CreateChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, error
 
     var result neo4j.Result
     cypher := `
+      MATCH (i:Identity {id:$sub})
       MERGE (c:Challenge {
         id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp, aud:$aud, sub:$sub,
         redirect_to:$redirect_to,
         code_type:$code_type, code:$code,
         verified_at:0
-      })
+      })-[:CHALLENGES]->(i)
 
       WITH c
 

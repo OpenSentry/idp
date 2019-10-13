@@ -44,28 +44,15 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    invitedByIdentityId := c.MustGet("sub").(string)
-    dbHumans, err := idp.FetchHumansById(env.Driver, []string{invitedByIdentityId})
-    if err != nil {
-      log.WithFields(logrus.Fields{ "invited_by":invitedByIdentityId }).Debug(err.Error())
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-
-    var invitedBy idp.Human
-    if len(dbHumans) > 0 {
-      invitedBy = dbHumans[0]
-    }
-
     var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesRequest)
 
-        if env.BannedUsernames[r.Username] == true {
-          request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
-          continue
-        }
+        // if env.BannedUsernames[r.Username] == true {
+        //   request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
+        //   continue
+        // }
 
         // Does indentity on email already exists?
         dbHumans, err := idp.FetchHumansByEmail(env.Driver, []string{r.Email})
@@ -84,12 +71,11 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
             Issuer: issuer,
             ExpiresAt: time.Now().Unix() + int64(ttl),
           },
-          Username: r.Username,
           Email: r.Email,
         }
-        invite, _, err := idp.CreateInvite(env.Driver, newInvite, invitedBy)
+        invite, err := idp.CreateInvite(env.Driver, newInvite)
         if err != nil {
-          log.WithFields(logrus.Fields{ "invited_by": invitedBy.Id, "email": r.Email }).Debug(err.Error())
+          log.WithFields(logrus.Fields{ "email": r.Email }).Debug(err.Error())
           request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
@@ -101,12 +87,11 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
             IssuedAt: invite.IssuedAt,
             ExpiresAt: invite.ExpiresAt,
             Email: invite.Email,
-            Username: invite.Username,
-            InvitedBy: invite.InvitedBy.Id,
             SentAt: invite.SentAt,
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)
-          log.WithFields(logrus.Fields{ "id": ok.Id, }).Debug("Invite created")
+          log.WithFields(logrus.Fields{ "id":ok.Id }).Debug("Invite created")
+          idp.EmitEventInviteCreated(env.Nats, invite)
           continue
         }
 
@@ -162,9 +147,10 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
             dbInvites, err = idp.FetchInvitesById(env.Driver, []string{r.Id})
           } else if r.Email != "" {
             dbInvites, err = idp.FetchInvitesByEmail(env.Driver, []string{r.Email})
-          } else if r.Username != "" {
-            dbInvites, err = idp.FetchInvitesByUsername(env.Driver, []string{r.Username})
           }
+          // else if r.Username != "" {
+          //   dbInvites, err = idp.FetchInvitesByUsername(env.Driver, []string{r.Username})
+          // }
 
           if err != nil {
             log.Debug(err.Error())
@@ -182,8 +168,6 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
               IssuedAt: i.IssuedAt,
               ExpiresAt: i.ExpiresAt,
               Email: i.Email,
-              Username: i.Username,
-              InvitedBy: i.InvitedBy.Id,
               SentAt: i.SentAt,
             })
           }

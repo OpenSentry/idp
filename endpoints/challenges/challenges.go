@@ -84,6 +84,7 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
             TTL: d.ExpiresAt - d.IssuedAt,
             RedirectTo: d.RedirectTo,
             CodeType: d.CodeType,
+            VerifiedAt: d.VerifiedAt,
           })
         }
 
