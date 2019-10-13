@@ -10,11 +10,8 @@ type Invite struct {
   ExpiresAt int64  `json:"exp"                   validate:"required"`
 
   Email        string `json:"email"              validate:"required,email"`
-  Username     string `json:"username,omitempty"`
 
   SentAt   int64 `json:"sent_at,omitempty" validate:"omitempty,numeric"`
-
-  InvitedBy string `json:"invited_by"            validate:"required,uuid"`
 }
 
 type InviteClaimChallenge struct {
@@ -24,14 +21,12 @@ type InviteClaimChallenge struct {
 type CreateInvitesResponse Invite
 type CreateInvitesRequest struct {
   Email    string `json:"email,omitempty"          validate:"omitempty,email"`
-  Username string `json:"username,omitempty"`
 }
 
 type ReadInvitesResponse []Invite
 type ReadInvitesRequest struct {
   Id       string `json:"id,omitempty"        validate:"omitempty,uuid"`
   Email    string `json:"email,omitempty"     validate:"omitempty,email"`
-  Username string `json:"username,omitempty"`
 }
 
 type CreateInvitesSendResponse Invite

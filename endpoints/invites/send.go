@@ -68,8 +68,6 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      //sendByIdentityId := c.MustGet("sub").(string)
-
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesSendRequest)
 
@@ -96,7 +94,7 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
 
           data := InviteTemplateData{
             Id: invite.Id,
-            InvitedBy: invite.InvitedBy.Name,
+            InvitedBy: "MISSING IMPLEMENTATION", //invite.InvitedBy.Name,
             Email: invite.Email,
             InvitationUrl: u.String(),
             IdentityProvider: config.GetString("provider.name"),
@@ -133,8 +131,8 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
             IssuedAt: invite.IssuedAt,
             ExpiresAt: invite.ExpiresAt,
             Email: invite.Email,
-            Username: invite.Username,
-            InvitedBy: invite.InvitedBy.Id,
+            // Username: invite.Username,
+            // InvitedBy: invite.InvitedBy.Id,
           }
 
           log.WithFields(logrus.Fields{ "id": ok.Id, }).Debug("Invite sent")

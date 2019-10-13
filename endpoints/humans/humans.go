@@ -129,24 +129,9 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
       for _, request := range iRequests {
         r := request.Input.(client.CreateHumansRequest)
 
-/*
         if env.BannedUsernames[r.Username] == true {
           request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
           continue
-        }
-
-        // Sanity check. Email must be unique
-        if r.Email != "" {
-          humansFoundByEmail, err := idp.FetchHumansByEmail(env.Driver, []string{r.Email})
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
-          }
-          if len(humansFoundByEmail) > 0 {
-            request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
-            continue
-          }
         }
 
         // Sanity check. Username must be unique
@@ -158,10 +143,10 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
             continue
           }
           if len(humansFoundByUsername) > 0 {
-            request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
+            request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_EXISTS)
             continue
           }
-        }*/
+        }
 
         hashedPassword, err := idp.CreatePassword(r.Password) // @SecurityRisk: Please _NEVER_ log the cleartext password
         if err != nil {
@@ -172,15 +157,16 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
 
         newHuman := idp.Human{
           Identity: idp.Identity{ Id: r.Id },
-          //Username: r.Username,
+          Username: r.Username,
           Name: r.Name,
           Password: hashedPassword,
           AllowLogin: true,
+          EmailConfirmedAt: r.EmailConfirmedAt,
         }
         human, err := idp.CreateHumanFromInvite(env.Driver, newHuman)
         if err != nil {
           // @SecurityRisk: Please _NEVER_ log the hashed password
-          log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin }).Debug(err.Error())
+          log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin, "email_confirmed_at":newHuman.EmailConfirmedAt }).Debug(err.Error())
           request.Output = bulky.NewInternalErrorResponse(request.Index)
           continue
         }
@@ -192,6 +178,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
               Password: human.Password,
               Name: human.Name,
               Email: human.Email,
+              EmailConfirmedAt: human.EmailConfirmedAt,
               AllowLogin: human.AllowLogin,
               TotpRequired: human.TotpRequired,
               TotpSecret: human.TotpSecret,
@@ -207,7 +194,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
 
         // Deny by default
         // @SecurityRisk: Please _NEVER_ log the hashed password
-        log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin }).Debug(err.Error())
+        log.WithFields(logrus.Fields{ "username": newHuman.Username, "name": newHuman.Name, "email": newHuman.Email, /* "password": newHuman.Password, */ "allow_login":newHuman.AllowLogin, "email_confirmed_at":newHuman.EmailConfirmedAt }).Debug(err.Error())
         request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_CREATED)
         continue
       }

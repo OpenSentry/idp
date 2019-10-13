@@ -4,8 +4,17 @@ import (
   bulky "github.com/charmixer/bulky/client"
 )
 
+type ChallengeType int
 type EmailTemplate int
 type OTPType int
+
+const (
+  EmailChallenge ChallengeType = ChallengeType(iota)
+  AuthenticatorChallenge
+)
+func (d ChallengeType) String() string {
+  return [...]string{"EmailChallenge", "AuthenticatorChallenge"}[d]
+}
 
 const (
   OTP OTPType = OTPType(iota)
@@ -35,6 +44,7 @@ type Challenge struct {
   RedirectTo   string `json:"redirect_to"   validate:"required,url"`
   CodeType     int64  `json:"code_type"`
   Code         string `json:"code,omitempty"`
+  VerifiedAt   int64  `json:"verified_at"`
 }
 
 type ChallengeVerification struct {
