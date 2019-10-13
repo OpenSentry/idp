@@ -73,7 +73,7 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
             TTL: r.TTL,
             RedirectTo: redirectToUrlWhenVerified.String(),
             CodeType: int64(client.OTP),
-            SentTo: invite.Email,
+            Email: invite.Email,
             Template: client.ConfirmEmail,
           }
           challenge, err := challenges.CreateChallengeForOTP(env, r)

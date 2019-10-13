@@ -48,9 +48,7 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
           r = request.Input.(client.ReadChallengesRequest)
 
           // Translate from rest model to db
-          v := idp.Challenge{
-            Id: r.OtpChallenge,
-          }
+          v := idp.Challenge{ Id: r.OtpChallenge }
           challenges = append(challenges, v)
         }
       }
@@ -182,12 +180,13 @@ func CreateChallengeForOTP(env *environment.State, r client.CreateChallengesRequ
     CodeType: r.CodeType,
     Code: hashedCode,
   }
+
   challenge, err := idp.CreateChallenge(env.Driver, newChallenge)
   if err != nil {
     return nil, err
   }
 
-  if r.SentTo != "" {
+  if r.Email != "" {
 
     var templateFile string
     var emailSubject string
@@ -224,7 +223,7 @@ func CreateChallengeForOTP(env *environment.State, r client.CreateChallengesRequ
       Challenge: challenge.Id,
       Sender: sender.Name,
       Id: challenge.Subject,
-      Email: r.SentTo,
+      Email: r.Email,
       Code: otpCode.Code, // Note this is the clear text generated code and not the hashed one stored in DB.
     }
     if err := t.Execute(&tpl, data); err != nil {
@@ -233,7 +232,7 @@ func CreateChallengeForOTP(env *environment.State, r client.CreateChallengesRequ
 
     anEmail := idp.AnEmail{ Subject:emailSubject, Body:tpl.String() }
 
-    _, err = idp.SendAnEmailToAnonymous(smtpConfig, r.SentTo, r.SentTo, anEmail)
+    _, err = idp.SendAnEmailToAnonymous(smtpConfig, r.Email, r.Email, anEmail)
     if err != nil {
       return nil, err
     }
@@ -253,7 +252,6 @@ func CreateChallengeForTOTP(env *environment.State, r client.CreateChallengesReq
     },
     RedirectTo: r.RedirectTo,
     CodeType: r.CodeType,
-    Code: "",
   }
   challenge, err := idp.CreateChallenge(env.Driver, newChallenge)
   if err != nil {
