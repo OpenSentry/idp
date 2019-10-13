@@ -24,6 +24,7 @@ const CLIENT_NOT_CREATED = 51
 const CHALLENGE_NOT_FOUND = 30
 
 const USERNAME_BANNED = 80
+const USERNAME_EXISTS = 81
 
 const INVITE_NOT_FOUND = 90
 const INVITE_NOT_CREATED = 91
@@ -63,6 +64,11 @@ func InitRestErrors() {
         {
           "en":  "Username is banned",
           "dev": "Username is banned according to the banlist",
+        },
+      USERNAME_EXISTS:
+        {
+          "en":  "Username exists",
+          "dev": "Username already exists",
         },
       CHALLENGE_NOT_FOUND:
         {

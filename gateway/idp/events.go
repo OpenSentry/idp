@@ -6,7 +6,7 @@ import (
 )
 
 func EmitEventHumanCreated(natsConnection *nats.Conn, human Human) {
-  e := fmt.Sprintf("{id:%s, username:%s}", human.Id, human.Username)
+  e := fmt.Sprintf("{id:%s}", human.Id)
   natsConnection.Publish("idp.human.created", []byte(e))
 }
 
@@ -18,4 +18,9 @@ func EmitEventIdentityAuthenticated(natsConnection *nats.Conn, i Identity, acr s
 func EmitEventClientCreated(natsConnection *nats.Conn, client Client) {
   e := fmt.Sprintf("{id:%s, name:%s}", client.Id, client.Name)
   natsConnection.Publish("idp.client.created", []byte(e))
+}
+
+func EmitEventInviteCreated(natsConnection *nats.Conn, invite Invite) {
+  e := fmt.Sprintf("{id:%s}", invite.Id)
+  natsConnection.Publish("idp.invite.created", []byte(e))
 }

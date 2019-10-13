@@ -10,6 +10,7 @@ type Human struct {
   Password             string `json:"password"                validate:"required"`
   Name                 string `json:"name"                    validate:"required`
   Email                string `json:"email"                   validate:"required,email"`
+  EmailConfirmedAt     int64  `json:"email_confirmed_at"`
   AllowLogin           bool   `json:"allow_login"             validate:"required"`
   TotpRequired         bool   `json:"totp_required"           `
   TotpSecret           string `json:"totp_secret"             `
@@ -43,12 +44,13 @@ type HumanVerification struct {
 
 type CreateHumansResponse Human
 type CreateHumansRequest struct {
-  Id         string `json:"id"                 validate:"required,uuid"`
-  Password   string `json:"password"           validate:"required"`
-  Username   string `json:"username,omitempty" validate:"required"`
-  Email      string `json:"email,omitempty"    validate:"required,email"`
-  Name       string `json:"name,omitempty"     validate:"required"`
-  AllowLogin bool   `json:"allow_login"`
+  Id               string `json:"id"                 validate:"required,uuid"`
+  Password         string `json:"password"           validate:"required"`
+  Username         string `json:"username,omitempty" validate:"required"`
+  Email            string `json:"email,omitempty"    validate:"required,email"`
+  Name             string `json:"name,omitempty"     validate:"required"`
+  AllowLogin       bool   `json:"allow_login"`
+  EmailConfirmedAt int64  `json:"email_confirmed_at"`
 }
 
 type ReadHumansResponse []Human

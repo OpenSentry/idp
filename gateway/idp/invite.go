@@ -9,12 +9,9 @@ import (
 type Invite struct {
   Identity
 
-  Username string
   Email string
 
   SentAt int64
-
-  InvitedBy Human
 }
 func marshalNodeToInvite(node neo4j.Node) (Invite) {
   p := node.Props()
@@ -22,7 +19,6 @@ func marshalNodeToInvite(node neo4j.Node) (Invite) {
   return Invite{
     Identity: marshalNodeToIdentity(node),
 
-    Username: p["username"].(string),
     Email: p["email"].(string),
     SentAt: p["sent_at"].(int64),
   }
@@ -72,57 +68,45 @@ func UpdateInviteSentAt(driver neo4j.Driver, invite Invite) (Invite, error) {
   return obj.(Invite), nil
 }
 
-func CreateInvite(driver neo4j.Driver, invite Invite, invitedBy Human) (Invite, Human, error) {
+func CreateInvite(driver neo4j.Driver, invite Invite) (Invite, error) {
   var err error
   type NeoReturnType struct{
     Invite Invite
-    InvitedBy Human
   }
 
   session, err := driver.Session(neo4j.AccessModeWrite);
   if err != nil {
-    return Invite{}, Human{}, err
+    return Invite{}, err
   }
   defer session.Close()
 
   neoResult, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
     cypher := `
-      MATCH (ibi:Identity {id:$ibi})
-      MERGE (ibi)-[:INVITES]->(inv:Invite:Identity {id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp, email:$email, username:$username, sent_at:0})
+      CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0})
 
-      WITH inv, ibi
+      WITH inv
 
-      OPTIONAL MATCH (ibi)-[:INVITES]->(d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
+      OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
 
-      RETURN inv, ibi
+      RETURN inv
     `
     params := map[string]interface{}{
-      "ibi": invitedBy.Id,
       "email": invite.Email,
       "iss": invite.Issuer,
       "exp": invite.ExpiresAt,
-      "username": invite.Username,
     }
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
     }
 
     var invite Invite
-    var invitedBy Human
     if result.Next() {
       record := result.Record()
 
       inviteNode := record.GetByIndex(0)
       if inviteNode != nil {
         invite = marshalNodeToInvite(inviteNode.(neo4j.Node))
-
-        ibiNode := record.GetByIndex(1)
-        if ibiNode != nil {
-          invitedBy = marshalNodeToHuman(ibiNode.(neo4j.Node))
-          invite.InvitedBy = invitedBy
-        }
-
       }
 
     } else {
@@ -133,13 +117,13 @@ func CreateInvite(driver neo4j.Driver, invite Invite, invitedBy Human) (Invite, 
     if err = result.Err(); err != nil {
       return nil, err
     }
-    return NeoReturnType{ Invite:invite, InvitedBy:invitedBy }, nil
+    return NeoReturnType{ Invite:invite }, nil
   })
 
   if err != nil {
-    return Invite{}, Human{}, err
+    return Invite{}, err
   }
-  return neoResult.(NeoReturnType).Invite, neoResult.(NeoReturnType).InvitedBy, nil
+  return neoResult.(NeoReturnType).Invite, nil
 }
 
 func FetchInvites(driver neo4j.Driver, invites []Invite) ([]Invite, error) {
@@ -155,8 +139,8 @@ func FetchInvitesAll(driver neo4j.Driver) ([]Invite, error) {
   var params map[string]interface{}
 
   cypher = `
-    MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
-    RETURN inv, ibi
+    MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
+    RETURN inv
   `
   params = map[string]interface{}{}
   return fetchInvitesByQuery(driver, cypher, params)
@@ -168,16 +152,16 @@ func FetchInvitesById(driver neo4j.Driver, ids []string) ([]Invite, error) {
 
   if ids == nil {
     cypher = `
-      MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
-      RETURN inv, ibi
+      MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
+      RETURN inv
     `
     params = map[string]interface{}{
       "id": strings.Join(ids, ","),
     }
   } else {
     cypher = `
-      MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds AND inv.id in split($ids, ",")
-      RETURN inv, ibi
+      MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds AND inv.id in split($ids, ",")
+      RETURN inv
     `
     params = map[string]interface{}{
       "ids": strings.Join(ids, ","),
@@ -192,14 +176,14 @@ func FetchInvitesByEmail(driver neo4j.Driver, emails []string) ([]Invite, error)
 
   if emails == nil {
     cypher = `
-      MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
-      RETURN inv, ibi
+      MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
+      RETURN inv
     `
     params = map[string]interface{}{}
   } else {
     cypher = `
-      MATCH (ibi:Human:Identity)-[:INVITES]->(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds AND inv.email in split($emails, ",")
-      RETURN inv, ibi
+      MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds AND inv.email in split($emails, ",")
+      RETURN inv
     `
     params = map[string]interface{}{
       "emails": strings.Join(emails, ","),
@@ -208,7 +192,7 @@ func FetchInvitesByEmail(driver neo4j.Driver, emails []string) ([]Invite, error)
   return fetchInvitesByQuery(driver, cypher, params)
 }
 
-func FetchInvitesByUsername(driver neo4j.Driver, usernames []string) ([]Invite, error) {
+/*func FetchInvitesByUsername(driver neo4j.Driver, usernames []string) ([]Invite, error) {
   var cypher string
   var params map[string]interface{}
 
@@ -228,7 +212,7 @@ func FetchInvitesByUsername(driver neo4j.Driver, usernames []string) ([]Invite, 
     }
   }
   return fetchInvitesByQuery(driver, cypher, params)
-}
+}*/
 
 func fetchInvitesByQuery(driver neo4j.Driver, cypher string, params map[string]interface{}) ([]Invite, error)  {
   var err error
@@ -257,13 +241,6 @@ func fetchInvitesByQuery(driver neo4j.Driver, cypher string, params map[string]i
       inviteNode := record.GetByIndex(0)
       if inviteNode != nil {
         invite := marshalNodeToInvite(inviteNode.(neo4j.Node))
-
-        ibiNode := record.GetByIndex(1)
-        if ibiNode != nil {
-          ibi := marshalNodeToHuman(ibiNode.(neo4j.Node))
-          invite.InvitedBy = ibi
-        }
-
         invites = append(invites, invite)
       }
     }
