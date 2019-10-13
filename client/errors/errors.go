@@ -28,6 +28,7 @@ const USERNAME_EXISTS = 81
 
 const INVITE_NOT_FOUND = 90
 const INVITE_NOT_CREATED = 91
+const INVITE_EXPIRES_IN_THE_PAST = 92
 
 const FOLLOW_NOT_FOUND = 110
 const FOLLOW_NOT_CREATED = 111
@@ -102,6 +103,12 @@ func InitRestErrors() {
           "en":  "Not created",
           "dev": "Failed to create invite. This requires investigation as it should never happen with validation in place.",
         },
+      INVITE_EXPIRES_IN_THE_PAST:
+        {
+          "en":  "Expires in the past",
+          "dev": "Expires in the past. Hint: exp field expires in the past.",
+        },
+
       FOLLOW_NOT_FOUND:
         {
           "en":  "Not found",

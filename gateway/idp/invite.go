@@ -10,16 +10,24 @@ type Invite struct {
   Identity
 
   Email string
+  Username string
 
   SentAt int64
 }
 func marshalNodeToInvite(node neo4j.Node) (Invite) {
   p := node.Props()
 
+  var username string
+  usr := p["username"]
+  if usr != nil {
+    username = p["username"].(string)
+  }
+
   return Invite{
     Identity: marshalNodeToIdentity(node),
 
     Email: p["email"].(string),
+    Username: username,
     SentAt: p["sent_at"].(int64),
   }
 }
@@ -82,19 +90,41 @@ func CreateInvite(driver neo4j.Driver, invite Invite) (Invite, error) {
 
   neoResult, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
-    cypher := `
-      CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0})
 
-      WITH inv
+    var cypher string
+    var params map[string]interface{}
 
-      OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
+    if invite.Username == "" {
+      cypher = `
+        CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0})
 
-      RETURN inv
-    `
-    params := map[string]interface{}{
-      "email": invite.Email,
-      "iss": invite.Issuer,
-      "exp": invite.ExpiresAt,
+        WITH inv
+
+        OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
+
+        RETURN inv
+      `
+      params = map[string]interface{}{
+        "email": invite.Email,
+        "iss": invite.Issuer,
+        "exp": invite.ExpiresAt,
+      }
+    } else {
+      cypher = `
+        CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0, username:$username})
+
+        WITH inv
+
+        OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
+
+        RETURN inv
+      `
+      params = map[string]interface{}{
+        "email": invite.Email,
+        "iss": invite.Issuer,
+        "exp": invite.ExpiresAt,
+        "username": invite.Username,
+      }
     }
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
