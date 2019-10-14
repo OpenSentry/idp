@@ -42,6 +42,20 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
       return
     }
 
+    requestor := c.MustGet("sub").(string)
+    var requestedBy *idp.Identity
+    if requestor != "" {
+      identities, err := idp.FetchIdentitiesById(env.Driver, []string{ requestor })
+      if err != nil {
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
+        return
+      }
+      if len(identities) > 0 {
+        requestedBy = &identities[0]
+      }
+    }
+
     sender := idp.SMTPSender{
       Name: config.GetString("provider.name"),
       Email: config.GetString("provider.email"),
@@ -71,7 +85,7 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesSendRequest)
 
-        dbInvite, err := idp.FetchInvitesById(env.Driver, []string{r.Id})
+        dbInvite, err := idp.FetchInvitesById(env.Driver, requestedBy, []string{r.Id})
         if err != nil {
           log.Debug(err.Error())
           request.Output = bulky.NewInternalErrorResponse(request.Index)
