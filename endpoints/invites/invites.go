@@ -80,16 +80,16 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
           continue
         }
 
-        if (time.Now().Unix() >= r.ExpiresAt) {
-          request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_EXPIRES_IN_THE_PAST)
-          continue
-        }
-
         var exp int64
         if r.ExpiresAt > 0 {
           exp = r.ExpiresAt
         } else {
           exp = time.Now().Unix() + int64(ttl)
+        }
+
+        if (time.Now().Unix() >= exp) {
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_EXPIRES_IN_THE_PAST)
+          continue
         }
 
         newInvite := idp.Invite{
