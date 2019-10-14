@@ -225,6 +225,7 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
               ExpiresAt: i.ExpiresAt,
               Email: i.Email,
               SentAt: i.SentAt,
+              Username: i.Username,
             })
           }
 
