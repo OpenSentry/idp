@@ -44,6 +44,20 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
       return
     }
 
+    requestor := c.MustGet("sub").(string)
+    var requestedBy *idp.Identity
+    if requestor != "" {
+      identities, err := idp.FetchIdentitiesById(env.Driver, []string{ requestor })
+      if err != nil {
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
+        return
+      }
+      if len(identities) > 0 {
+        requestedBy = &identities[0]
+      }
+    }
+
     var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
@@ -100,7 +114,7 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
           Email: r.Email,
           Username: r.Username,
         }
-        invite, err := idp.CreateInvite(env.Driver, newInvite)
+        invite, err := idp.CreateInvite(env.Driver, newInvite, requestedBy)
         if err != nil {
           log.WithFields(logrus.Fields{ "email": r.Email }).Debug(err.Error())
           request.Output = bulky.NewInternalErrorResponse(request.Index)
@@ -150,6 +164,20 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
       return
     }
 
+    requestor := c.MustGet("sub").(string)
+    var requestedBy *idp.Identity
+    if requestor != "" {
+      identities, err := idp.FetchIdentitiesById(env.Driver, []string{ requestor })
+      if err != nil {
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
+        return
+      }
+      if len(identities) > 0 {
+        requestedBy = &identities[0]
+      }
+    }
+
     var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
@@ -161,7 +189,7 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
         if request.Input == nil {
 
           // Fetch all, that the token is allowed to.
-          dbInvites, err = idp.FetchInvitesAll(env.Driver)
+          dbInvites, err = idp.FetchInvitesAll(env.Driver, requestedBy)
           if err != nil {
             log.Debug(err.Error())
             request.Output = bulky.NewInternalErrorResponse(request.Index)
@@ -172,9 +200,9 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
 
           r := request.Input.(client.ReadInvitesRequest)
           if r.Id != "" {
-            dbInvites, err = idp.FetchInvitesById(env.Driver, []string{r.Id})
+            dbInvites, err = idp.FetchInvitesById(env.Driver, requestedBy, []string{r.Id})
           } else if r.Email != "" {
-            dbInvites, err = idp.FetchInvitesByEmail(env.Driver, []string{r.Email})
+            dbInvites, err = idp.FetchInvitesByEmail(env.Driver, requestedBy, []string{r.Email})
           }
           // else if r.Username != "" {
           //   dbInvites, err = idp.FetchInvitesByUsername(env.Driver, []string{r.Username})
