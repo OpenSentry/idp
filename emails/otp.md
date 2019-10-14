@@ -1,4 +1,4 @@
-Greetings {{ .Id }}
+Greetings {{ .Email }}
 
 You are required to enter the code sent to you to continue. Your code is:
 
@@ -11,6 +11,5 @@ Please consider changing your password for your account and enable two-factor au
 Kind Regards,
 {{ .Sender }}
 
-This email was sent to: {{ .Email }}
-
 Challenge: {{ .Challenge }}
+Id: {{ .Id }}

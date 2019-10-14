@@ -1,4 +1,4 @@
-Greetings {{ .Id }}
+Greetings {{ .Email }}
 
 We have received a request to gain access to your account using your email. Your verification code is:
 
@@ -11,6 +11,5 @@ Please consider changing your password for your account and enable two-factor au
 Kind Regards,
 {{ .Sender }}
 
-This email was sent to: {{ .Email }}
-
 Challenge: {{ .Challenge }}
+Id: {{ .Id }}
