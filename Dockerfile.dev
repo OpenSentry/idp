@@ -19,7 +19,8 @@ RUN rm go.mod go.sum
 
 RUN go get -d -v ./...
 
-RUN go get github.com/pilu/fresh
+#RUN go get github.com/pilu/fresh
+RUN go get github.com/ivpusic/rerun
 
 EXPOSE 443
 
@@ -28,4 +29,5 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["fresh"]
+#CMD ["fresh"]
+CMD ["rerun", "-a--serve"]
