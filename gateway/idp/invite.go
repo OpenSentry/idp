@@ -3,6 +3,7 @@ package idp
 import (
   "strings"
   "errors"
+  "fmt"
   "github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
@@ -76,7 +77,7 @@ func UpdateInviteSentAt(driver neo4j.Driver, invite Invite) (Invite, error) {
   return obj.(Invite), nil
 }
 
-func CreateInvite(driver neo4j.Driver, invite Invite) (Invite, error) {
+func CreateInvite(driver neo4j.Driver, invite Invite, invitedBy *Identity) (Invite, error) {
   var err error
   type NeoReturnType struct{
     Invite Invite
@@ -91,41 +92,38 @@ func CreateInvite(driver neo4j.Driver, invite Invite) (Invite, error) {
   neoResult, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
     var result neo4j.Result
 
-    var cypher string
-    var params map[string]interface{}
-
-    if invite.Username == "" {
-      cypher = `
-        CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0})
-
-        WITH inv
-
-        OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
-
-        RETURN inv
-      `
-      params = map[string]interface{}{
-        "email": invite.Email,
-        "iss": invite.Issuer,
-        "exp": invite.ExpiresAt,
-      }
-    } else {
-      cypher = `
-        CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0, username:$username})
-
-        WITH inv
-
-        OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
-
-        RETURN inv
-      `
-      params = map[string]interface{}{
-        "email": invite.Email,
-        "iss": invite.Issuer,
-        "exp": invite.ExpiresAt,
-        "username": invite.Username,
-      }
+    params := map[string]interface{} {
+      "email": invite.Email,
+      "iss": invite.Issuer,
+      "exp": invite.ExpiresAt,
     }
+
+    var cypUsername string
+    if invite.Username != "" {
+      params["username"] = invite.Username
+      cypUsername = ", username:$username"
+    }
+
+    var cypInvites string
+    if invitedBy != nil {
+      params["invited_by"] = invitedBy.Id
+      cypInvites = "MATCH (i:Identity {id:$invited_by}) MERGE (i)-[:INVITES]->(inv)"
+    }
+
+    cyp := `
+      CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0 %s})
+
+      WITH inv
+
+      %s
+
+      WITH inv
+
+      OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
+
+      RETURN inv
+    `
+    cypher := fmt.Sprintf(cyp, cypUsername, cypInvites)
     if result, err = tx.Run(cypher, params); err != nil {
       return nil, err
     }
@@ -156,69 +154,61 @@ func CreateInvite(driver neo4j.Driver, invite Invite) (Invite, error) {
   return neoResult.(NeoReturnType).Invite, nil
 }
 
-func FetchInvites(driver neo4j.Driver, invites []Invite) ([]Invite, error) {
+func FetchInvites(driver neo4j.Driver, invitedBy *Identity, invites []Invite) ([]Invite, error) {
   ids := []string{}
   for _, invite := range invites {
     ids = append(ids, invite.Id)
   }
-  return FetchInvitesById(driver, ids)
+  return FetchInvitesById(driver, invitedBy, ids)
 }
 
-func FetchInvitesAll(driver neo4j.Driver) ([]Invite, error) {
-  var cypher string
-  var params map[string]interface{}
+func FetchInvitesAll(driver neo4j.Driver, invitedBy *Identity) ([]Invite, error) {
+  return FetchInvitesById(driver, invitedBy, nil)
+}
 
-  cypher = `
-    MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
+func FetchInvitesById(driver neo4j.Driver, invitedBy *Identity, ids []string) ([]Invite, error) {
+  var cypher string
+  var params map[string]interface{} = make(map[string]interface{})
+
+  var cypInvites string
+  if invitedBy != nil {
+    cypInvites = `(i:Identity {id:$invited_by})-[:INVITES]->`
+    params["invited_by"] = invitedBy.Id
+  }
+
+  var cypIds string
+  if len(ids) > 0 {
+    cypIds = ` AND inv.id in split($ids, ",") `
+    params["ids"] = strings.Join(ids, ",")
+  }
+
+  cypher = fmt.Sprintf(`
+    MATCH %s(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds %s
     RETURN inv
-  `
-  params = map[string]interface{}{}
+  `, cypInvites, cypIds)
   return fetchInvitesByQuery(driver, cypher, params)
 }
 
-func FetchInvitesById(driver neo4j.Driver, ids []string) ([]Invite, error) {
+func FetchInvitesByEmail(driver neo4j.Driver, invitedBy *Identity, emails []string) ([]Invite, error) {
   var cypher string
-  var params map[string]interface{}
+  var params map[string]interface{} = make(map[string]interface{})
 
-  if ids == nil {
-    cypher = `
-      MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
-      RETURN inv
-    `
-    params = map[string]interface{}{
-      "id": strings.Join(ids, ","),
-    }
-  } else {
-    cypher = `
-      MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds AND inv.id in split($ids, ",")
-      RETURN inv
-    `
-    params = map[string]interface{}{
-      "ids": strings.Join(ids, ","),
-    }
+  var cypInvites string
+  if invitedBy != nil {
+    cypInvites = `(i:Identity {id:$invited_by})-[:INVITES]->`
+    params["invited_by"] = invitedBy.Id
   }
-  return fetchInvitesByQuery(driver, cypher, params)
-}
 
-func FetchInvitesByEmail(driver neo4j.Driver, emails []string) ([]Invite, error) {
-  var cypher string
-  var params map[string]interface{}
-
-  if emails == nil {
-    cypher = `
-      MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds
-      RETURN inv
-    `
-    params = map[string]interface{}{}
-  } else {
-    cypher = `
-      MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds AND inv.email in split($emails, ",")
-      RETURN inv
-    `
-    params = map[string]interface{}{
-      "emails": strings.Join(emails, ","),
-    }
+  var cypEmails string
+  if len(emails) > 0 {
+    cypEmails = ` AND inv.email in split($emails, ",") `
+    params["emails"] = strings.Join(emails, ",")
   }
+
+  cypher = fmt.Sprintf(`
+    MATCH %s(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds %s
+    RETURN inv
+  `, cypInvites, cypEmails)
   return fetchInvitesByQuery(driver, cypher, params)
 }
 

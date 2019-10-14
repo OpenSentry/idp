@@ -37,13 +37,27 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
       return
     }
 
+    requestor := c.MustGet("sub").(string)
+    var requestedBy *idp.Identity
+    if requestor != "" {
+      identities, err := idp.FetchIdentitiesById(env.Driver, []string{ requestor })
+      if err != nil {
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
+        return
+      }
+      if len(identities) > 0 {
+        requestedBy = &identities[0]
+      }
+    }
+
     var handleRequests = func(iRequests []*bulky.Request) {
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesClaimRequest)
 
         // Does indentity on email already exists?
-        dbInvites, err := idp.FetchInvitesById(env.Driver, []string{r.Id})
+        dbInvites, err := idp.FetchInvitesById(env.Driver, requestedBy, []string{r.Id})
         if err != nil {
           log.Debug(err.Error())
           request.Output = bulky.NewInternalErrorResponse(request.Index)
