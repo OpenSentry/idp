@@ -21,7 +21,6 @@ import (
 
 type InviteTemplateData struct {
   Id string
-  InvitedBy string
   Email string
   InvitationUrl string
   IdentityProvider string
@@ -108,7 +107,6 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
 
           data := InviteTemplateData{
             Id: invite.Id,
-            InvitedBy: "MISSING IMPLEMENTATION", //invite.InvitedBy.Name,
             Email: invite.Email,
             InvitationUrl: u.String(),
             IdentityProvider: config.GetString("provider.name"),
