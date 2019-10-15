@@ -81,7 +81,7 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
             ok = append(ok, client.Human{
               Id:                   i.Id,
               Username:             i.Username,
-              Password:             i.Password,
+              //Password:             i.Password,
               Name:                 i.Name,
               Email:                i.Email,
               AllowLogin:           i.AllowLogin,
@@ -246,7 +246,7 @@ func PutHumans(env *environment.State) gin.HandlerFunc {
           ok := client.UpdateHumansResponse{
             Id: human.Id,
             Username: human.Username,
-            Password: human.Password,
+            //Password: human.Password,
             Name: human.Name,
             Email: human.Email,
             AllowLogin: human.AllowLogin,
