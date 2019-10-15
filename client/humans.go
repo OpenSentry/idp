@@ -7,7 +7,7 @@ import (
 type Human struct {
   Id                   string `json:"id"                      validate:"required,uuid"`
   Username             string `json:"username"                validate:"required"`
-  Password             string `json:"password"                validate:"required"`
+  Password             string `json:"password,omitempty"      validate:"omitempty"`
   Name                 string `json:"name"                    validate:"required`
   Email                string `json:"email"                   validate:"required,email"`
   EmailConfirmedAt     int64  `json:"email_confirmed_at"`

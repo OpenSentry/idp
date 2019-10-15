@@ -77,7 +77,7 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
         ok := client.UpdateHumansTotpResponse{
           Id: updatedHuman.Id,
           Username: updatedHuman.Username,
-          Password: updatedHuman.Password,
+          //Password: updatedHuman.Password,
           Name: updatedHuman.Name,
           Email: updatedHuman.Email,
           AllowLogin: updatedHuman.AllowLogin,
