@@ -26,7 +26,6 @@ import (
   "github.com/charmixer/idp/endpoints/clients"
   "github.com/charmixer/idp/endpoints/challenges"
   "github.com/charmixer/idp/endpoints/invites"
-  "github.com/charmixer/idp/endpoints/follows"
   "github.com/charmixer/idp/endpoints/resourceservers"
 
   E "github.com/charmixer/idp/client/errors"
@@ -252,28 +251,28 @@ func serve(env *environment.State) {
     HydraIntrospectUrl: hydraIntrospectUrl,
   }
 
-  r.GET(  "/challenges",       utils.AuthorizationRequired(aconf, "idp:authenticate:identity"), challenges.GetChallenges(env) )
-  r.POST( "/challenges",       utils.AuthorizationRequired(aconf, "idp:authenticate:identity"), challenges.PostChallenges(env) )
-  r.PUT( "/challenges/verify", utils.AuthorizationRequired(aconf, "idp:authenticate:identity"), challenges.PutVerify(env) )
+  r.GET(  "/challenges",       utils.AuthorizationRequired(aconf, "idp:authenticate:human"), challenges.GetChallenges(env) )
+  r.POST( "/challenges",       utils.AuthorizationRequired(aconf, "idp:authenticate:human"), challenges.PostChallenges(env) )
+  r.PUT( "/challenges/verify", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), challenges.PutVerify(env) )
 
   r.GET(    "/identities",     utils.AuthorizationRequired(aconf, "idp:read:identity"), identities.GetIdentities(env) )
 
-  r.GET(    "/humans", utils.AuthorizationRequired(aconf, "idp:read:identity"), humans.GetHumans(env))
-  r.POST(   "/humans", utils.AuthorizationRequired(aconf, "idp:authenticate:identity"), humans.PostHumans(env) )
-  r.PUT(    "/humans", utils.AuthorizationRequired(aconf, "idp:update:identity"), humans.PutHumans(env) )
-  r.DELETE( "/humans", utils.AuthorizationRequired(aconf, "idp:delete:identity"), humans.DeleteHumans(env) )
+  r.GET(    "/humans", utils.AuthorizationRequired(aconf, "idp:read:human"), humans.GetHumans(env))
+  r.POST(   "/humans", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PostHumans(env) )
+  r.PUT(    "/humans", utils.AuthorizationRequired(aconf, "idp:update:human"), humans.PutHumans(env) )
+  r.DELETE( "/humans", utils.AuthorizationRequired(aconf, "idp:delete:human"), humans.DeleteHumans(env) )
 
-  r.POST( "/humans/authenticate", utils.AuthorizationRequired(aconf, "idp:authenticate:identity"), humans.PostAuthenticate(env) )
-  r.PUT(  "/humans/password", utils.AuthorizationRequired(aconf, "idp:authenticate:identity"), humans.PutPassword(env) )
+  r.POST( "/humans/authenticate", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PostAuthenticate(env) )
+  r.PUT(  "/humans/password", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PutPassword(env) )
 
-  r.PUT(  "/humans/totp", utils.AuthorizationRequired(aconf, "idp:authenticate:identity"), humans.PutTotp(env) )
+  r.PUT(  "/humans/totp", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PutTotp(env) )
 
-  r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "idp:logout:identity"), humans.PostLogout(env) )
+  r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "idp:logout:human"), humans.PostLogout(env) )
 
-  r.PUT(  "/humans/deleteverification", utils.AuthorizationRequired(aconf, "idp:delete:identity"), humans.PutDeleteVerification(env) )
+  r.PUT(  "/humans/deleteverification", utils.AuthorizationRequired(aconf, "idp:delete:human"), humans.PutDeleteVerification(env) )
 
-  r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "idp:recover:identity"), humans.PostRecover(env) )
-  r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:authenticate:identity"), humans.PutRecoverVerification(env) )
+  r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "idp:recover:human"), humans.PostRecover(env) )
+  r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PutRecoverVerification(env) )
 
   r.GET ( "/clients", utils.AuthorizationRequired(aconf, "idp:read:client"), clients.GetClients(env))
   r.POST( "/clients", utils.AuthorizationRequired(aconf, "idp:create:client"), clients.PostClients(env) )
@@ -284,9 +283,6 @@ func serve(env *environment.State) {
   r.POST( "/invites", utils.AuthorizationRequired(aconf, "idp:create:invite"), invites.PostInvites(env) )
   r.POST( "/invites/send", utils.AuthorizationRequired(aconf, "idp:send:invite"), invites.PostInvitesSend(env) )
   r.POST( "/invites/claim", utils.AuthorizationRequired(aconf, "idp:claim:invite"), invites.PostInvitesClaim(env) )
-
-  r.GET(  "/follows", utils.AuthorizationRequired(aconf, "idp:read:follow"), follows.GetFollows(env) )
-  r.POST( "/follows", utils.AuthorizationRequired(aconf, "idp:create:follow"), follows.PostFollows(env) )
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
