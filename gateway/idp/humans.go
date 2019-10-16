@@ -175,26 +175,25 @@ func CreateHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) 
 }
 
 func FetchHumans(tx neo4j.Transaction, iHumans []Human) (humans []Human, err error) {
-  var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
 
-  cypfilterHumans := ""
-  if len(iClients) > 0 {
+  cypfilterIds := ""
+  if len(iHumans) > 0 {
     var ids []string
     for _, human := range iHumans {
       ids = append(ids, human.Id)
     }
-    cypfilterClients = ` WHERE h.id in split($ids, ",") `
+    cypfilterIds = ` WHERE h.id in split($ids, ",") `
     params["ids"] = strings.Join(ids, ",")
   }
 
   cypher = fmt.Sprintf(`
     MATCH (h:Human:Identity) %s
     RETURN h
-  `, cypfilterHumans)
+  `, cypfilterIds)
 
-  humans, err := fetchHumansByQuery(tx, cypher, params)
+  humans, err = fetchHumansByQuery(tx, cypher, params)
   return humans, err
 }
 
@@ -202,22 +201,22 @@ func FetchHumansByEmail(tx neo4j.Transaction, iHumans []Human) (humans []Human, 
   var cypher string
   var params = make(map[string]interface{})
 
-  cypfilterHumans := ""
-  if len(iClients) > 0 {
+  cypfilterEmails := ""
+  if len(iHumans) > 0 {
     var emails []string
     for _, human := range iHumans {
       emails = append(emails, human.Email)
     }
-    cypfilterClients = ` WHERE h.email in split($emails, ",") `
+    cypfilterEmails = ` WHERE h.email in split($emails, ",") `
     params["emails"] = strings.Join(emails, ",")
   }
 
   cypher = fmt.Sprintf(`
     MATCH (h:Human:Identity) %s
     RETURN h
-  `, cypfilterHumans)
+  `, cypfilterEmails)
 
-  humans, err := fetchHumansByQuery(tx, cypher, params)
+  humans, err = fetchHumansByQuery(tx, cypher, params)
   return humans, err
 }
 
@@ -225,22 +224,22 @@ func FetchHumansByUsername(tx neo4j.Transaction, iHumans []Human) (humans []Huma
   var cypher string
   var params = make(map[string]interface{})
 
-  cypfilterHumans := ""
-  if len(iClients) > 0 {
+  cypfilterUsernames := ""
+  if len(iHumans) > 0 {
     var usernames []string
     for _, human := range iHumans {
       usernames = append(usernames, human.Username)
     }
-    cypfilterClients = ` WHERE h.email in split($usernames, ",") `
+    cypfilterUsernames = ` WHERE h.email in split($usernames, ",") `
     params["usernames"] = strings.Join(usernames, ",")
   }
 
   cypher = fmt.Sprintf(`
     MATCH (h:Human:Identity) %s
     RETURN h
-  `, cypfilterHumans)
+  `, cypfilterUsernames)
 
-  humans, err := fetchHumansByQuery(tx, cypher, params)
+  humans, err = fetchHumansByQuery(tx, cypher, params)
   return humans, err
 }
 
