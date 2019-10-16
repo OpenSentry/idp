@@ -124,7 +124,7 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
           Email: r.Email,
           Username: r.Username,
         }
-        invite, err := idp.CreateInvite(env.Driver, newInvite, requestedBy)
+        invite, err := idp.CreateInvite(tx, requestedBy, newInvite)
         if err != nil {
           log.WithFields(logrus.Fields{ "email": r.Email }).Debug(err.Error())
           request.Output = bulky.NewInternalErrorResponse(request.Index)
@@ -207,37 +207,31 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
         var ok client.ReadInvitesResponse
 
         if request.Input == nil {
-
-          // Fetch all, that the token is allowed to.
-          dbInvites, err = idp.FetchInvitesAll(env.Driver, requestedBy)
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
-          }
-
+          dbInvites, err = idp.FetchInvites(tx, requestedBy, nil)
         } else {
-
           r := request.Input.(client.ReadInvitesRequest)
           if r.Id != "" {
-            dbInvites, err = idp.FetchInvitesById(env.Driver, requestedBy, []string{r.Id})
+            dbInvites, err = idp.FetchInvites(tx, requestedBy, []idp.Invite{ {Identity:idp.Identity{Id:r.Id}} })
           } else if r.Email != "" {
-            dbInvites, err = idp.FetchInvitesByEmail(env.Driver, requestedBy, []string{r.Email})
+            dbInvites, err = idp.FetchInvitesByEmail(tx, requestedBy, []idp.Invite{ {Email:r.Email} })
           }
-          // else if r.Username != "" {
-          //   dbInvites, err = idp.FetchInvitesByUsername(env.Driver, []string{r.Username})
-          // }
+          //else if r.Username != "" {
+          //  dbInvites, err = idp.FetchInvitesByUsername(env.Driver, []string{r.Username})
+          //}
 
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+        }
+        if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
           }
-
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          log.Debug(err.Error())
+          return
         }
 
         if len(dbInvites) > 0 {
-
           for _, i := range dbInvites {
             ok = append(ok, client.Invite{
               Id: i.Id,
@@ -248,7 +242,6 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
               Username: i.Username,
             })
           }
-
           request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
         }
@@ -257,6 +250,15 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
         request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_NOT_FOUND)
         continue
       }
+
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{EnableEmptyRequest: true})
