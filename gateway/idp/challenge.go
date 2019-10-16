@@ -53,7 +53,7 @@ func CreateChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, error
 
   neoResult, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 
-    _, err := fetchByIdentityId(challenge.Subject, tx)
+    _, err := FetchIdentities(tx, []Identity{ {Id:challenge.Subject} })
     if err != nil {
       return nil, err
     }
@@ -65,7 +65,7 @@ func CreateChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, error
         id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp, aud:$aud, sub:$sub,
         redirect_to:$redirect_to,
         code_type:$code_type, code:$code,
-        verified_at:0        
+        verified_at:0
       })-[:CHALLENGES]->(i)
 
       WITH c
@@ -222,7 +222,7 @@ func VerifyChallenge(driver neo4j.Driver, challenge Challenge) (Challenge, error
 
   obj, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 
-    _, err := fetchByIdentityId(challenge.Subject, tx)
+    _, err := FetchIdentities(tx, []Identity{ {Id:challenge.Subject} })
     if err != nil {
       return nil, err
     }

@@ -41,20 +41,6 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    requestor := c.MustGet("sub").(string)
-    var requestedBy *idp.Identity
-    if requestor != "" {
-      identities, err := idp.FetchIdentitiesById(env.Driver, []string{ requestor })
-      if err != nil {
-        log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
-      }
-      if len(identities) > 0 {
-        requestedBy = &identities[0]
-      }
-    }
-
     sender := idp.SMTPSender{
       Name: config.GetString("provider.name"),
       Email: config.GetString("provider.email"),
@@ -80,6 +66,30 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
     t := template.Must(template.New(emailTemplateFile).Parse(string(tplEmail)))
 
     var handleRequests = func(iRequests []*bulky.Request) {
+
+      requestor := c.MustGet("sub").(string)
+
+      session, tx, err := idp.BeginReadTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
+
+      var requestedBy *idp.Identity
+      if requestor != "" {
+        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        if err != nil {
+          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+          log.Debug(err.Error())
+          return
+        }
+        if len(identities) > 0 {
+          requestedBy = &identities[0]
+        }
+      }
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesSendRequest)

@@ -44,21 +44,31 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    requestor := c.MustGet("sub").(string)
-    var requestedBy *idp.Identity
-    if requestor != "" {
-      identities, err := idp.FetchIdentitiesById(env.Driver, []string{ requestor })
+    var handleRequests = func(iRequests []*bulky.Request) {
+
+      requestor := c.MustGet("sub").(string)
+
+      session, tx, err := idp.BeginReadTx(env.Driver)
       if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
-      if len(identities) > 0 {
-        requestedBy = &identities[0]
-      }
-    }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
 
-    var handleRequests = func(iRequests []*bulky.Request) {
+      var requestedBy *idp.Identity
+      if requestor != "" {
+        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        if err != nil {
+          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+          log.Debug(err.Error())
+          return
+        }
+        if len(identities) > 0 {
+          requestedBy = &identities[0]
+        }
+      }
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesRequest)
@@ -164,21 +174,31 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    requestor := c.MustGet("sub").(string)
-    var requestedBy *idp.Identity
-    if requestor != "" {
-      identities, err := idp.FetchIdentitiesById(env.Driver, []string{ requestor })
+    var handleRequests = func(iRequests []*bulky.Request) {
+
+      requestor := c.MustGet("sub").(string)
+
+      session, tx, err := idp.BeginReadTx(env.Driver)
       if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
-      if len(identities) > 0 {
-        requestedBy = &identities[0]
-      }
-    }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
 
-    var handleRequests = func(iRequests []*bulky.Request) {
+      var requestedBy *idp.Identity
+      if requestor != "" {
+        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        if err != nil {
+          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+          log.Debug(err.Error())
+          return
+        }
+        if len(identities) > 0 {
+          requestedBy = &identities[0]
+        }
+      }
 
       for _, request := range iRequests {
 
