@@ -6,7 +6,6 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
-  //"github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
@@ -32,7 +31,6 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*bulky.Request) {
-      //iRequest := idp.Identity{ Id: c.MustGet("sub").(string) }
 
       session, tx, err := idp.BeginReadTx(env.Driver)
       if err != nil {
@@ -42,6 +40,20 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
       }
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
+
+      // requestor := c.MustGet("sub").(string)
+      // var requestedBy *idp.Identity
+      // if requestor != "" {
+      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  if err != nil {
+      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //    log.Debug(err.Error())
+      //    return
+      //  }
+      //  if len(identities) > 0 {
+      //    requestedBy = &identities[0]
+      //  }
+      // }
 
       for _, request := range iRequests {
 
@@ -75,6 +87,15 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
         // Deny by default
         request.Output = bulky.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
       }
+
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{EnableEmptyRequest: true})

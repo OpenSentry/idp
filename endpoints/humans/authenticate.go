@@ -3,13 +3,13 @@ package humans
 import (
   "net/url"
   "net/http"
+  "time"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
-  "github.com/charmixer/idp/endpoints/challenges"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
 
@@ -17,10 +17,12 @@ import (
   hydra "github.com/charmixer/hydra/client"
 )
 
-type EmailConfirmTemplateData struct {
-  Name string
+type ConfirmTemplateData struct {
+  Challenge string
+  Id string
   Code string
   Sender string
+  Email string
 }
 
 func PostAuthenticate(env *environment.State) gin.HandlerFunc {
@@ -40,7 +42,70 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
     hydraClient := hydra.NewHydraClient(env.HydraConfig)
 
+    controllerVerifyOtp := config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.verify")
+    redirectToVerifyOtp, err := url.Parse(controllerVerifyOtp)
+    if err != nil {
+      log.WithFields(logrus.Fields{ "url":controllerVerifyOtp }).Debug(err.Error())
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+
+    controllerEmailConfirm := config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.emailconfirm")
+    redirectToConfirmEmail, err := url.Parse(controllerEmailConfirm)
+    if err != nil {
+      log.WithFields(logrus.Fields{ "url":controllerEmailConfirm }).Debug(err.Error())
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+
+    controllerLogin := config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.login")
+    redirectToLogin, err := url.Parse(controllerLogin)
+    if err != nil {
+      log.WithFields(logrus.Fields{ "url":controllerLogin }).Debug(err.Error())
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+
+    var templateFile string
+    var emailSubject string
+    var sender idp.SMTPSender
+
+    sender = idp.SMTPSender{ Name: config.GetString("emailconfirm.sender.name"), Email: config.GetString("emailconfirm.sender.email") }
+    templateFile = config.GetString("emailconfirm.template.email.file")
+    emailSubject = config.GetString("emailconfirm.template.email.subject")
+
+    smtpConfig := idp.SMTPConfig{
+      Host: config.GetString("mail.smtp.host"),
+      Username: config.GetString("mail.smtp.user"),
+      Password: config.GetString("mail.smtp.password"),
+      Sender: sender,
+      SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
+    }
+
     var handleRequests = func(iRequests []*bulky.Request) {
+
+      session, tx, err := idp.BeginWriteTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
+
+      // requestor := c.MustGet("sub").(string)
+      // var requestedBy *idp.Identity
+      // if requestor != "" {
+      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  if err != nil {
+      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //    log.Debug(err.Error())
+      //    return
+      //  }
+      //  if len(identities) > 0 {
+      //    requestedBy = &identities[0]
+      //  }
+      // }
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateHumansAuthenticateRequest)
@@ -49,9 +114,14 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
         hydraLoginResponse, err := hydra.GetLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.login"), hydraClient, r.Challenge)
         if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
           log.Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
+          return
         }
 
         deny := client.CreateHumansAuthenticateResponse{}
@@ -68,9 +138,14 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             ACR: acr,
           })
           if err != nil {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
             log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+            return
           }
 
           log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
@@ -95,25 +170,41 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
           acr := "otp.email"
 
-          dbChallenges, err := idp.FetchChallenges(env.Driver, []idp.Challenge{ {Id: r.EmailChallenge} })
+          dbChallenges, err := idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.EmailChallenge} })
           if err != nil {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
             log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+            return
           }
-          if dbChallenges == nil {
-            log.Debug("Challenge not found")
+
+          if len(dbChallenges) <= 0 {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
             request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
-            continue
+            return
           }
+
           challenge := dbChallenges[0]
 
           if challenge.VerifiedAt > 0 {
-            _, err := idp.ConfirmEmail(env.Driver, idp.Human{ Identity: idp.Identity{Id: challenge.Subject} })
+            _, err := idp.ConfirmEmail(tx, idp.Human{ Identity: idp.Identity{Id: challenge.Subject} })
             if err != nil {
+              e := tx.Rollback()
+              if e != nil {
+                log.Debug(e.Error())
+              }
+              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+              request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
               log.Debug(err.Error())
-              request.Output = bulky.NewInternalErrorResponse(request.Index)
-              continue
+              return
             }
             log.WithFields(logrus.Fields{"id":challenge.Subject}).Debug("Email Confirmed")
 
@@ -126,9 +217,14 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               ACR: acr,
             })
             if err != nil {
+              e := tx.Rollback()
+              if e != nil {
+                log.Debug(e.Error())
+              }
+              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+              request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
               log.Debug(err.Error())
-              request.Output = bulky.NewInternalErrorResponse(request.Index)
-              continue
+              return
             }
 
             log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
@@ -154,17 +250,28 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           log = log.WithFields(logrus.Fields{ "otp_challenge": r.OtpChallenge })
           acr := "otp"
 
-          dbChallenges, err := idp.FetchChallenges(env.Driver, []idp.Challenge{ {Id: r.OtpChallenge} })
+          dbChallenges, err := idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.OtpChallenge} })
           if err != nil {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
             log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+            return
           }
-          if dbChallenges == nil {
-            log.Debug("Challenge not found")
+
+          if len(dbChallenges) <= 0 {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
             request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
-            continue
+            return
           }
+
           challenge := dbChallenges[0]
 
           if challenge.VerifiedAt > 0 {
@@ -179,9 +286,14 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               ACR: acr,
             })
             if err != nil {
+              e := tx.Rollback()
+              if e != nil {
+                log.Debug(e.Error())
+              }
+              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+              request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
               log.Debug(err.Error())
-              request.Output = bulky.NewInternalErrorResponse(request.Index)
-              continue
+              return
             }
 
             log.WithFields(logrus.Fields{"fixme": 1}).Debug("Assert that the Identity found by Hydra still exists in IDP")
@@ -201,7 +313,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           }
 
           // Deny by default
-          log.WithFields(logrus.Fields{"2fa":"totp"}).Debug("Authentication denied")
+          log.WithFields(logrus.Fields{"acr":acr}).Debug("Authentication denied")
           request.Output = bulky.NewOkResponse(request.Index, deny)
           continue
         }
@@ -217,19 +329,30 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
 
         if r.Id != "" {
 
-          humans, err := idp.FetchHumansById( env.Driver, []string{r.Id} )
+          log = log.WithFields(logrus.Fields{"id": r.Id})
+
+          dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
           if err != nil {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
             log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+            return
           }
 
-          if humans == nil {
-            log.WithFields(logrus.Fields{"id": r.Id}).Debug("Human not found")
+          if len(dbHumans) <= 0 {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
             request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
-            continue
+            return
           }
-          human := humans[0]
+          human := dbHumans[0]
 
           deny.Id = human.Id
 
@@ -247,86 +370,104 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                 IdentityExists: true,
               }
 
-              redirectToUrlWhenVerified, err := url.Parse( config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.login") )
-              if err != nil {
-                log.Debug(err.Error())
-                request.Output = bulky.NewInternalErrorResponse(request.Index)
-                continue
-              }
               // When challenge is verified where should the controller redirect to and append its challenge
+              redirectToUrlWhenVerified := redirectToLogin
               q := redirectToUrlWhenVerified.Query()
               q.Add("login_challenge", r.Challenge)
               redirectToUrlWhenVerified.RawQuery = q.Encode()
 
               if human.EmailConfirmedAt <= 0 || human.TotpRequired == true {
 
-                var err error
-                var challengeKey string
-                var redirectToConfirm *url.URL
-                var challenge *idp.Challenge
-
                 if human.EmailConfirmedAt <= 0 {
 
-                  challengeKey = "email_challenge"
+                  // Require email confirmation challenge
 
-                  epVerifyController := config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.emailconfirm")
-                  redirectToConfirm, err = url.Parse(epVerifyController)
-                  if err != nil {
-                    log.WithFields(logrus.Fields{ "url":epVerifyController }).Debug(err.Error())
-                    request.Output = bulky.NewInternalErrorResponse(request.Index)
-                    continue
-                  }
-
-                  r := client.CreateChallengesRequest{
-                    Subject: human.Id,
-                    TTL: 900, // 15 min
+                  newChallenge := idp.Challenge{
+                    JwtRegisteredClaims: idp.JwtRegisteredClaims{
+                      Subject: human.Id,
+                      Issuer: config.GetString("idp.public.issuer"),
+                      Audience: config.GetString("idp.public.url") + config.GetString("idp.public.endpoints.challenges.verify"),
+                      ExpiresAt: time.Now().Unix() + 900, // 15 min,  FIXME: Should be configurable
+                    },
                     RedirectTo: redirectToUrlWhenVerified.String(),
                     CodeType: int64(client.OTP),
-                    Email: human.Email,
-                    Template: client.ConfirmEmail,
                   }
-                  challenge, err = challenges.CreateChallengeForOTP(env, r)
+                  challenge, otpCode, err := idp.CreateChallengeForOTP(tx, newChallenge)
                   if err != nil {
+                    e := tx.Rollback()
+                    if e != nil {
+                      log.Debug(e.Error())
+                    }
+                    bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+                    request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
                     log.Debug(err.Error())
-                    request.Output = bulky.NewInternalErrorResponse(request.Index)
-                    continue
+                    return
+                  }
+
+                  if challenge != (idp.Challenge{}) {
+
+                    if otpCode.Code != "" && human.Email != "" {
+
+                      var data = ConfirmTemplateData{
+                        Challenge: challenge.Id,
+                        Sender: sender.Name,
+                        Id: challenge.Subject,
+                        Email: human.Email,
+                        Code: otpCode.Code, // Note this is the clear text generated code and not the hashed one stored in DB.
+                      }
+                      _, err = idp.SendEmailUsingTemplate(smtpConfig, human.Email, human.Email, emailSubject, templateFile, data)
+                      if err != nil {
+                        e := tx.Rollback()
+                        if e != nil {
+                          log.Debug(e.Error())
+                        }
+                        bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+                        request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+                        log.Debug(err.Error())
+                        return
+                      }
+
+                    }
+
+                    q = redirectToConfirmEmail.Query()
+                    q.Add("email_challenge", challenge.Id)
+                    redirectToConfirmEmail.RawQuery = q.Encode()
+
+                    accept.RedirectTo = redirectToConfirmEmail.String()
                   }
 
                 } else if human.TotpRequired == true {
 
-                  challengeKey = "otp_challenge"
+                  // Require totp challenge
 
-                  // Do not call hydra yet we need totp authentication aswell. Create a totp request instaed.
-                  epVerifyController := config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.verify")
-                  redirectToConfirm, err = url.Parse(epVerifyController)
-                  if err != nil {
-                    log.WithFields(logrus.Fields{ "url":epVerifyController }).Debug(err.Error())
-                    request.Output = bulky.NewInternalErrorResponse(request.Index)
-                    continue
-                  }
-
-                  r := client.CreateChallengesRequest{
-                    Subject: human.Id,
-                    TTL: 300, // 5 min
+                  newChallenge := idp.Challenge{
+                    JwtRegisteredClaims: idp.JwtRegisteredClaims{
+                      Subject: human.Id,
+                      Issuer: config.GetString("idp.public.issuer"),
+                      Audience: config.GetString("idp.public.url") + config.GetString("idp.public.endpoints.challenges.verify"),
+                      ExpiresAt: time.Now().Unix() + 300, // 5 min, FIXME: Should be configurable
+                    },
                     RedirectTo: redirectToUrlWhenVerified.String(),
                     CodeType: int64(client.TOTP),
-                    Email: human.Email,
-                    Template: client.ConfirmEmail,
                   }
-                  challenge, err = challenges.CreateChallengeForTOTP(env, r)
+                  challenge, err := idp.CreateChallengeForTOTP(tx, newChallenge)
                   if err != nil {
+                    e := tx.Rollback()
+                    if e != nil {
+                      log.Debug(e.Error())
+                    }
+                    bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+                    request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
                     log.Debug(err.Error())
-                    request.Output = bulky.NewInternalErrorResponse(request.Index)
-                    continue
+                    return
                   }
 
+                  q = redirectToVerifyOtp.Query()
+                  q.Add("otp_challenge", challenge.Id)
+                  redirectToVerifyOtp.RawQuery = q.Encode()
+
+                  accept.RedirectTo = redirectToVerifyOtp.String()
                 }
-
-                q = redirectToConfirm.Query()
-                q.Add(challengeKey, challenge.Id)
-                redirectToConfirm.RawQuery = q.Encode()
-
-                accept.RedirectTo = redirectToConfirm.String()
 
               } else {
 
@@ -340,9 +481,14 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                 }
                 hydraLoginAcceptResponse, err := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, r.Challenge, hydraLoginAcceptRequest)
                 if err != nil {
+                  e := tx.Rollback()
+                  if e != nil {
+                    log.Debug(e.Error())
+                  }
+                  bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+                  request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
                   log.Debug(err.Error())
-                  request.Output = bulky.NewInternalErrorResponse(request.Index)
-                  continue
+                  return
                 }
 
                 accept.RedirectTo = hydraLoginAcceptResponse.RedirectTo
@@ -368,6 +514,15 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         log.WithFields(logrus.Fields{"id": r.Id}).Debug("Authentication denied")
         request.Output = bulky.NewOkResponse(request.Index, deny)
       }
+
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})

@@ -30,31 +30,61 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
+      session, tx, err := idp.BeginWriteTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
+
+      // requestor := c.MustGet("sub").(string)
+      // var requestedBy *idp.Identity
+      // if requestor != "" {
+      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  if err != nil {
+      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //    log.Debug(err.Error())
+      //    return
+      //  }
+      //  if len(identities) > 0 {
+      //    requestedBy = &identities[0]
+      //  }
+      // }
+
       for _, request := range iRequests {
         r := request.Input.(client.UpdateHumansPasswordRequest)
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
-        humans, err := idp.FetchHumansById( env.Driver, []string{r.Id} )
+        dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
           log.Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
+          return
         }
 
-        if humans == nil {
-          log.WithFields(logrus.Fields{"id": r.Id}).Debug("Human not found")
+        if len(dbHumans) <= 0 {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
           request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
-          continue
+          return
         }
-        human := humans[0]
-
+        human := dbHumans[0]
 
         valid, _ := idp.ValidatePassword(human.Password, r.Password)
         if valid == true {
           // Nothing to change was the new password is same as current password
-
-          ok := client.UpdateHumansPasswordResponse{
+          request.Output = bulky.NewOkResponse(request.Index, client.UpdateHumansPasswordResponse{
             Id: human.Id,
             Username: human.Username,
             Password: human.Password,
@@ -67,52 +97,76 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
             OtpRecoverCodeExpire: human.OtpRecoverCodeExpire,
             OtpDeleteCode: human.OtpDeleteCode,
             OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
-          }
-
-          log.WithFields(logrus.Fields{ "id":human.Id }).Debug("Password updated. Hint: No change")
-          request.Output = bulky.NewOkResponse(request.Index, ok)
+          })
           continue
         }
 
         hashedPassword, err := idp.CreatePassword(r.Password)
         if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
           log.Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
+          return
         }
 
-        updatedHuman, err := idp.UpdatePassword(env.Driver, idp.Human{
+        updatedHuman, err := idp.UpdatePassword(tx, idp.Human{
           Identity: idp.Identity{
             Id: human.Id,
           },
           Password: hashedPassword,
         })
         if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
           log.Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
+          return
+        }
+
+        if updatedHuman != (idp.Human{}) {
+          request.Output = bulky.NewOkResponse(request.Index, client.UpdateHumansPasswordResponse{
+            Id: updatedHuman.Id,
+            Username: updatedHuman.Username,
+            Password: updatedHuman.Password,
+            Name: updatedHuman.Name,
+            Email: updatedHuman.Email,
+            AllowLogin: updatedHuman.AllowLogin,
+            TotpRequired: updatedHuman.TotpRequired,
+            TotpSecret: updatedHuman.TotpSecret,
+            OtpRecoverCode: updatedHuman.OtpRecoverCode,
+            OtpRecoverCodeExpire: updatedHuman.OtpRecoverCodeExpire,
+            OtpDeleteCode: updatedHuman.OtpDeleteCode,
+            OtpDeleteCodeExpire: updatedHuman.OtpDeleteCodeExpire,
+          })
           continue
         }
 
-        ok := client.UpdateHumansPasswordResponse{
-          Id: updatedHuman.Id,
-          Username: updatedHuman.Username,
-          Password: updatedHuman.Password,
-          Name: updatedHuman.Name,
-          Email: updatedHuman.Email,
-          AllowLogin: updatedHuman.AllowLogin,
-          TotpRequired: updatedHuman.TotpRequired,
-          TotpSecret: updatedHuman.TotpSecret,
-          OtpRecoverCode: updatedHuman.OtpRecoverCode,
-          OtpRecoverCodeExpire: updatedHuman.OtpRecoverCodeExpire,
-          OtpDeleteCode: updatedHuman.OtpDeleteCode,
-          OtpDeleteCodeExpire: updatedHuman.OtpDeleteCodeExpire,
+        // Deny by default
+        e := tx.Rollback()
+        if e != nil {
+          log.Debug(e.Error())
         }
-
-        log.WithFields(logrus.Fields{ "id":updatedHuman.Id }).Debug("Password updated")
-        request.Output = bulky.NewOkResponse(request.Index, ok)
-        continue
+        bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+        request.Output = bulky.NewInternalErrorResponse(request.Index)
+        log.Debug("Update password failed. Hint: Maybe input validation needs to be improved.")
+        return
       }
 
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})

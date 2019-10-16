@@ -91,6 +91,8 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesClaimRequest)
 
+        log = log.WithFields(logrus.Fields{"id": r.Id})
+
         // Create email claim challenge based of the invite
         redirectToUrlWhenVerified, err := url.Parse( r.RedirectTo ) // If this fails the input validation is bad and needs fixing
         if err != nil {
@@ -104,7 +106,6 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
           return
         }
 
-
         inv := idp.Invite{ Identity: idp.Identity{ Id: r.Id } }
         dbInvites, err := idp.FetchInvites(tx, requestedBy, []idp.Invite{ inv })
         if err != nil {
@@ -117,75 +118,85 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
           log.Debug(err.Error())
           return
         }
-        if len(dbInvites) > 0 {
-          invite := dbInvites[0]
 
-          newChallenge := idp.Challenge{
-            JwtRegisteredClaims: idp.JwtRegisteredClaims{
-              Subject: invite.Id,
-              Issuer: config.GetString("idp.public.issuer"),
-              Audience: config.GetString("idp.public.url") + config.GetString("idp.public.endpoints.challenges.verify"),
-              ExpiresAt: time.Now().Unix() + r.TTL,
-            },
-            RedirectTo: redirectToUrlWhenVerified.String(),
-            CodeType: int64(client.OTP),
+        if len(dbInvites) <= 0 {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
           }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_NOT_FOUND)
+          return
+        }
 
-          challenge, otpCode, err := idp.CreateChallengeForOTP(tx, newChallenge)
-          if err != nil {
-            e := tx.Rollback()
-            if e != nil {
-              log.Debug(e.Error())
+        invite := dbInvites[0]
+
+        newChallenge := idp.Challenge{
+          JwtRegisteredClaims: idp.JwtRegisteredClaims{
+            Subject: invite.Id,
+            Issuer: config.GetString("idp.public.issuer"),
+            Audience: config.GetString("idp.public.url") + config.GetString("idp.public.endpoints.challenges.verify"),
+            ExpiresAt: time.Now().Unix() + r.TTL,
+          },
+          RedirectTo: redirectToUrlWhenVerified.String(),
+          CodeType: int64(client.OTP),
+        }
+        challenge, otpCode, err := idp.CreateChallengeForOTP(tx, newChallenge)
+        if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          log.Debug(err.Error())
+          return
+        }
+
+        if challenge != (idp.Challenge{}) {
+
+          if otpCode.Code != "" && invite.Email != "" {
+
+            var data = ConfirmTemplateData{
+              Challenge: challenge.Id,
+              Sender: sender.Name,
+              Id: challenge.Subject,
+              Email: invite.Email,
+              Code: otpCode.Code, // Note this is the clear text generated code and not the hashed one stored in DB.
             }
-            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-            log.Debug(err.Error())
-            return
-          }
-
-          if challenge.Id != "" {
-
-            if otpCode.Code != "" && invite.Email != "" {
-
-              var data = ConfirmTemplateData{
-                Challenge: challenge.Id,
-                Sender: sender.Name,
-                Id: challenge.Subject,
-                Email: invite.Email,
-                Code: otpCode.Code, // Note this is the clear text generated code and not the hashed one stored in DB.
+            _, err = idp.SendEmailUsingTemplate(smtpConfig, invite.Email, invite.Email, emailSubject, templateFile, data)
+            if err != nil {
+              e := tx.Rollback()
+              if e != nil {
+                log.Debug(e.Error())
               }
-              _, err = idp.SendEmailUsingTemplate(smtpConfig, invite.Email, invite.Email, emailSubject, templateFile, data)
-              if err != nil {
-                e := tx.Rollback()
-                if e != nil {
-                  log.Debug(e.Error())
-                }
-                bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-                request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-                log.Debug(err.Error())
-                return
-              }
-
+              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+              request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+              log.Debug(err.Error())
+              return
             }
 
-            q := redirectToConfirm.Query()
-            q.Add("email_challenge", challenge.Id)
-            redirectToConfirm.RawQuery = q.Encode()
-
-            request.Output = bulky.NewOkResponse(request.Index, client.CreateInvitesClaimResponse{
-              RedirectTo: redirectToConfirm.String(),
-            })
-            continue
           }
 
-          // Deny by default
-          request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_CREATED)
+          q := redirectToConfirm.Query()
+          q.Add("email_challenge", challenge.Id)
+          redirectToConfirm.RawQuery = q.Encode()
+
+          request.Output = bulky.NewOkResponse(request.Index, client.CreateInvitesClaimResponse{
+            RedirectTo: redirectToConfirm.String(),
+          })
           continue
         }
 
         // Deny by default
-        request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_NOT_FOUND)
-        continue
+        e := tx.Rollback()
+        if e != nil {
+          log.Debug(e.Error())
+        }
+        bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+        request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+        log.Debug("Create challenge failed. Hint: Maybe input validation needs to be improved.")
+        return
       }
 
       err = bulky.OutputValidateRequests(iRequests)
@@ -197,6 +208,7 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
       // Deny by default
       tx.Rollback()
     }
+
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }

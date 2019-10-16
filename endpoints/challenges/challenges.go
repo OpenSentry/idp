@@ -39,8 +39,6 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      //iRequest := idp.Identity{ Id: c.MustGet("sub").(string) }
-
       session, tx, err := idp.BeginReadTx(env.Driver)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
@@ -49,6 +47,20 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
       }
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
+
+      // requestor := c.MustGet("sub").(string)
+      // var requestedBy *idp.Identity
+      // if requestor != "" {
+      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  if err != nil {
+      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //    log.Debug(err.Error())
+      //    return
+      //  }
+      //  if len(identities) > 0 {
+      //    requestedBy = &identities[0]
+      //  }
+      // }
 
       for _, request := range iRequests {
 
@@ -60,12 +72,18 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
           dbChallenges, err = idp.FetchChallenges(tx, nil)
         } else {
           r := request.Input.(client.ReadChallengesRequest)
+          log = log.WithFields(logrus.Fields{"otp_challenge": r.OtpChallenge})
           dbChallenges, err = idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.OtpChallenge} })
         }
-        if err != nil {
+        if err == nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
           log.Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
+          return
         }
 
         if len(dbChallenges) > 0 {
@@ -89,6 +107,15 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
         // Deny by default
         request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
       }
+
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{EnableEmptyRequest: true})
@@ -113,8 +140,6 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      //iRequest := idp.Identity{ Id: c.MustGet("sub").(string) }
-
       session, tx, err := idp.BeginWriteTx(env.Driver)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
@@ -123,6 +148,20 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
       }
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
+
+      // requestor := c.MustGet("sub").(string)
+      // var requestedBy *idp.Identity
+      // if requestor != "" {
+      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  if err != nil {
+      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //    log.Debug(err.Error())
+      //    return
+      //  }
+      //  if len(identities) > 0 {
+      //    requestedBy = &identities[0]
+      //  }
+      // }
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateChallengesRequest)
@@ -145,18 +184,7 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
         } else {
           challenge, otpCode, err = idp.CreateChallengeForOTP(tx, newChallenge)
         }
-        if err != nil {
-          e := tx.Rollback()
-          if e != nil {
-            log.Debug(e.Error())
-          }
-          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-          log.Debug(err.Error())
-          return
-        }
-
-        if challenge.Id != "" {
+        if err == nil && challenge.Id != "" {
 
           if otpCode.Code != "" && r.Email != "" {
 
@@ -221,7 +249,14 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
         }
 
         // Deny by default
-        request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_CREATED)
+        e := tx.Rollback()
+        if e != nil {
+          log.Debug(e.Error())
+        }
+        bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+        request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+        log.Debug(err.Error())
+        return
       }
 
       err = bulky.OutputValidateRequests(iRequests)

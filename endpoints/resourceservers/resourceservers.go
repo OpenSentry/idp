@@ -4,11 +4,11 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-
-  //"github.com/charmixer/idp/config"
+  
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
+  E "github.com/charmixer/idp/client/errors"
 
   bulky "github.com/charmixer/bulky/server"
 )
@@ -28,47 +28,79 @@ func GetResourceServers(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*bulky.Request) {
-      var resourceServers []idp.ResourceServer
+
+      session, tx, err := idp.BeginReadTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
+
+      // requestor := c.MustGet("sub").(string)
+      // var requestedBy *idp.Identity
+      // if requestor != "" {
+      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  if err != nil {
+      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //    log.Debug(err.Error())
+      //    return
+      //  }
+      //  if len(identities) > 0 {
+      //    requestedBy = &identities[0]
+      //  }
+      // }
 
       for _, request := range iRequests {
-        if request.Input != nil {
+
+        var dbResourceServers []idp.ResourceServer
+        var err error
+        var ok client.ReadResourceServersResponse
+
+        if request.Input == nil {
+          dbResourceServers, err = idp.FetchResourceServers(tx, nil)
+        } else {
           r := request.Input.(client.ReadResourceServersRequest)
-          resourceServers = append(resourceServers, idp.ResourceServer{ Identity: idp.Identity{Id:r.Id} })
+          dbResourceServers, err = idp.FetchResourceServers(tx, []idp.ResourceServer{ {Identity:idp.Identity{Id: r.Id}} })
         }
+        if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          log.Debug(err.Error())
+          return
+        }
+
+        if len(dbResourceServers) > 0 {
+          for _, d := range dbResourceServers {
+            ok = append(ok, client.ResourceServer{
+              Id: d.Id,
+              Name: d.Name,
+              Description: d.Description,
+              Audience: d.Audience,
+            })
+          }
+          request.Output = bulky.NewOkResponse(request.Index, ok)
+          continue
+        }
+
+        // Deny by default
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
+        continue
       }
 
-      dbResourceServers, err := idp.FetchResourceServers(env.Driver, resourceServers)
-      if err != nil {
-        log.Debug(err.Error())
-        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
         return
       }
 
-      log.Debug(dbResourceServers)
-
-      for _, request := range iRequests {
-        var r client.ReadResourceServersRequest
-        if request.Input != nil {
-          r = request.Input.(client.ReadResourceServersRequest)
-        }
-
-        var ok client.ReadResourceServersResponse
-        for _, d := range dbResourceServers {
-          if request.Input != nil && d.Id != r.Id {
-            continue
-          }
-
-          // Translate from db model to rest model
-          ok = append(ok, client.ResourceServer{
-            Id: d.Id,
-            Name: d.Name,
-            Description: d.Description,
-            Audience: d.Audience,
-          })
-        }
-
-        request.Output = bulky.NewOkResponse(request.Index, ok)
-      }
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{EnableEmptyRequest: true})
