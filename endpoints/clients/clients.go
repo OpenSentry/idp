@@ -5,7 +5,6 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
-  //"github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
@@ -29,46 +28,79 @@ func GetClients(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*bulky.Request) {
-      var clients []idp.Client
+
+      session, tx, err := idp.BeginReadTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
+
+      // requestor := c.MustGet("sub").(string)
+      // var requestedBy *idp.Identity
+      // if requestor != "" {
+      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  if err != nil {
+      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //    log.Debug(err.Error())
+      //    return
+      //  }
+      //  if len(identities) > 0 {
+      //    requestedBy = &identities[0]
+      //  }
+      // }
 
       for _, request := range iRequests {
-        if request.Input != nil {
-          var r client.ReadClientsRequest
-          r = request.Input.(client.ReadClientsRequest)
-          clients = append(clients, idp.Client{ Identity: idp.Identity{Id:r.Id} })
+
+        var dbClients []idp.Client
+        var err error
+        var ok client.ReadClientsResponse
+
+        if request.Input == nil {
+          dbClients, err = idp.FetchClients(tx, nil)
+        } else {
+          r := request.Input.(client.ReadIdentitiesRequest)
+          dbClients, err = idp.FetchClients(tx, []idp.Client{ {Identity:idp.Identity{Id: r.Id}} })
         }
+        if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          log.Debug(err.Error())
+          return
+        }
+
+        if len(dbClients) > 0 {
+          for _, d := range dbClients {
+            ok = append(ok, client.Client{
+              Id: d.Id,
+              ClientSecret: d.ClientSecret,
+              Name: d.Name,
+              Description: d.Description,
+            })
+          }
+          request.Output = bulky.NewOkResponse(request.Index, ok)
+          continue
+        }
+
+        // Deny by default
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
+        continue
       }
 
-      dbClients, err := idp.FetchClients(env.Driver, clients)
-      if err != nil {
-        log.Debug(err.Error())
-        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
         return
       }
 
-      for _, request := range iRequests {
-        var r client.ReadClientsRequest
-        if request.Input != nil {
-          r = request.Input.(client.ReadClientsRequest)
-        }
-
-        var ok client.ReadClientsResponse
-        for _, d := range dbClients {
-          if request.Input != nil && d.Id != r.Id {
-            continue
-          }
-
-          // Translate from db model to rest model
-          ok = append(ok, client.Client{
-            Id: d.Id,
-            ClientSecret: d.ClientSecret,
-            Name: d.Name,
-            Description: d.Description,
-          })
-        }
-
-        request.Output = bulky.NewOkResponse(request.Index, ok)
-      }
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{EnableEmptyRequest: true})
@@ -94,16 +126,42 @@ func PostClients(env *environment.State) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      // requestedByIdentity := c.MustGet("sub").(string)
+      session, tx, err := idp.BeginWriteTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
+
+      // requestor := c.MustGet("sub").(string)
+      // var requestedBy *idp.Identity
+      // if requestor != "" {
+      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  if err != nil {
+      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //    log.Debug(err.Error())
+      //    return
+      //  }
+      //  if len(identities) > 0 {
+      //    requestedBy = &identities[0]
+      //  }
+      // }
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateClientsRequest)
 
         hashedPassword, err := idp.CreatePassword(r.ClientSecret) // @SecurityRisk: Please _NEVER_ log the cleartext client_secret
         if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
           log.Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
+          return
         }
 
         newClient := idp.Client{
@@ -111,15 +169,8 @@ func PostClients(env *environment.State) gin.HandlerFunc {
           ClientSecret: hashedPassword,
           Description: r.Description,
         }
-        objClient, err := idp.CreateClient(env.Driver, newClient)
-        if err != nil {
-          // @SecurityRisk: Please _NEVER_ log the hashed client_secret
-          log.WithFields(logrus.Fields{ "name": newClient.Name, /* "client_secret": newClient.ClientSecret, */ }).Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
-        }
-
-        if objClient != (idp.Client{}) {
+        objClient, err := idp.CreateClient(tx, newClient)
+        if err == nil && objClient != (idp.Client{}) {
           ok := client.CreateClientsResponse{
             Id: objClient.Id,
             ClientSecret: objClient.ClientSecret,
@@ -132,11 +183,25 @@ func PostClients(env *environment.State) gin.HandlerFunc {
         }
 
         // Deny by default
+        e := tx.Rollback()
+        if e != nil {
+          log.Debug(e.Error())
+        }
+        bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+        request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
         // @SecurityRisk: Please _NEVER_ log the hashed client_secret
         log.WithFields(logrus.Fields{ "name": newClient.Name, /* "client_secret": newClient.ClientSecret, */ }).Debug(err.Error())
-        request.Output = bulky.NewClientErrorResponse(request.Index, E.CLIENT_NOT_CREATED)
-        continue
+        return
       }
+
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})

@@ -56,6 +56,7 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
     epInviteUrl, err := url.Parse( config.GetString("invite.url") )
     if err != nil {
       c.AbortWithStatus(http.StatusInternalServerError)
+      log.Debug("Invalid invite.url in config. Hint: See config documentation.")
       return
     }
 
@@ -86,6 +87,8 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesSendRequest)
+
+        log = log.WithFields(logrus.Fields{"id": r.Id})
 
         dbInvites, err := idp.FetchInvites(tx, requestedBy, []idp.Invite{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
@@ -126,32 +129,49 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
             return
           }
 
-          _, err = idp.UpdateInviteSentAt(tx, requestedBy, invite)
+          updatedInvite, err := idp.UpdateInviteSentAt(tx, requestedBy, invite)
           if err != nil {
-            log.WithFields(logrus.Fields{ "id":invite.Id }).Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+            log.Debug(err.Error())
+            return
+          }
+
+          if updatedInvite != (idp.Invite{}) {
+            request.Output = bulky.NewOkResponse(request.Index, client.CreateInvitesResponse{
+              Id: updatedInvite.Id,
+              IssuedAt: updatedInvite.IssuedAt,
+              ExpiresAt: updatedInvite.ExpiresAt,
+              Email: updatedInvite.Email,
+              Username: updatedInvite.Username,
+            })
+            idp.EmitEventInviteSent(env.Nats, idp.Invite{Identity:idp.Identity{Id:updatedInvite.Id}})
             continue
           }
-
-          ok := client.CreateInvitesResponse{
-            Id: invite.Id,
-            IssuedAt: invite.IssuedAt,
-            ExpiresAt: invite.ExpiresAt,
-            Email: invite.Email,
-            // Username: invite.Username,
-            // InvitedBy: invite.InvitedBy.Id,
-          }
-
-          log.WithFields(logrus.Fields{ "id":ok.Id }).Debug("Invite sent")
-          request.Output = bulky.NewOkResponse(request.Index, ok)
-          continue
         }
 
-        log.WithFields(logrus.Fields{ "id":r.Id }).Debug(err.Error())
+        // Deny by default
+        e := tx.Rollback()
+        if e != nil {
+          log.Debug(e.Error())
+        }
+        bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
         request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_NOT_FOUND)
-        continue
+        return
       }
 
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
