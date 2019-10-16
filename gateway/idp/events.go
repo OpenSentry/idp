@@ -24,3 +24,8 @@ func EmitEventInviteCreated(natsConnection *nats.Conn, invite Invite) {
   e := fmt.Sprintf("{id:%s}", invite.Id)
   natsConnection.Publish("idp.invite.created", []byte(e))
 }
+
+func EmitEventInviteSent(natsConnection *nats.Conn, invite Invite) {
+  e := fmt.Sprintf("{id:%s}", invite.Id)
+  natsConnection.Publish("idp.invite.sent", []byte(e))
+}

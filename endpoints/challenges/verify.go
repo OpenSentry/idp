@@ -30,8 +30,6 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      //iRequest := idp.Identity{ Id: c.MustGet("sub").(string) }
-
       session, tx, err := idp.BeginWriteTx(env.Driver)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
@@ -41,8 +39,24 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
 
+      // requestor := c.MustGet("sub").(string)
+      // var requestedBy *idp.Identity
+      // if requestor != "" {
+      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  if err != nil {
+      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //    log.Debug(err.Error())
+      //    return
+      //  }
+      //  if len(identities) > 0 {
+      //    requestedBy = &identities[0]
+      //  }
+      // }
+
       for _, request := range iRequests {
         r := request.Input.(client.UpdateChallengesVerifyRequest)
+
+        log = log.WithFields(logrus.Fields{"otp_challenge": r.OtpChallenge})
 
         // Sanity check. Challenge must exists
         var aChallenge []idp.Challenge
@@ -62,12 +76,14 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
 
         cnt := len(dbChallenges)
         if cnt <= 0 {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
           request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
-          continue
-        }
-        if cnt > 1 {
-          request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND) // FIXME: To many challenges, should never happen on primary key
-          continue
+          return
         }
 
         var challenge idp.Challenge = dbChallenges[0]
@@ -75,7 +91,7 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
 
         if client.OTPType(challenge.CodeType) == client.TOTP {
 
-          humans, err := idp.FetchHumansById(env.Driver, []string{challenge.Subject})
+          humans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:challenge.Subject}} })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -89,18 +105,24 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
 
           cnt := len(humans)
           if cnt <= 0 {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
             request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
-            continue
-          }
-          if cnt > 1 {
-            request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND) // FIXME: To many humans, should never happen on primary key
-            continue
+            return
           }
           var human idp.Human = humans[0]
 
           if human.TotpRequired != true {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
             request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_TOTP_NOT_REQUIRED)
-            continue
+            return
           }
 
           decryptedSecret, err := idp.Decrypt(human.TotpSecret, config.GetString("totp.cryptkey"))
@@ -161,7 +183,7 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
       tx.Rollback() // deny by default
     }
 
-    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{})
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
