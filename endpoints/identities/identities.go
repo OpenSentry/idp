@@ -50,56 +50,30 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
         var ok client.ReadIdentitiesResponse
 
         if request.Input == nil {
-
           dbIdentities, err = idp.FetchIdentities(tx, nil)
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
-          }
-
-          if len(dbIdentities) > 0 {
-            // The empty fetch
-            for _, i := range dbIdentities {
-              ok = append(ok, client.Identity{
-                Id: i.Id,
-                Labels: strings.Split(i.Labels, ":"),
-              })
-            }
-
-            request.Output = bulky.NewOkResponse(request.Index, ok)
-            continue
-          }
-
         } else {
-
           r := request.Input.(client.ReadIdentitiesRequest)
-
           dbIdentities, err = idp.FetchIdentities(tx, []idp.Identity{ {Id: r.Id} })
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+        }
+        if err != nil {
+          log.Debug(err.Error())
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
+          continue
+        }
+
+        if len(dbIdentities) > 0 {
+          for _, i := range dbIdentities {
+            ok = append(ok, client.Identity{
+              Id: i.Id,
+              Labels: strings.Split(i.Labels, ":"),
+            })
           }
-
-          if len(dbIdentities) > 0 {
-            // The empty fetch
-            for _, i := range dbIdentities {
-              ok = append(ok, client.Identity{
-                Id: i.Id,
-                Labels: strings.Split(i.Labels, ":"),
-              })
-            }
-
-            request.Output = bulky.NewOkResponse(request.Index, ok)
-            continue
-          }
-
+          request.Output = bulky.NewOkResponse(request.Index, ok)
+          continue
         }
 
         // Deny by default
         request.Output = bulky.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
-        continue
       }
     }
 

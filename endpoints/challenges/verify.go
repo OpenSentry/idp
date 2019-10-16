@@ -30,59 +30,92 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      requestedByIdentityId := c.MustGet("sub").(string)
+      //iRequest := idp.Identity{ Id: c.MustGet("sub").(string) }
+
+      session, tx, err := idp.BeginWriteTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
 
       for _, request := range iRequests {
         r := request.Input.(client.UpdateChallengesVerifyRequest)
 
+        // Sanity check. Challenge must exists
         var aChallenge []idp.Challenge
         aChallenge = append(aChallenge, idp.Challenge{Id: r.OtpChallenge})
-        dbChallenges, err := idp.FetchChallenges(env.Driver, aChallenge)
+        dbChallenges, err := idp.FetchChallenges(tx, aChallenge)
         if err != nil {
-          log.Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          log.WithFields(logrus.Fields{ "otp_challenge":r.OtpChallenge }).Debug(err.Error())
+          return
         }
-        if dbChallenges == nil {
-          log.WithFields(logrus.Fields{ "otp_challenge": r.OtpChallenge, "id": requestedByIdentityId, }).Debug("Challenge not found")
+
+        cnt := len(dbChallenges)
+        if cnt <= 0 {
           request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
           continue
         }
-        challenge := dbChallenges[0]
+        if cnt > 1 {
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND) // FIXME: To many challenges, should never happen on primary key
+          continue
+        }
 
+        var challenge idp.Challenge = dbChallenges[0]
         var valid bool = false
 
         if client.OTPType(challenge.CodeType) == client.TOTP {
 
           humans, err := idp.FetchHumansById(env.Driver, []string{challenge.Subject})
           if err != nil {
-            log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+            log.WithFields(logrus.Fields{ "otp_challenge":challenge.Id, "id":challenge.Subject }).Debug(err.Error())
+            return
           }
-          if humans == nil {
-            log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("Human not found")
+
+          cnt := len(humans)
+          if cnt <= 0 {
             request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
             continue
           }
-          human := humans[0]
+          if cnt > 1 {
+            request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND) // FIXME: To many humans, should never happen on primary key
+            continue
+          }
+          var human idp.Human = humans[0]
 
-          if human.TotpRequired == true {
-
-            decryptedSecret, err := idp.Decrypt(human.TotpSecret, config.GetString("totp.cryptkey"))
-            if err != nil {
-              log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug(err.Error())
-              request.Output = bulky.NewInternalErrorResponse(request.Index)
-              continue
-            }
-
-            valid, _ = idp.ValidateOtp(r.Code, decryptedSecret)
-
-          } else {
-            log.WithFields(logrus.Fields{ "otp_challenge": challenge.Id, "id": challenge.Subject, }).Debug("TOTP not required for Human")
+          if human.TotpRequired != true {
             request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_TOTP_NOT_REQUIRED)
             continue
           }
+
+          decryptedSecret, err := idp.Decrypt(human.TotpSecret, config.GetString("totp.cryptkey"))
+          if err != nil {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+            log.WithFields(logrus.Fields{ "otp_challenge":challenge.Id, "id":human.Id }).Debug(err.Error())
+            return
+          }
+
+          valid, _ = idp.ValidateOtp(r.Code, decryptedSecret)
 
         } else {
 
@@ -90,34 +123,42 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
 
         }
 
-        var ok client.UpdateChallengesVerifyResponse
-
         if valid == true {
-          verifiedChallenge, err := idp.VerifyChallenge(env.Driver, challenge)
+
+          verifiedChallenge, err := idp.VerifyChallenge(tx, challenge)
           if err != nil {
-            log.WithFields(logrus.Fields{"otp_challenge": challenge.Id}).Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+            log.WithFields(logrus.Fields{ "otp_challenge":challenge.Id }).Debug(err.Error())
+            return
           }
 
-          ok = client.UpdateChallengesVerifyResponse{
+          request.Output = bulky.NewOkResponse(request.Index, client.UpdateChallengesVerifyResponse{
             OtpChallenge: verifiedChallenge.Id,
             Verified: true,
             RedirectTo: verifiedChallenge.RedirectTo,
-          }
-        } else {
-
-          // Deny by default
-          ok = client.UpdateChallengesVerifyResponse{
-            OtpChallenge: challenge.Id,
-            Verified: false,
-            RedirectTo: challenge.RedirectTo,
-          }
+          })
+          continue
         }
 
-        request.Output = bulky.NewOkResponse(request.Index, ok)
-
+        // Deny by default
+        request.Output = bulky.NewOkResponse(request.Index, client.UpdateChallengesVerifyResponse{
+          OtpChallenge: r.OtpChallenge,
+          Verified: false,
+          RedirectTo: "",
+        })
       }
+
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+      tx.Rollback() // deny by default
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{})

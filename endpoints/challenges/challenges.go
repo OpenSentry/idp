@@ -3,9 +3,6 @@ package challenges
 import (
   "time"
   "net/http"
-  "text/template"
-  "io/ioutil"
-  "bytes"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -13,6 +10,7 @@ import (
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
+  E "github.com/charmixer/idp/client/errors"
 
   bulky "github.com/charmixer/bulky/server"
 )
@@ -40,53 +38,56 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*bulky.Request) {
-      var challenges []idp.Challenge
 
-      for _, request := range iRequests {
-        if request.Input != nil {
-          var r client.ReadChallengesRequest
-          r = request.Input.(client.ReadChallengesRequest)
+      //iRequest := idp.Identity{ Id: c.MustGet("sub").(string) }
 
-          // Translate from rest model to db
-          v := idp.Challenge{ Id: r.OtpChallenge }
-          challenges = append(challenges, v)
-        }
-      }
-
-      dbChallenges, err := idp.FetchChallenges(env.Driver, challenges)
+      session, tx, err := idp.BeginReadTx(env.Driver)
       if err != nil {
-        log.Debug(err.Error())
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
         return
       }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
 
       for _, request := range iRequests {
-        var r client.ReadChallengesRequest
-        if request.Input != nil {
-          r = request.Input.(client.ReadChallengesRequest)
-        }
 
+        var dbChallenges []idp.Challenge
+        var err error
         var ok client.ReadChallengesResponse
-        for _, d := range dbChallenges {
-          if request.Input != nil && d.Id != r.OtpChallenge {
-            continue
-          }
 
-          // Translate from db model to rest model
-          ok = append(ok, client.Challenge{
-            OtpChallenge: d.Id,
-            Subject: d.Subject,
-            Audience: d.Audience,
-            IssuedAt: d.IssuedAt,
-            ExpiresAt: d.ExpiresAt,
-            TTL: d.ExpiresAt - d.IssuedAt,
-            RedirectTo: d.RedirectTo,
-            CodeType: d.CodeType,
-            VerifiedAt: d.VerifiedAt,
-          })
+        if request.Input == nil {
+          dbChallenges, err = idp.FetchChallenges(tx, nil)
+        } else {
+          r := request.Input.(client.ReadChallengesRequest)
+          dbChallenges, err = idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.OtpChallenge} })
+        }
+        if err != nil {
+          log.Debug(err.Error())
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
+          continue
         }
 
-        request.Output = bulky.NewOkResponse(request.Index, ok)
+        if len(dbChallenges) > 0 {
+          for _, d := range dbChallenges {
+            ok = append(ok, client.Challenge{
+              OtpChallenge: d.Id,
+              Subject: d.Subject,
+              Audience: d.Audience,
+              IssuedAt: d.IssuedAt,
+              ExpiresAt: d.ExpiresAt,
+              TTL: d.ExpiresAt - d.IssuedAt,
+              RedirectTo: d.RedirectTo,
+              CodeType: d.CodeType,
+              VerifiedAt: d.VerifiedAt,
+            })
+          }
+          request.Output = bulky.NewOkResponse(request.Index, ok)
+          continue
+        }
+
+        // Deny by default
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
       }
     }
 
@@ -112,151 +113,130 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
+      //iRequest := idp.Identity{ Id: c.MustGet("sub").(string) }
+
+      session, tx, err := idp.BeginWriteTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
+
       for _, request := range iRequests {
         r := request.Input.(client.CreateChallengesRequest)
 
-        var challenge *idp.Challenge
-        if client.OTPType(r.CodeType) == client.TOTP {
+        newChallenge := idp.Challenge{
+          JwtRegisteredClaims: idp.JwtRegisteredClaims{
+            Subject: r.Subject,
+            Issuer: config.GetString("idp.public.issuer"),
+            Audience: config.GetString("idp.public.url") + config.GetString("idp.public.endpoints.challenges.verify"),
+            ExpiresAt: time.Now().Unix() + r.TTL,
+          },
+          RedirectTo: r.RedirectTo,
+          CodeType: r.CodeType,
+        }
 
-          challenge, err = CreateChallengeForTOTP(env, r)
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
-          }
-
+        var otpCode idp.ChallengeCode
+        var challenge idp.Challenge
+        if client.OTPType(newChallenge.CodeType) == client.TOTP {
+          challenge, err = idp.CreateChallengeForTOTP(tx, newChallenge)
         } else {
+          challenge, otpCode, err = idp.CreateChallengeForOTP(tx, newChallenge)
+        }
+        if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          log.Debug(err.Error())
+          return
+        }
 
-          challenge, err = CreateChallengeForOTP(env, r)
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+        if challenge.Id != "" {
+
+          if otpCode.Code != "" && r.Email != "" {
+
+            // Sent challenge to requested email
+
+            var templateFile string
+            var emailSubject string
+            var sender idp.SMTPSender
+
+            switch (r.Template) {
+            case client.ConfirmEmail:
+              sender = idp.SMTPSender{ Name: config.GetString("emailconfirm.sender.name"), Email: config.GetString("emailconfirm.sender.email") }
+              templateFile = config.GetString("emailconfirm.template.email.file")
+              emailSubject = config.GetString("emailconfirm.template.email.subject")
+            default:
+              sender = idp.SMTPSender{ Name: config.GetString("otp.sender.name"), Email: config.GetString("otp.sender.email") }
+              templateFile = config.GetString("otp.template.email.file")
+              emailSubject = config.GetString("otp.template.email.subject")
+            }
+
+            smtpConfig := idp.SMTPConfig{
+              Host: config.GetString("mail.smtp.host"),
+              Username: config.GetString("mail.smtp.user"),
+              Password: config.GetString("mail.smtp.password"),
+              Sender: sender,
+              SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
+            }
+
+            var data = ConfirmTemplateData{
+              Challenge: challenge.Id,
+              Sender: sender.Name,
+              Id: challenge.Subject,
+              Email: r.Email,
+              Code: otpCode.Code, // Note this is the clear text generated code and not the hashed one stored in DB.
+            }
+            _, err = idp.SendEmailUsingTemplate(smtpConfig, r.Email, r.Email, emailSubject, templateFile, data)
+            if err != nil {
+              e := tx.Rollback()
+              if e != nil {
+                log.Debug(e.Error())
+              }
+              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+              request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+              log.Debug(err.Error())
+              return
+            }
+
           }
 
+          request.Output = bulky.NewOkResponse(request.Index, client.CreateChallengesResponse{
+            OtpChallenge: challenge.Id,
+            Subject: challenge.Subject,
+            Audience: challenge.Audience,
+            IssuedAt: challenge.IssuedAt,
+            ExpiresAt: challenge.ExpiresAt,
+            TTL: challenge.ExpiresAt - challenge.IssuedAt,
+            RedirectTo: challenge.RedirectTo,
+            CodeType: challenge.CodeType,
+            Code: challenge.Code,
+          })
+          continue
         }
 
-        ok := client.CreateChallengesResponse{
-          OtpChallenge: challenge.Id,
-          Subject: challenge.Subject,
-          Audience: challenge.Audience,
-          IssuedAt: challenge.IssuedAt,
-          ExpiresAt: challenge.ExpiresAt,
-          TTL: challenge.ExpiresAt - challenge.IssuedAt,
-          RedirectTo: challenge.RedirectTo,
-          CodeType: challenge.CodeType,
-          Code: challenge.Code,
-        }
-        request.Output = bulky.NewOkResponse(request.Index, ok)
+        // Deny by default
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_CREATED)
       }
+
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
-}
-
-func CreateChallengeForOTP(env *environment.State, r client.CreateChallengesRequest) (*idp.Challenge, error) {
-
-  otpCode, err := idp.CreateChallengeCode()
-  if err != nil {
-    return nil, err
-  }
-
-  hashedCode, err := idp.CreatePassword(otpCode.Code)
-  if err != nil {
-    return nil, err
-  }
-
-  newChallenge := idp.Challenge{
-    JwtRegisteredClaims: idp.JwtRegisteredClaims{
-      Subject: r.Subject,
-      Issuer: config.GetString("idp.public.issuer"),
-      Audience: config.GetString("idp.public.url") + config.GetString("idp.public.endpoints.challenges.verify"),
-      ExpiresAt: time.Now().Unix() + r.TTL,
-    },
-    RedirectTo: r.RedirectTo,
-    CodeType: r.CodeType,
-    Code: hashedCode,
-  }
-
-  challenge, err := idp.CreateChallenge(env.Driver, newChallenge)
-  if err != nil {
-    return nil, err
-  }
-
-  if r.Email != "" {
-
-    var templateFile string
-    var emailSubject string
-    var sender idp.SMTPSender
-
-    smtpConfig := idp.SMTPConfig{
-      Host: config.GetString("mail.smtp.host"),
-      Username: config.GetString("mail.smtp.user"),
-      Password: config.GetString("mail.smtp.password"),
-      Sender: sender,
-      SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
-    }
-
-    switch (r.Template) {
-    case client.ConfirmEmail:
-      sender = idp.SMTPSender{ Name: config.GetString("emailconfirm.sender.name"), Email: config.GetString("emailconfirm.sender.email") }
-      templateFile = config.GetString("emailconfirm.template.email.file")
-      emailSubject = config.GetString("emailconfirm.template.email.subject")
-    default:
-      sender = idp.SMTPSender{ Name: config.GetString("otp.sender.name"), Email: config.GetString("otp.sender.email") }
-      templateFile = config.GetString("otp.template.email.file")
-      emailSubject = config.GetString("otp.template.email.subject")
-    }
-
-    tplRecover, err := ioutil.ReadFile(templateFile)
-    if err != nil {
-      return nil, err
-    }
-
-    t := template.Must(template.New(templateFile).Parse(string(tplRecover)))
-
-    var tpl bytes.Buffer
-    var data = ConfirmTemplateData{
-      Challenge: challenge.Id,
-      Sender: sender.Name,
-      Id: challenge.Subject,
-      Email: r.Email,
-      Code: otpCode.Code, // Note this is the clear text generated code and not the hashed one stored in DB.
-    }
-    if err := t.Execute(&tpl, data); err != nil {
-      return nil, err
-    }
-
-    anEmail := idp.AnEmail{ Subject:emailSubject, Body:tpl.String() }
-
-    _, err = idp.SendAnEmailToAnonymous(smtpConfig, r.Email, r.Email, anEmail)
-    if err != nil {
-      return nil, err
-    }
-
-  }
-
-  return &challenge, nil
-}
-
-func CreateChallengeForTOTP(env *environment.State, r client.CreateChallengesRequest) (*idp.Challenge, error) {
-  newChallenge := idp.Challenge{
-    JwtRegisteredClaims: idp.JwtRegisteredClaims{
-      Subject: r.Subject,
-      Issuer: config.GetString("idp.public.issuer"),
-      Audience: config.GetString("idp.public.url") + config.GetString("idp.public.endpoints.challenges.verify"),
-      ExpiresAt: time.Now().Unix() + r.TTL,
-    },
-    RedirectTo: r.RedirectTo,
-    CodeType: r.CodeType,
-  }
-  challenge, err := idp.CreateChallenge(env.Driver, newChallenge)
-  if err != nil {
-    return nil, err
-  }
-  return &challenge, nil
 }
 

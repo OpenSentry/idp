@@ -22,6 +22,7 @@ const CLIENT_NOT_FOUND = 50
 const CLIENT_NOT_CREATED = 51
 
 const CHALLENGE_NOT_FOUND = 30
+const CHALLENGE_NOT_CREATED = 31
 
 const USERNAME_BANNED = 80
 const USERNAME_EXISTS = 81
@@ -70,6 +71,11 @@ func InitRestErrors() {
         {
           "en":  "Username exists",
           "dev": "Username already exists",
+        },
+      CHALLENGE_NOT_CREATED:
+        {
+          "en":  "Not created",
+          "dev": "Failed to create challenge. This requires investigation as it should never happen with validation in place.",
         },
       CHALLENGE_NOT_FOUND:
         {
