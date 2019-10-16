@@ -157,6 +157,7 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
           Email: r.Email,
           Username: r.Username,
         }
+        log.Debug(newInvite)
         invite, err := idp.CreateInvite(tx, requestedBy, newInvite)
         if err != nil {
           e := tx.Rollback()
