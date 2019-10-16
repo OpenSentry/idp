@@ -32,6 +32,16 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
     }
 
     var handleRequests = func(iRequests []*bulky.Request) {
+      //iRequest := idp.Identity{ Id: c.MustGet("sub").(string) }
+
+      session, tx, err := idp.BeginReadTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
 
       for _, request := range iRequests {
 
@@ -41,7 +51,7 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
 
         if request.Input == nil {
 
-          dbIdentities, err = idp.FetchIdentitiesAll(env.Driver)
+          dbIdentities, err = idp.FetchIdentities(tx, nil)
           if err != nil {
             log.Debug(err.Error())
             request.Output = bulky.NewInternalErrorResponse(request.Index)
@@ -65,7 +75,7 @@ func GetIdentities(env *environment.State) gin.HandlerFunc {
 
           r := request.Input.(client.ReadIdentitiesRequest)
 
-          dbIdentities, err = idp.FetchIdentitiesById(env.Driver, []string{r.Id})
+          dbIdentities, err = idp.FetchIdentities(tx, []idp.Identity{ {Id: r.Id} })
           if err != nil {
             log.Debug(err.Error())
             request.Output = bulky.NewInternalErrorResponse(request.Index)
