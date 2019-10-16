@@ -2,6 +2,7 @@ package idp
 
 import (
   "fmt"
+  "strings"
   "github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
@@ -20,7 +21,7 @@ func FetchIdentities(tx neo4j.Transaction, iIdentities []Identity) (identities [
       ids = append(ids, identity.Id)
     }
     cypfilterIdentites = ` WHERE i.id in split($ids, ",") `
-    params["ids"] = ids
+    params["ids"] = strings.Join(ids, ",")
   }
 
   cypher = fmt.Sprintf(`
