@@ -68,13 +68,12 @@ func CreateInvite(tx neo4j.Transaction, invitedBy *Identity, newInvite Invite) (
   }
   params["iss"] = newInvite.Issuer
 
-  params["exp"] = newInvite.ExpiresAt
-
-  cypUsername := ""
-  if newInvite.Username != "" {
-    params["username"] = invite.Username
-    cypUsername = ", username:$username"
+  if newInvite.Username == "" {
+    return Invite{}, errors.New("Missing Invite.Username")
   }
+  params["username"] = newInvite.Username
+
+  params["exp"] = newInvite.ExpiresAt
 
   cypInvites := ""
   if invitedBy != nil {
@@ -83,7 +82,7 @@ func CreateInvite(tx neo4j.Transaction, invitedBy *Identity, newInvite Invite) (
   }
 
   cypher = fmt.Sprintf(`
-    CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0 %s})
+    CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0, username:$username})
 
     WITH inv
 
@@ -94,7 +93,7 @@ func CreateInvite(tx neo4j.Transaction, invitedBy *Identity, newInvite Invite) (
     OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
 
     RETURN inv
-  `, cypUsername, cypInvites)
+  `, cypInvites)
 
   if result, err = tx.Run(cypher, params); err != nil {
     return Invite{}, err
@@ -138,7 +137,7 @@ func FetchInvites(tx neo4j.Transaction, invitedBy *Identity, iInvites []Invite) 
     for _, invite := range iInvites {
       ids = append(ids, invite.Id)
     }
-    cypfilterInvites = ` WHERE inv.id in split($ids, ",") `
+    cypfilterInvites = ` AND inv.id in split($ids, ",") `
     params["ids"] = strings.Join(ids, ",")
   }
 
@@ -188,7 +187,7 @@ func FetchInvitesByEmail(tx neo4j.Transaction, invitedBy *Identity, iInvites []I
     for _, invite := range iInvites {
       emails = append(emails, invite.Email)
     }
-    cypfilterInvites = ` WHERE inv.email in split($emails, ",") `
+    cypfilterInvites = ` AND inv.email in split($emails, ",") `
     params["emails"] = strings.Join(emails, ",")
   }
 
@@ -238,7 +237,7 @@ func FetchInvitesByUsername(tx neo4j.Transaction, invitedBy *Identity, iInvites 
     for _, invite := range iInvites {
       usernames = append(usernames, invite.Username)
     }
-    cypfilterInvites = ` WHERE inv.username in split($usernames, ",") `
+    cypfilterInvites = ` AND inv.username in split($usernames, ",") `
     params["usernames"] = strings.Join(usernames, ",")
   }
 

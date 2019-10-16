@@ -75,7 +75,7 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
           log = log.WithFields(logrus.Fields{"otp_challenge": r.OtpChallenge})
           dbChallenges, err = idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.OtpChallenge} })
         }
-        if err == nil {
+        if err != nil {
           e := tx.Rollback()
           if e != nil {
             log.Debug(e.Error())
