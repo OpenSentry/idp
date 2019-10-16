@@ -189,7 +189,7 @@ func FetchInvitesByEmail(tx neo4j.Transaction, invitedBy *Identity, iInvites []I
       emails = append(emails, invite.Email)
     }
     cypfilterInvites = ` WHERE inv.email in split($emails, ",") `
-    params["emails"] = emails
+    params["emails"] = strings.Join(emails, ",")
   }
 
   cypher = fmt.Sprintf(`
@@ -239,7 +239,7 @@ func FetchInvitesByUsername(tx neo4j.Transaction, invitedBy *Identity, iInvites 
       usernames = append(usernames, invite.Username)
     }
     cypfilterInvites = ` WHERE inv.username in split($usernames, ",") `
-    params["usernames"] = usernames
+    params["usernames"] = strings.Join(usernames, ",")
   }
 
   cypher = fmt.Sprintf(`
