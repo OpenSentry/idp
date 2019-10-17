@@ -3,6 +3,7 @@ package idp
 import (
   "strings"
   "fmt"
+  "strconv"
   "github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
@@ -32,7 +33,20 @@ func BeginWriteTx(driver neo4j.Driver, configurers ...func(*neo4j.TransactionCon
 
 func logCypher(query string, params map[string]interface{}) {
   for i,e := range params {
-    query = strings.Replace(query, "$"+i, "\""+e.(string)+"\"", -1)
+
+    switch t := e.(type) {
+      case bool:
+        query = strings.Replace(query, "$"+i, "\""+strconv.FormatBool(e.(bool))+"\"", -1)
+      case int:
+        query = strings.Replace(query, "$"+i, "\""+strconv.Itoa(e.(int))+"\"", -1)
+      case int64:
+        query = strings.Replace(query, "$"+i, "\""+strconv.FormatInt(e.(int64), 10)+"\"", -1)
+      case string:
+        query = strings.Replace(query, "$"+i, "\""+e.(string)+"\"", -1)
+      default:
+        panic(fmt.Sprintf("Unsupported type %T", t))
+    }
+
   }
 
   fmt.Printf("\n========== NEO4J DEBUGGING ==========\nCypher: %v", query)

@@ -1,4 +1,4 @@
-Greetings {{ .Id }}
+Greetings {{ .Email }}
 
 The authentication process requires your to confirm your email using this code:
 
@@ -9,6 +9,5 @@ Once confirmed your will gain access if your are granted the proper access right
 Kind Regards,
 {{ .Sender }}
 
-This email was sent to: {{ .Email }}
-
 Challenge: {{ .Challenge }}
+Id: {{ .Id }}

@@ -44,54 +44,91 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    requestor := c.MustGet("sub").(string)
-    var requestedBy *idp.Identity
-    if requestor != "" {
-      identities, err := idp.FetchIdentitiesById(env.Driver, []string{ requestor })
+    var handleRequests = func(iRequests []*bulky.Request) {
+
+      session, tx, err := idp.BeginWriteTx(env.Driver)
       if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
-      if len(identities) > 0 {
-        requestedBy = &identities[0]
-      }
-    }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
 
-    var handleRequests = func(iRequests []*bulky.Request) {
+      requestor := c.MustGet("sub").(string)
+      var requestedBy *idp.Identity
+      if requestor != "" {
+       identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+       if err != nil {
+         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+         log.Debug(err.Error())
+         return
+       }
+       if len(identities) > 0 {
+         requestedBy = &identities[0]
+       }
+      }
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesRequest)
 
         if env.BannedUsernames[r.Username] == true {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
           request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_BANNED)
-          continue
+          log.Debug(err.Error())
+          return
         }
 
         // Sanity check. Username must be unique
         if r.Username != "" {
-          humansFoundByUsername, err := idp.FetchHumansByUsername(env.Driver, []string{r.Username})
+          humansFoundByUsername, err := idp.FetchHumansByUsername(tx, []idp.Human{ {Username:r.Username} })
           if err != nil {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
             log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+            return
           }
           if len(humansFoundByUsername) > 0 {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
             request.Output = bulky.NewClientErrorResponse(request.Index, E.USERNAME_EXISTS)
-            continue
+            log.Debug(err.Error())
+            return
           }
         }
 
         // Sanity check. Email must be unique
-        dbHumans, err := idp.FetchHumansByEmail(env.Driver, []string{r.Email})
+        dbHumans, err := idp.FetchHumansByEmail(tx, []idp.Human{ {Email: r.Email} })
         if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
           log.Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
+          return
         }
         if len(dbHumans) > 0 {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
           request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
-          continue
+          log.Debug(err.Error())
+          return
         }
 
         var exp int64
@@ -102,8 +139,14 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
         }
 
         if (time.Now().Unix() >= exp) {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
           request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_EXPIRES_IN_THE_PAST)
-          continue
+          log.Debug(err.Error())
+          return
         }
 
         newInvite := idp.Invite{
@@ -114,33 +157,51 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
           Email: r.Email,
           Username: r.Username,
         }
-        invite, err := idp.CreateInvite(env.Driver, newInvite, requestedBy)
+        log.Debug(newInvite)
+        invite, err := idp.CreateInvite(tx, requestedBy, newInvite)
         if err != nil {
-          log.WithFields(logrus.Fields{ "email": r.Email }).Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          log.Debug(err.Error())
+          return
         }
 
         if invite != (idp.Invite{}) {
-
-          ok := client.CreateInvitesResponse{
+          request.Output = bulky.NewOkResponse(request.Index, client.CreateInvitesResponse{
             Id: invite.Id,
             IssuedAt: invite.IssuedAt,
             ExpiresAt: invite.ExpiresAt,
             Email: invite.Email,
             Username: invite.Username,
             SentAt: invite.SentAt,
-          }
-          request.Output = bulky.NewOkResponse(request.Index, ok)
-          log.WithFields(logrus.Fields{ "id":ok.Id }).Debug("Invite created")
+          })
           idp.EmitEventInviteCreated(env.Nats, invite)
           continue
         }
 
         // Deny by default
-        request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_NOT_CREATED)
-        continue
+        e := tx.Rollback()
+        if e != nil {
+          log.Debug(e.Error())
+        }
+        bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+        request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+        log.Debug("Not able to create Invite. Hint. Maybe the input validation needs to be improved.")
+        return
       }
+
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
@@ -164,21 +225,30 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    requestor := c.MustGet("sub").(string)
-    var requestedBy *idp.Identity
-    if requestor != "" {
-      identities, err := idp.FetchIdentitiesById(env.Driver, []string{ requestor })
+    var handleRequests = func(iRequests []*bulky.Request) {
+
+      session, tx, err := idp.BeginReadTx(env.Driver)
       if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
         return
       }
-      if len(identities) > 0 {
-        requestedBy = &identities[0]
-      }
-    }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
 
-    var handleRequests = func(iRequests []*bulky.Request) {
+      requestor := c.MustGet("sub").(string)
+      var requestedBy *idp.Identity
+      if requestor != "" {
+       identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+       if err != nil {
+         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+         log.Debug(err.Error())
+         return
+       }
+       if len(identities) > 0 {
+         requestedBy = &identities[0]
+       }
+      }
 
       for _, request := range iRequests {
 
@@ -187,37 +257,31 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
         var ok client.ReadInvitesResponse
 
         if request.Input == nil {
-
-          // Fetch all, that the token is allowed to.
-          dbInvites, err = idp.FetchInvitesAll(env.Driver, requestedBy)
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
-          }
-
+          dbInvites, err = idp.FetchInvites(tx, requestedBy, nil)
         } else {
-
           r := request.Input.(client.ReadInvitesRequest)
           if r.Id != "" {
-            dbInvites, err = idp.FetchInvitesById(env.Driver, requestedBy, []string{r.Id})
+            dbInvites, err = idp.FetchInvites(tx, requestedBy, []idp.Invite{ {Identity:idp.Identity{Id:r.Id}} })
           } else if r.Email != "" {
-            dbInvites, err = idp.FetchInvitesByEmail(env.Driver, requestedBy, []string{r.Email})
+            dbInvites, err = idp.FetchInvitesByEmail(tx, requestedBy, []idp.Invite{ {Email:r.Email} })
           }
-          // else if r.Username != "" {
-          //   dbInvites, err = idp.FetchInvitesByUsername(env.Driver, []string{r.Username})
-          // }
+          //else if r.Username != "" {
+          //  dbInvites, err = idp.FetchInvitesByUsername(env.Driver, []string{r.Username})
+          //}
 
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+        }
+        if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
           }
-
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          log.Debug(err.Error())
+          return
         }
 
         if len(dbInvites) > 0 {
-
           for _, i := range dbInvites {
             ok = append(ok, client.Invite{
               Id: i.Id,
@@ -225,9 +289,9 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
               ExpiresAt: i.ExpiresAt,
               Email: i.Email,
               SentAt: i.SentAt,
+              Username: i.Username,
             })
           }
-
           request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
         }
@@ -236,6 +300,15 @@ func GetInvites(env *environment.State) gin.HandlerFunc {
         request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_NOT_FOUND)
         continue
       }
+
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{EnableEmptyRequest: true})
