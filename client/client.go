@@ -9,6 +9,7 @@ import (
   "golang.org/x/oauth2"
   "golang.org/x/oauth2/clientcredentials"
   "fmt"
+  "time"
   "encoding/json"
 )
 
@@ -51,6 +52,7 @@ func handleRequest(client *IdpClient, request interface{}, method string, url st
 
 func callService(client *IdpClient, method string, url string, data *bytes.Buffer) (int, []byte, error) {
   // for logging only
+  start := time.Now()
   reqData := (*data).Bytes()
 
   req, err := http.NewRequest("POST", url, data)
@@ -76,12 +78,12 @@ func callService(client *IdpClient, method string, url string, data *bytes.Buffe
     return res.StatusCode, nil, err
   }
 
-  logRequestResponse(method, url, reqData, res.Status, resData, err)
+  logRequestResponse(method, url, reqData, res.Status, resData, err, time.Since(start))
 
   return res.StatusCode, resData, nil
 }
 
-func logRequestResponse(method string, url string, reqData []byte, resStatus string, resData []byte, err error) {
+func logRequestResponse(method string, url string, reqData []byte, resStatus string, resData []byte, err error, duration time.Duration) {
   var prettyJsonRequest bytes.Buffer
   e := json.Indent(&prettyJsonRequest, reqData, "", "  ")
 
@@ -100,7 +102,7 @@ func logRequestResponse(method string, url string, reqData []byte, resStatus str
 
   request := string(prettyJsonRequest.Bytes())
 
-  fmt.Println("\n============== REST DEBUGGING ===============\n" + method + " " + url + " " + request + " -> [" + resStatus + "] " + response + "\n\n")
+  fmt.Printf("\n============== REST DEBUGGING ===============\n%s %s (%s) %s -> [%s] %s\n\n", method, url, duration, request, resStatus, response)
 }
 
 func parseStatusCode(statusCode int) (error) {
