@@ -15,6 +15,17 @@ MERGE (:Identity:Client {
   description:"Used by the Identity Provider UI to call the Identity Provider API"
 });
 
+
+// this one doesnt really belong here, does it?
+MERGE (:Identity:Client {
+  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
+  client_id:"meui",
+  client_secret:"",
+  name: "IDP & AAP client for MEUI",
+  description:"Used by the Me UI to call the Identity Provider & Access Provider API"
+});
+
+
 // ## IDPAPI
 MERGE (:Identity:ResourceServer {
   id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
