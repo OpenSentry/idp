@@ -68,11 +68,12 @@ func CreateInvite(tx neo4j.Transaction, invitedBy *Identity, newInvite Invite) (
   }
   params["iss"] = newInvite.Issuer
 
-  if newInvite.Username == "" {
-    return Invite{}, errors.New("Missing Invite.Username")
+  cypUsername := ""
+  if newInvite.Username != "" {
+    params["username"] = newInvite.Username
+    cypUsername = `, username:$username`
   }
-  params["username"] = newInvite.Username
-
+  
   params["exp"] = newInvite.ExpiresAt
 
   cypInvites := ""
@@ -82,7 +83,7 @@ func CreateInvite(tx neo4j.Transaction, invitedBy *Identity, newInvite Invite) (
   }
 
   cypher = fmt.Sprintf(`
-    CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0, username:$username})
+    CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0 %s})
 
     WITH inv
 
@@ -93,7 +94,7 @@ func CreateInvite(tx neo4j.Transaction, invitedBy *Identity, newInvite Invite) (
     OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
 
     RETURN inv
-  `, cypInvites)
+  `, cypInvites, cypUsername)
 
   if result, err = tx.Run(cypher, params); err != nil {
     return Invite{}, err
