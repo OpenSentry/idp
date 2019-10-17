@@ -63,7 +63,6 @@ type ReadHumansRequest struct {
 type UpdateHumansResponse Human
 type UpdateHumansRequest struct {
   Id    string `json:"id" validate:"required,uuid"`
-  Email string `json:"email,omitempty" validate:"email"`
   Name  string `json:"name,omitempty"`
 }
 
