@@ -1,11 +1,7 @@
 package invites
 
 import (
-  "text/template"
-  "io/ioutil"
-  "bytes"
   "net/url"
-
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
@@ -41,20 +37,6 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    requestor := c.MustGet("sub").(string)
-    var requestedBy *idp.Identity
-    if requestor != "" {
-      identities, err := idp.FetchIdentitiesById(env.Driver, []string{ requestor })
-      if err != nil {
-        log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
-      }
-      if len(identities) > 0 {
-        requestedBy = &identities[0]
-      }
-    }
-
     sender := idp.SMTPSender{
       Name: config.GetString("provider.name"),
       Email: config.GetString("provider.email"),
@@ -71,36 +53,59 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
     emailTemplateFile := config.GetString("invite.template.email.file")
     emailSubject := config.GetString("invite.template.email.subject")
 
-    tplEmail, err := ioutil.ReadFile(emailTemplateFile)
+    epInviteUrl, err := url.Parse( config.GetString("invite.url") )
     if err != nil {
-      log.WithFields(logrus.Fields{ "file": emailTemplateFile }).Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
+      log.Debug("Invalid invite.url in config. Hint: See config documentation.")
       return
     }
-    t := template.Must(template.New(emailTemplateFile).Parse(string(tplEmail)))
 
     var handleRequests = func(iRequests []*bulky.Request) {
+
+      session, tx, err := idp.BeginWriteTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.Debug(err.Error())
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
+
+      requestor := c.MustGet("sub").(string)
+      var requestedBy *idp.Identity
+      if requestor != "" {
+        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        if err != nil {
+          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+          log.Debug(err.Error())
+          return
+        }
+        if len(identities) > 0 {
+          requestedBy = &identities[0]
+        }
+      }
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesSendRequest)
 
-        dbInvite, err := idp.FetchInvitesById(env.Driver, requestedBy, []string{r.Id})
+        log = log.WithFields(logrus.Fields{"id": r.Id})
+
+        dbInvites, err := idp.FetchInvites(tx, requestedBy, []idp.Invite{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
-          log.Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          log.WithFields(logrus.Fields{ "id":r.Id }).Debug(err.Error())
+          return
         }
 
-        if len(dbInvite) > 0 {
-          invite := dbInvite[0]
+        if len(dbInvites) > 0 {
+          invite := dbInvites[0]
 
-          u, err := url.Parse( config.GetString("invite.url") )
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
-          }
-
+          u := epInviteUrl // Copy already parsed url
           q := u.Query()
           q.Add("id", invite.Id)
           u.RawQuery = q.Encode()
@@ -112,51 +117,61 @@ func PostInvitesSend(env *environment.State) gin.HandlerFunc {
             IdentityProvider: config.GetString("provider.name"),
           }
 
-          var tpl bytes.Buffer
-          if err := t.Execute(&tpl, data); err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
-          }
-
-          mail := idp.AnEmail{
-            Subject: emailSubject,
-            Body: tpl.String(),
-          }
-
-          _, err = idp.SendAnEmailToAnonymous(smtpConfig, invite.Email, invite.Email, mail)
+          _, err = idp.SendEmailUsingTemplate(smtpConfig, invite.Email, invite.Email, emailSubject, emailTemplateFile, data)
           if err != nil {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
             log.WithFields(logrus.Fields{ "id": invite.Id, "file": emailTemplateFile }).Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+            return
           }
 
-          _, err = idp.UpdateInviteSentAt(env.Driver, invite)
+          updatedInvite, err := idp.UpdateInviteSentAt(tx, requestedBy, invite)
           if err != nil {
-            log.WithFields(logrus.Fields{ "id": invite.Id }).Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+            log.Debug(err.Error())
+            return
+          }
+
+          if updatedInvite != (idp.Invite{}) {
+            request.Output = bulky.NewOkResponse(request.Index, client.CreateInvitesResponse{
+              Id: updatedInvite.Id,
+              IssuedAt: updatedInvite.IssuedAt,
+              ExpiresAt: updatedInvite.ExpiresAt,
+              Email: updatedInvite.Email,
+              Username: updatedInvite.Username,
+            })
+            idp.EmitEventInviteSent(env.Nats, idp.Invite{Identity:idp.Identity{Id:updatedInvite.Id}})
             continue
           }
-
-          ok := client.CreateInvitesResponse{
-            Id: invite.Id,
-            IssuedAt: invite.IssuedAt,
-            ExpiresAt: invite.ExpiresAt,
-            Email: invite.Email,
-            // Username: invite.Username,
-            // InvitedBy: invite.InvitedBy.Id,
-          }
-
-          log.WithFields(logrus.Fields{ "id": ok.Id, }).Debug("Invite sent")
-          request.Output = bulky.NewOkResponse(request.Index, ok)
-          continue
         }
 
-        log.WithFields(logrus.Fields{ "id":r.Id }).Debug(err.Error())
+        // Deny by default
+        e := tx.Rollback()
+        if e != nil {
+          log.Debug(e.Error())
+        }
+        bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
         request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_NOT_FOUND)
-        continue
+        return
       }
 
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
     }
 
     responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
