@@ -399,11 +399,8 @@ func PutHumans(env *environment.State) gin.HandlerFunc {
         bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
         request.Output = bulky.NewInternalErrorResponse(request.Index)
         log.WithFields(logrus.Fields{
-          "username": updateHuman.Username,
+          "id": updateHuman.Id,
           "name": updateHuman.Name,
-          "email": updateHuman.Email,
-          /* "password": updateHuman.Password, */
-          "allow_login":updateHuman.AllowLogin,
         }).Debug("Update human failed. Hint: Maybe input validation needs to be improved.")
         return
       }
