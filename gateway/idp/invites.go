@@ -73,7 +73,7 @@ func CreateInvite(tx neo4j.Transaction, invitedBy *Identity, newInvite Invite) (
     params["username"] = newInvite.Username
     cypUsername = `, username:$username`
   }
-  
+
   params["exp"] = newInvite.ExpiresAt
 
   cypInvites := ""
@@ -94,7 +94,7 @@ func CreateInvite(tx neo4j.Transaction, invitedBy *Identity, newInvite Invite) (
     OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
 
     RETURN inv
-  `, cypInvites, cypUsername)
+  `, cypUsername, cypInvites)
 
   if result, err = tx.Run(cypher, params); err != nil {
     return Invite{}, err
