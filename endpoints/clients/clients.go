@@ -5,6 +5,7 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
+  "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
@@ -38,19 +39,19 @@ func GetClients(env *environment.State) gin.HandlerFunc {
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
 
-      // requestor := c.MustGet("sub").(string)
-      // var requestedBy *idp.Identity
-      // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-      //  if err != nil {
-      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-      //    log.Debug(err.Error())
-      //    return
-      //  }
-      //  if len(identities) > 0 {
-      //    requestedBy = &identities[0]
-      //  }
-      // }
+      requestor := c.MustGet("sub").(string)
+      var requestedBy *idp.Identity
+      if requestor != "" {
+        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        if err != nil {
+          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+          log.Debug(err.Error())
+          return
+        }
+        if len(identities) > 0 {
+          requestedBy = &identities[0]
+        }
+      }
 
       for _, request := range iRequests {
 
@@ -59,10 +60,10 @@ func GetClients(env *environment.State) gin.HandlerFunc {
         var ok client.ReadClientsResponse
 
         if request.Input == nil {
-          dbClients, err = idp.FetchClients(tx, nil)
+          dbClients, err = idp.FetchClients(tx, requestedBy, nil)
         } else {
           r := request.Input.(client.ReadIdentitiesRequest)
-          dbClients, err = idp.FetchClients(tx, []idp.Client{ {Identity:idp.Identity{Id: r.Id}} })
+          dbClients, err = idp.FetchClients(tx, requestedBy, []idp.Client{ {Identity:idp.Identity{Id: r.Id}} })
         }
         if err != nil {
           e := tx.Rollback()
@@ -135,41 +136,39 @@ func PostClients(env *environment.State) gin.HandlerFunc {
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
 
-      // requestor := c.MustGet("sub").(string)
-      // var requestedBy *idp.Identity
-      // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-      //  if err != nil {
-      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-      //    log.Debug(err.Error())
-      //    return
-      //  }
-      //  if len(identities) > 0 {
-      //    requestedBy = &identities[0]
-      //  }
-      // }
+      requestor := c.MustGet("sub").(string)
+      var requestedBy *idp.Identity
+      if requestor != "" {
+        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        if err != nil {
+          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+          log.Debug(err.Error())
+          return
+        }
+        if len(identities) > 0 {
+          requestedBy = &identities[0]
+        }
+      }
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateClientsRequest)
 
-        hashedPassword, err := idp.CreatePassword(r.ClientSecret) // @SecurityRisk: Please _NEVER_ log the cleartext client_secret
-        if err != nil {
-          e := tx.Rollback()
-          if e != nil {
-            log.Debug(e.Error())
-          }
-          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-          log.Debug(err.Error())
-          return
+        var clientSecret string
+        if r.ClientSecret == "" {
+          clientSecret = "detteerenrandomsecret" // FIXME
+        } else {
+          clientSecret = r.ClientSecret
         }
 
         newClient := idp.Client{
+          Identity: idp.Identity{
+            Issuer: config.GetString("idp.public.issuer"),
+          },
           Name: r.Name,
-          ClientSecret: hashedPassword,
           Description: r.Description,
+          ClientSecret: clientSecret,
         }
-        objClient, err := idp.CreateClient(tx, newClient)
+        objClient, err := idp.CreateClient(tx, requestedBy, newClient)
         if err == nil && objClient != (idp.Client{}) {
           ok := client.CreateClientsResponse{
             Id: objClient.Id,

@@ -13,9 +13,9 @@ type Client struct {
 
 type CreateClientsResponse Client
 type CreateClientsRequest struct {
-  ClientSecret string `json:"password"    validate:"required"`
   Name         string `json:"name"        validate:"required"`
   Description  string `json:"description" validate:"required"`
+  ClientSecret string `json:"client_secret,omitempty" validate:"omitempty"`
 }
 
 type ReadClientsResponse []Client
