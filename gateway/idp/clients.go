@@ -7,7 +7,7 @@ import (
   "github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-func CreateClient(tx neo4j.Transaction, newClient Client) (client Client, err error) {
+func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (client Client, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
@@ -34,26 +34,36 @@ func CreateClient(tx neo4j.Transaction, newClient Client) (client Client, err er
   }
   params["description"] = newClient.Description
 
+  cypManages := ""
+  if managedBy != nil {
+    params["managed_by"] = managedBy.Id
+    cypManages = `MATCH (i:Identity {id:$managed_by}) MERGE (i)-[:MANAGES]->(c)`
+  }
+
   cypher = fmt.Sprintf(`
-    CREATE (i:Client:Identity {
+    CREATE (c:Client:Identity {
       id:randomUUID(),
       iat:datetime().epochSeconds,
       iss:$iss,
-      exp:$exp,
       client_secret:$client_secret,
       name:$name,
       description:$description,
     })
-    RETURN i
-  `)
+
+    WITH c
+
+    %s
+
+    RETURN c
+  `, cypManages)
 
   if result, err = tx.Run(cypher, params); err != nil {
     return Client{}, err
   }
 
   if result.Next() {
-    record          := result.Record()
-    clientNode      := record.GetByIndex(0)
+    record        := result.Record()
+    clientNode    := record.GetByIndex(0)
 
     if clientNode != nil {
       client = marshalNodeToClient(clientNode.(neo4j.Node))
@@ -72,33 +82,39 @@ func CreateClient(tx neo4j.Transaction, newClient Client) (client Client, err er
   return client, nil
 }
 
-func FetchClients(tx neo4j.Transaction, iClients []Client) (clients []Client, err error) {
+func FetchClients(tx neo4j.Transaction, managedBy *Identity, iClients []Client) (clients []Client, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
 
-  cypfilterClients := ""
+  var cypManages string
+  if managedBy != nil {
+    cypManages = `(i:Identity {id:$managed_by})-[:MANAGES]->`
+    params["managed_by"] = managedBy.Id
+  }
+
+  cypFilterClients := ""
   if len(iClients) > 0 {
     var ids []string
     for _, client := range iClients {
       ids = append(ids, client.Id)
     }
-    cypfilterClients = ` AND c.id in split($ids, ",") `
+    cypFilterClients = ` AND c.id in split($ids, ",") `
     params["ids"] = strings.Join(ids, ",")
   }
 
   cypher = fmt.Sprintf(`
-    MATCH (c:Client:Identity) WHERE c.exp > datetime().epochSeconds %s
+    MATCH %s(c:Client:Identity) WHERE c.exp > datetime().epochSeconds %s
     RETURN c
-  `, cypfilterClients)
+  `, cypManages, cypFilterClients)
 
   if result, err = tx.Run(cypher, params); err != nil {
     return nil, err
   }
 
   for result.Next() {
-    record          := result.Record()
-    clientNode      := record.GetByIndex(0)
+    record        := result.Record()
+    clientNode    := record.GetByIndex(0)
 
     if clientNode != nil {
       client := marshalNodeToClient(clientNode.(neo4j.Node))
