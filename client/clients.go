@@ -6,7 +6,7 @@ import (
 
 type Client struct {
   Id           string `json:"id"            validate:"required,uuid"`
-  ClientSecret string `json:"client_secret" validate:"required"`
+  ClientSecret string `json:"client_secret,omitempty" validate:"omitempty"`
   Name         string `json:"name"          validate:"required"`
   Description  string `json:"description"   validate:"required"`
 }
@@ -15,6 +15,7 @@ type CreateClientsResponse Client
 type CreateClientsRequest struct {
   Name         string `json:"name"                    validate:"required"`
   Description  string `json:"description"             validate:"required"`
+  IsPublic     bool   `json:"is_public"               `
   ClientSecret string `json:"client_secret,omitempty" validate:"omitempty"`
 }
 

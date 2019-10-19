@@ -19,11 +19,6 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
 
   params["exp"] = newClient.ExpiresAt
 
-  if newClient.ClientSecret == "" {
-    return Client{}, errors.New("Missing Client.ClientSecret")
-  }
-  params["client_secret"] = newClient.ClientSecret
-
   if newClient.Name == "" {
     return Client{}, errors.New("Missing Client.Name")
   }
@@ -33,6 +28,12 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
     return Client{}, errors.New("Missing Client.Description")
   }
   params["description"] = newClient.Description
+
+  cypClientSecret := ""
+  if newClient.ClientSecret != "" {
+    params["client_secret"] = newClient.ClientSecret
+    cypClientSecret = `client_secret:$client_secret,`
+  }
 
   cypManages := ""
   if managedBy != nil {
@@ -46,7 +47,7 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
       iat:datetime().epochSeconds,
       iss:$iss,
       exp:0,
-      client_secret:$client_secret,
+      %s
       name:$name,
       description:$description
     })
@@ -56,7 +57,7 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
     %s
 
     RETURN c
-  `, cypManages)
+  `, cypClientSecret, cypManages)
 
   if result, err = tx.Run(cypher, params); err != nil {
     return Client{}, err

@@ -8,6 +8,7 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
+  "github.com/charmixer/idp/utils"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
 
@@ -27,6 +28,14 @@ func GetClients(env *environment.State) gin.HandlerFunc {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
+
+    keys := config.GetStringSlice("crypto.keys.clients")
+    if len(keys) <= 0 {
+      log.WithFields(logrus.Fields{"key":"crypto.keys.clients"}).Debug("Missing config")
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+    cryptoKey := keys[0]
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
@@ -78,9 +87,25 @@ func GetClients(env *environment.State) gin.HandlerFunc {
 
         if len(dbClients) > 0 {
           for _, d := range dbClients {
+
+            var descryptedClientSecret string = ""
+            if d.ClientSecret != "" {
+              descryptedClientSecret, err = idp.Decrypt(d.ClientSecret, cryptoKey)
+              if err != nil {
+                e := tx.Rollback()
+                if e != nil {
+                  log.Debug(e.Error())
+                }
+                bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+                request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+                log.Debug(err.Error())
+                return
+              }
+            }
+
             ok = append(ok, client.Client{
               Id: d.Id,
-              ClientSecret: d.ClientSecret,
+              ClientSecret: descryptedClientSecret,
               Name: d.Name,
               Description: d.Description,
             })
@@ -125,6 +150,14 @@ func PostClients(env *environment.State) gin.HandlerFunc {
       return
     }
 
+    keys := config.GetStringSlice("crypto.keys.clients")
+    if len(keys) <= 0 {
+      log.WithFields(logrus.Fields{"key":"crypto.keys.clients"}).Debug("Missing config")
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+    cryptoKey := keys[0]
+
     var handleRequests = func(iRequests []*bulky.Request) {
 
       session, tx, err := idp.BeginWriteTx(env.Driver)
@@ -153,21 +186,48 @@ func PostClients(env *environment.State) gin.HandlerFunc {
       for _, request := range iRequests {
         r := request.Input.(client.CreateClientsRequest)
 
-        var clientSecret string
-        if r.ClientSecret == "" {
-          clientSecret = "detteerenrandomsecret" // FIXME
-        } else {
-          clientSecret = r.ClientSecret
-        }
-
         newClient := idp.Client{
           Identity: idp.Identity{
             Issuer: config.GetString("idp.public.issuer"),
           },
           Name: r.Name,
           Description: r.Description,
-          ClientSecret: clientSecret,
         }
+
+        var clientSecret string
+        if r.IsPublic == false {
+
+          if r.ClientSecret == "" {
+            clientSecret, err = utils.GenerateRandomString(64)
+            if err != nil {
+              e := tx.Rollback()
+              if e != nil {
+                log.Debug(e.Error())
+              }
+              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+              request.Output = bulky.NewInternalErrorResponse(request.Index)
+              log.Debug(err.Error())
+              return
+            }
+          } else {
+            clientSecret = r.ClientSecret
+          }
+
+          encryptedClientSecret, err := idp.Encrypt(clientSecret, cryptoKey) // Encrypt the secret before storage
+          if err != nil {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
+            log.Debug(err.Error())
+            return
+          }
+
+          newClient.ClientSecret = encryptedClientSecret
+        }
+
         objClient, err := idp.CreateClient(tx, requestedBy, newClient)
         if err != nil {
           e := tx.Rollback()
@@ -183,7 +243,7 @@ func PostClients(env *environment.State) gin.HandlerFunc {
         if objClient != (idp.Client{}) {
           ok := client.CreateClientsResponse{
             Id: objClient.Id,
-            ClientSecret: objClient.ClientSecret,
+            ClientSecret: clientSecret,
             Name: objClient.Name,
             Description: objClient.Description,
           }

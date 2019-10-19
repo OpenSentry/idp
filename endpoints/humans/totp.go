@@ -33,6 +33,14 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
       return
     }
 
+    keys := config.GetStringSlice("crypto.keys.totp")
+    if len(keys) <= 0 {
+      log.WithFields(logrus.Fields{"key":"crypto.keys.totp"}).Debug("Missing config")
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+    cryptoKey := keys[0]
+
     var handleRequests = func(iRequests []*bulky.Request) {
 
       session, tx, err := idp.BeginWriteTx(env.Driver)
@@ -86,7 +94,7 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
         }
         human := dbHumans[0]
 
-        encryptedSecret, err := idp.Encrypt(r.TotpSecret, config.GetString("totp.cryptkey"))
+        encryptedSecret, err := idp.Encrypt(r.TotpSecret, cryptoKey)
         if err != nil {
           e := tx.Rollback()
           if e != nil {
