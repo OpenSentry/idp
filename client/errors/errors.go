@@ -21,6 +21,8 @@ const HUMAN_ALREADY_EXISTS = 24
 const CLIENT_NOT_FOUND = 50
 const CLIENT_NOT_CREATED = 51
 
+const RESOURCESERVER_NOT_FOUND = 60
+
 const CHALLENGE_NOT_FOUND = 30
 const CHALLENGE_NOT_CREATED = 31
 
@@ -97,6 +99,12 @@ func InitRestErrors() {
         {
           "en":  "Not created",
           "dev": "Failed to create client. This requires investigation as it should never happen with validation in place.",
+        },
+
+      RESOURCESERVER_NOT_FOUND:
+        {
+          "en":  "Not found",
+          "dev": "Resource Server not found",
         },
 
       INVITE_NOT_FOUND:
