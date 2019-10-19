@@ -45,9 +45,10 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
       id:randomUUID(),
       iat:datetime().epochSeconds,
       iss:$iss,
+      exp:0,
       client_secret:$client_secret,
       name:$name,
-      description:$description,
+      description:$description
     })
 
     WITH c
@@ -104,7 +105,7 @@ func FetchClients(tx neo4j.Transaction, managedBy *Identity, iClients []Client) 
   }
 
   cypher = fmt.Sprintf(`
-    MATCH %s(c:Client:Identity) WHERE c.exp > datetime().epochSeconds %s
+    MATCH %s(c:Client:Identity) WHERE 1=1 %s
     RETURN c
   `, cypManages, cypFilterClients)
 
