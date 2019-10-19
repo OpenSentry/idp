@@ -71,7 +71,7 @@ func GetClients(env *environment.State) gin.HandlerFunc {
         if request.Input == nil {
           dbClients, err = idp.FetchClients(tx, requestedBy, nil)
         } else {
-          r := request.Input.(client.ReadIdentitiesRequest)
+          r := request.Input.(client.ReadClientsRequest)
           dbClients, err = idp.FetchClients(tx, requestedBy, []idp.Client{ {Identity:idp.Identity{Id: r.Id}} })
         }
         if err != nil {
@@ -115,7 +115,7 @@ func GetClients(env *environment.State) gin.HandlerFunc {
         }
 
         // Deny by default
-        request.Output = bulky.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
+        request.Output = bulky.NewClientErrorResponse(request.Index, E.CLIENT_NOT_FOUND)
         continue
       }
 

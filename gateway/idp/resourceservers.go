@@ -7,7 +7,7 @@ import (
   "github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-func CreateResourceServer(tx neo4j.Transaction, newResourceServer ResourceServer) (resourceServer ResourceServer, err error) {
+func CreateResourceServer(tx neo4j.Transaction, managedBy *Identity, newResourceServer ResourceServer) (resourceServer ResourceServer, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
@@ -63,7 +63,7 @@ func CreateResourceServer(tx neo4j.Transaction, newResourceServer ResourceServer
   return resourceServer, nil
 }
 
-func FetchResourceServers(tx neo4j.Transaction, iResourceServers []ResourceServer) (resourceServers []ResourceServer, err error) {
+func FetchResourceServers(tx neo4j.Transaction, managedBy *Identity, iResourceServers []ResourceServer) (resourceServers []ResourceServer, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
