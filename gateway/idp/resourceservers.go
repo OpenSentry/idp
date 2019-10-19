@@ -37,7 +37,7 @@ func CreateResourceServer(tx neo4j.Transaction, managedBy *Identity, newResource
   cypManages := ""
   if managedBy != nil {
     params["managed_by"] = managedBy.Id
-    cypManages = `MATCH (i:Identity {id:$managed_by}) MERGE (i)-[:MANAGES]->(c)`
+    cypManages = `MATCH (i:Identity {id:$managed_by}) MERGE (i)-[:MANAGES]->(rs)`
   }
 
   cypher = fmt.Sprintf(`
