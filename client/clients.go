@@ -13,8 +13,8 @@ type Client struct {
 
 type CreateClientsResponse Client
 type CreateClientsRequest struct {
-  Name         string `json:"name"        validate:"required"`
-  Description  string `json:"description" validate:"required"`
+  Name         string `json:"name"                    validate:"required"`
+  Description  string `json:"description"             validate:"required"`
   ClientSecret string `json:"client_secret,omitempty" validate:"omitempty"`
 }
 
