@@ -169,7 +169,18 @@ func PostClients(env *environment.State) gin.HandlerFunc {
           ClientSecret: clientSecret,
         }
         objClient, err := idp.CreateClient(tx, requestedBy, newClient)
-        if err == nil && objClient != (idp.Client{}) {
+        if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
+          log.Debug(err.Error())
+          return
+        }
+
+        if objClient != (idp.Client{}) {
           ok := client.CreateClientsResponse{
             Id: objClient.Id,
             ClientSecret: objClient.ClientSecret,
