@@ -132,3 +132,42 @@ func FetchResourceServers(tx neo4j.Transaction, managedBy *Identity, iResourceSe
 
   return resourceServers, nil
 }
+
+func DeleteResourceServer(tx neo4j.Transaction, managedBy *Identity, resourceServerToDelete ResourceServer) (resourceServer ResourceServer, err error) {
+  var result neo4j.Result
+  var cypher string
+  var params = make(map[string]interface{})
+
+  if resourceServerToDelete.Id == "" {
+    return ResourceServer{}, errors.New("Missing ResourceServer.Id")
+  }
+
+  var cypManages string
+  if managedBy != nil {
+    cypManages = `(i:Identity {id:$managed_by})-[:MANAGES]->`
+    params["managed_by"] = managedBy.Id
+  }
+
+  params["id"] = resourceServerToDelete.Id
+
+  cypher = fmt.Sprintf(`
+    MATCH %s(c:ResourceServer:Identity) WHERE 1=1 %s
+    DETACH DELETE i
+  `, cypManages)
+
+  if result, err = tx.Run(cypher, params); err != nil {
+    return ResourceServer{}, err
+  }
+
+  result.Next()
+
+  logCypher(cypher, params)
+
+  // Check if we encountered any error during record streaming
+  if err = result.Err(); err != nil {
+    return ResourceServer{}, err
+  }
+
+  resourceServer.Id = resourceServerToDelete.Id
+  return resourceServer, nil
+}

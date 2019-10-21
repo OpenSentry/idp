@@ -23,6 +23,11 @@ type ReadResourceServersRequest struct {
   Id string `json:"id,omitempty" validate:"uuid"`
 }
 
+type DeleteResourceServersResponse Identity
+type DeleteResourceServersRequest struct {
+  Id string `json:"id" validate:"required,uuid"`
+}
+
 func CreateResourceServers(client *IdpClient, url string, requests []CreateResourceServersRequest) (status int, responses bulky.Responses, err error) {
   status, err = handleRequest(client, requests, "POST", url, &responses)
 
@@ -35,6 +40,16 @@ func CreateResourceServers(client *IdpClient, url string, requests []CreateResou
 
 func ReadResourceServers(client *IdpClient, url string, requests []ReadResourceServersRequest) (status int, responses bulky.Responses, err error) {
   status, err = handleRequest(client, requests, "GET", url, &responses)
+
+  if err != nil {
+    return status, nil, err
+  }
+
+  return status, responses, nil
+}
+
+func DeleteResourceServers(client *IdpClient, url string, requests []DeleteResourceServersRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "DELETE", url, &responses)
 
   if err != nil {
     return status, nil, err
