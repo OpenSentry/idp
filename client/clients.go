@@ -48,3 +48,13 @@ func ReadClients(client *IdpClient, url string, requests []ReadClientsRequest) (
 
   return status, responses, nil
 }
+
+func DeleteClients(client *IdpClient, url string, requests []DeleteClientsRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "DELETE", url, &responses)
+
+  if err != nil {
+    return status, nil, err
+  }
+
+  return status, responses, nil
+}
