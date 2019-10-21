@@ -133,3 +133,42 @@ func FetchClients(tx neo4j.Transaction, managedBy *Identity, iClients []Client) 
 
   return clients, nil
 }
+
+func DeleteClient(tx neo4j.Transaction, managedBy *Identity, clientToDelete Client) (client Client, err error) {
+  var result neo4j.Result
+  var cypher string
+  var params = make(map[string]interface{})
+
+  if clientToDelete.Id == "" {
+    return Client{}, errors.New("Missing Client.Id")
+  }
+
+  var cypManages string
+  if managedBy != nil {
+    cypManages = `(i:Identity {id:$managed_by})-[:MANAGES]->`
+    params["managed_by"] = managedBy.Id
+  }
+
+  params["id"] = clientToDelete.Id
+
+  cypher = fmt.Sprintf(`
+    MATCH %s(c:Client:Identity) WHERE 1=1 %s    
+    DETACH DELETE i
+  `, cypManages)
+
+  if result, err = tx.Run(cypher, params); err != nil {
+    return Client{}, err
+  }
+
+  result.Next()
+
+  logCypher(cypher, params)
+
+  // Check if we encountered any error during record streaming
+  if err = result.Err(); err != nil {
+    return Client{}, err
+  }
+
+  client.Id = clientToDelete.Id
+  return client, nil
+}
