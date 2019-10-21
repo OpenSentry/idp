@@ -24,6 +24,11 @@ type ReadClientsRequest struct {
   Id string `json:"id,omitempty" validate:"uuid"`
 }
 
+type DeleteClientsResponse Identity
+type DeleteClientsRequest struct {
+  Id string `json:"id" validate:"required,uuid"`
+}
+
 func CreateClients(client *IdpClient, url string, requests []CreateClientsRequest) (status int, responses bulky.Responses, err error) {
   status, err = handleRequest(client, requests, "POST", url, &responses)
 
