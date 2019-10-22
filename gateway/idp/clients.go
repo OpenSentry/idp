@@ -142,6 +142,7 @@ func DeleteClient(tx neo4j.Transaction, managedBy *Identity, clientToDelete Clie
   if clientToDelete.Id == "" {
     return Client{}, errors.New("Missing Client.Id")
   }
+  params["id"] = clientToDelete.Id
 
   var cypManages string
   if managedBy != nil {
@@ -151,9 +152,10 @@ func DeleteClient(tx neo4j.Transaction, managedBy *Identity, clientToDelete Clie
 
   params["id"] = clientToDelete.Id
 
+  // Warning: Do not accidentally delete i!
   cypher = fmt.Sprintf(`
-    MATCH %s(c:Client:Identity) WHERE 1=1 %s    
-    DETACH DELETE i
+    MATCH %s(c:Client:Identity {id:$id})
+    DETACH DELETE c
   `, cypManages)
 
   if result, err = tx.Run(cypher, params); err != nil {
