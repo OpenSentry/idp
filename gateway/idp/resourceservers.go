@@ -141,6 +141,7 @@ func DeleteResourceServer(tx neo4j.Transaction, managedBy *Identity, resourceSer
   if resourceServerToDelete.Id == "" {
     return ResourceServer{}, errors.New("Missing ResourceServer.Id")
   }
+  params["id"] = resourceServerToDelete.Id
 
   var cypManages string
   if managedBy != nil {
@@ -150,9 +151,10 @@ func DeleteResourceServer(tx neo4j.Transaction, managedBy *Identity, resourceSer
 
   params["id"] = resourceServerToDelete.Id
 
+  // Warning: Do not accidentally delete i!
   cypher = fmt.Sprintf(`
-    MATCH %s(c:ResourceServer:Identity) WHERE 1=1 %s
-    DETACH DELETE i
+    MATCH %s(c:ResourceServer:Identity {id:$id})
+    DETACH DELETE c
   `, cypManages)
 
   if result, err = tx.Run(cypher, params); err != nil {

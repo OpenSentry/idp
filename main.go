@@ -280,6 +280,7 @@ func serve(env *environment.State) {
 
   r.GET ( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:read:resourceserver"), resourceservers.GetResourceServers(env))
   r.POST( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:create:resourceserver"), resourceservers.PostResourceServers(env) )
+  r.DELETE( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:delete:resourceserver"), resourceservers.DeleteResourceServers(env) )
 
   r.GET(  "/invites", utils.AuthorizationRequired(aconf, "idp:read:invite"), invites.GetInvites(env) )
   r.POST( "/invites", utils.AuthorizationRequired(aconf, "idp:create:invite"), invites.PostInvites(env) )
