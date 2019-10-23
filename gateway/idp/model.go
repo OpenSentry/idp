@@ -165,11 +165,19 @@ type Client struct {
 func marshalNodeToClient(node neo4j.Node) (Client) {
   p := node.Props()
 
+  var clientSecret string
+  cs := p["client_secret"]
+  if cs == nil {
+    clientSecret = ""
+  } else {
+    clientSecret = cs.(string)
+  }
+
   return Client{
     Identity: marshalNodeToIdentity(node),
 
     // ClientId:     p["client_id"].(string),
-    ClientSecret: p["client_secret"].(string),
+    ClientSecret: clientSecret,
     Name:         p["name"].(string),
     Description:  p["description"].(string),
   }

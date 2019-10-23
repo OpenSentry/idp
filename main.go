@@ -276,8 +276,11 @@ func serve(env *environment.State) {
 
   r.GET ( "/clients", utils.AuthorizationRequired(aconf, "idp:read:clients"), clients.GetClients(env))
   r.POST( "/clients", utils.AuthorizationRequired(aconf, "idp:create:clients"), clients.PostClients(env) )
+  r.DELETE( "/clients", utils.AuthorizationRequired(aconf, "idp:delete:clients"), clients.DeleteClients(env) )
 
   r.GET ( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:read:resourceservers"), resourceservers.GetResourceServers(env))
+  r.POST( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:create:resourceservers"), resourceservers.PostResourceServers(env) )
+  r.DELETE( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:delete:resourceservers"), resourceservers.DeleteResourceServers(env) )
 
   r.GET(  "/invites", utils.AuthorizationRequired(aconf, "idp:read:invites"), invites.GetInvites(env) )
   r.POST( "/invites", utils.AuthorizationRequired(aconf, "idp:create:invites"), invites.PostInvites(env) )
