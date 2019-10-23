@@ -16,8 +16,13 @@ func EmitEventIdentityAuthenticated(natsConnection *nats.Conn, i Identity, acr s
 }
 
 func EmitEventClientCreated(natsConnection *nats.Conn, client Client) {
-  e := fmt.Sprintf("{id:%s, name:%s}", client.Id, client.Name)
+  e := fmt.Sprintf("{id:%s}", client.Id)
   natsConnection.Publish("idp.client.created", []byte(e))
+}
+
+func EmitEventResourceServerCreated(natsConnection *nats.Conn, resourceServer ResourceServer) {
+  e := fmt.Sprintf("{id:%s}", resourceServer.Id)
+  natsConnection.Publish("idp.resourceserver.created", []byte(e))
 }
 
 func EmitEventInviteCreated(natsConnection *nats.Conn, invite Invite) {
