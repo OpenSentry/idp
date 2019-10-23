@@ -28,6 +28,14 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
       return
     }
 
+    keys := config.GetStringSlice("crypto.keys.totp")
+    if len(keys) <= 0 {
+      log.WithFields(logrus.Fields{"key":"crypto.keys.totp"}).Debug("Missing config")
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+    cryptoKey := keys[0]
+
     var handleRequests = func(iRequests []*bulky.Request) {
 
       session, tx, err := idp.BeginWriteTx(env.Driver)
@@ -125,7 +133,7 @@ func PutVerify(env *environment.State) gin.HandlerFunc {
             return
           }
 
-          decryptedSecret, err := idp.Decrypt(human.TotpSecret, config.GetString("totp.cryptkey"))
+          decryptedSecret, err := idp.Decrypt(human.TotpSecret, cryptoKey)
           if err != nil {
             e := tx.Rollback()
             if e != nil {

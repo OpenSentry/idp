@@ -606,7 +606,3 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
   }
   return gin.HandlerFunc(fn)
 }
-
-
-
-
