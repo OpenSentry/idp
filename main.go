@@ -267,7 +267,9 @@ func serve(env *environment.State) {
 
   r.PUT(  "/humans/totp", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PutTotp(env) )
 
-  r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "idp:logout:human"), humans.PostLogout(env) )
+  r.GET(  "/humans/logout", utils.AuthorizationRequired(aconf, "idp:read:logout"),    humans.GetLogout(env) )
+  r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "idp:create:logout"),  humans.PostLogout(env) )
+  r.PUT(  "/humans/logout",  utils.AuthorizationRequired(aconf, "idp:accept:logout"), humans.PutLogout(env) )
 
   r.PUT(  "/humans/deleteverification", utils.AuthorizationRequired(aconf, "idp:delete:human"), humans.PutDeleteVerification(env) )
 

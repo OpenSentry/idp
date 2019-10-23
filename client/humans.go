@@ -40,6 +40,17 @@ type HumanVerification struct {
   Verified   bool   `json:"verified"`
 }
 
+type HumanLogout struct {
+  SessionId string `json:"sid"`
+  InitiatedByRelayingParty bool `json:"rp_initiated"`
+  Id string `json:"id" validate:"required,uuid"`
+  RequestUrl string `json:"request_url" validate:"required,uri"`
+}
+
+type Logout struct {
+  RedirectTo string `json:"redirect_to" validate:"required,uri"`
+}
+
 // Endpoints
 
 type CreateHumansResponse Human
@@ -113,9 +124,21 @@ type UpdateHumansRecoverVerifyRequest struct {
   RedirectTo string `json:"redirect_to" validate:"required,uri"`
 }
 
-type CreateHumansLogoutResponse HumanRedirect
+type CreateHumansLogoutResponse Logout
 type CreateHumansLogoutRequest struct {
-  Challenge string `json:"challenge" validate:"required,uuid"`
+  IdToken    string `json:"id_token"              validate:"required"`
+  State      string `json:"state"                 validate:"required"`
+  RedirectTo string `json:"redirect_to,omitempty" validate:"omitempty,uri"`
+}
+
+type ReadHumansLogoutResponse HumanLogout
+type ReadHumansLogoutRequest struct {
+  Challenge string `json:"challenge" validate:"required"`
+}
+
+type UpdateHumansLogoutAcceptResponse HumanRedirect
+type UpdateHumansLogoutAcceptRequest struct {
+  Challenge string `json:"challenge" validate:"required"`
 }
 
 func CreateHumans(client *IdpClient, url string, requests []CreateHumansRequest) (status int, responses bulky.Responses, err error) {
@@ -227,8 +250,29 @@ func RecoverHumansVerify(client *IdpClient, url string, requests []UpdateHumansR
   return status, responses, nil
 }
 
-func LogoutHumans(client *IdpClient, url string, requests []CreateHumansLogoutRequest) (status int, responses bulky.Responses, err error) {
+func CreateHumansLogout(client *IdpClient, url string, requests []CreateHumansLogoutRequest) (status int, responses bulky.Responses, err error) {
   status, err = handleRequest(client, requests, "POST", url, &responses)
+
+  if err != nil {
+    return status, nil, err
+  }
+
+  return status, responses, nil
+}
+
+func ReadHumansLogout(client *IdpClient, url string, requests []ReadHumansLogoutRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "GET", url, &responses)
+
+  if err != nil {
+    return status, nil, err
+  }
+
+  return status, responses, nil
+}
+
+
+func UpdateHumansLogoutAccept(client *IdpClient, url string, requests []UpdateHumansLogoutAcceptRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "PUT", url, &responses)
 
   if err != nil {
     return status, nil, err
