@@ -2,7 +2,7 @@
 
 // ## IDP
 MERGE (:Identity:ResourceServer {
-  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
+  id:"e044d683-5daf-42af-a31a-938094611be9", iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   name:"IDP",
   aud:"idp",
   description:"Identity Provider"
@@ -11,7 +11,7 @@ MERGE (:Identity:ResourceServer {
 
 // ## AAP
 MERGE (:Identity:ResourceServer {
-  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
+  id:"a73b547b-f26d-487b-9e3a-2574fe3403fe", iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   name:"AAP",
   aud:"aap",
   description:"Access and Authorization provider"

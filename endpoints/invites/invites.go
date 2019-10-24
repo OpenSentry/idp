@@ -12,6 +12,8 @@ import (
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
 
+  aap "github.com/charmixer/aap/client"
+
   bulky "github.com/charmixer/bulky/server"
 )
 
@@ -68,6 +70,8 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
          requestedBy = &identities[0]
        }
       }
+
+      var ids []string
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesRequest)
@@ -171,6 +175,8 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
         }
 
         if invite != (idp.Invite{}) {
+          ids = append(ids, invite.Id)
+
           request.Output = bulky.NewOkResponse(request.Index, client.CreateInvitesResponse{
             Id: invite.Id,
             IssuedAt: invite.IssuedAt,
@@ -197,6 +203,26 @@ func PostInvites(env *environment.State) gin.HandlerFunc {
       err = bulky.OutputValidateRequests(iRequests)
       if err == nil {
         tx.Commit()
+
+        var createEntitiesRequests []aap.CreateEntitiesRequest
+        for _,id := range ids {
+          createEntitiesRequests = append(createEntitiesRequests, aap.CreateEntitiesRequest{
+            Reference: id,
+            Creator: id,
+          })
+        }
+
+        // Initialize in AAP model
+        aapClient := aap.NewAapClient(env.AapConfig)
+        url := config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.entities.collection")
+        status, response, err := aap.CreateEntities(aapClient, url, createEntitiesRequests)
+
+        if err != nil {
+          log.WithFields(logrus.Fields{ "error": err.Error(), "ids": ids }).Debug("Failed to initialize entity in AAP model")
+        }
+
+        log.WithFields(logrus.Fields{ "status": status, "response": response }).Debug("Initialize request for invites in AAP model")
+
         return
       }
 
