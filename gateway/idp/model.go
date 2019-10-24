@@ -174,9 +174,7 @@ func marshalNodeToClient(node neo4j.Node) (Client) {
   }
 
   return Client{
-    Identity: marshalNodeToIdentity(node),
-
-    // ClientId:     p["client_id"].(string),
+    Identity: marshalNodeToIdentity(node), // This is client_id
     ClientSecret: clientSecret,
     Name:         p["name"].(string),
     Description:  p["description"].(string),

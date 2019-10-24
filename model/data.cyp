@@ -33,10 +33,9 @@ MERGE (:Identity:ResourceServer {
 // ## IDP -> Hydra
 MATCH (rs:Identity:ResourceServer {aud: "hydra"})
 MERGE (:Identity:Client {
-  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
+  id:"8dc7ea3e-c61a-47cd-acf2-2f03615e3f8b", iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   name: "IDP hydra client",
-  client_id:"idp",
-  client_secret:"",
+  client_secret:"", // To migrate this it needs to be encrypted before stored.
   description:"Used by the Identity Provider api to call Hydra",
   grant_types: [
     "client_credentials"
@@ -52,9 +51,8 @@ MERGE (:Identity:Client {
 // ## AAP -> Hydra
 MATCH (rs:Identity:ResourceServer {aud: "hydra"})
 MERGE (:Identity:Client {
-  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
+  id:"b27062eb-090a-4c9a-a982-ff47b8c7f916", iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   name: "AAP hydra client",
-  client_id:"aap",
   client_secret:"",
   description:"Used by the Access and Authorization Provider api to call Hydra",
   grant_types: [
@@ -71,9 +69,8 @@ MERGE (:Identity:Client {
 // ## IDPUI -> IDP
 MATCH (rs:Identity:ResourceServer {aud: "idp"})
 MERGE (:Identity:Client {
-  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
+  id:"c7f1afc4-1e1f-484e-b3c2-0519419690cb", iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   name: "IDP api client",
-  client_id:"idpui",
   client_secret:"",
   description:"Used by the Identity Provider UI to call the Identity Provider API",
   grant_types: [
@@ -96,9 +93,8 @@ MERGE (:Identity:Client {
 // ## AAPUI -> AAP
 MATCH (rs:Identity:ResourceServer {aud: "aap"})
 MERGE (:Identity:Client {
-  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
+  id:"919e2026-06af-4c82-9d84-6af4979d9e7a", iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   name: "AAP api client",
-  client_id:"aapui",
   client_secret:"",
   description:"Used by the Access and Authorization Provider UI to call the Access and Authorization API",
   grant_types: [
@@ -122,9 +118,8 @@ MERGE (:Identity:Client {
 // ## MEUI -> IDP & AAP
 // this one doesnt really belong here, does it?
 MERGE (c:Identity:Client {
-  id:randomUUID(), iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
+  id:"20f2bfc6-44df-424a-b490-c024d009892c", iat:datetime().epochSeconds, iss:"https://id.localhost", exp:0,
   name: "IDP & AAP client for MEUI",
-  client_id:"meui",
   client_secret:"",
   description:"Used by the Me UI to call the Identity Provider & Access Provider API",
   grant_types: [
