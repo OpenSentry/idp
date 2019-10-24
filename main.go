@@ -251,43 +251,43 @@ func serve(env *environment.State) {
     HydraIntrospectUrl: hydraIntrospectUrl,
   }
 
-  r.GET(  "/challenges",       utils.AuthorizationRequired(aconf, "idp:authenticate:human"), challenges.GetChallenges(env) )
-  r.POST( "/challenges",       utils.AuthorizationRequired(aconf, "idp:authenticate:human"), challenges.PostChallenges(env) )
-  r.PUT( "/challenges/verify", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), challenges.PutVerify(env) )
+  r.GET(  "/challenges",       utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), challenges.GetChallenges(env) )
+  r.POST( "/challenges",       utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), challenges.PostChallenges(env) )
+  r.PUT( "/challenges/verify", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), challenges.PutVerify(env) )
 
-  r.GET(    "/identities",     utils.AuthorizationRequired(aconf, "idp:read:identity"), identities.GetIdentities(env) )
+  r.GET(    "/identities",     utils.AuthorizationRequired(aconf, "idp:read:identities"), identities.GetIdentities(env) )
 
-  r.GET(    "/humans", utils.AuthorizationRequired(aconf, "idp:read:human"), humans.GetHumans(env))
-  r.POST(   "/humans", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PostHumans(env) )
-  r.PUT(    "/humans", utils.AuthorizationRequired(aconf, "idp:update:human"), humans.PutHumans(env) )
-  r.DELETE( "/humans", utils.AuthorizationRequired(aconf, "idp:delete:human"), humans.DeleteHumans(env) )
+  r.GET(    "/humans", utils.AuthorizationRequired(aconf, "idp:read:humans"), humans.GetHumans(env))
+  r.POST(   "/humans", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), humans.PostHumans(env) )
+  r.PUT(    "/humans", utils.AuthorizationRequired(aconf, "idp:update:humans"), humans.PutHumans(env) )
+  r.DELETE( "/humans", utils.AuthorizationRequired(aconf, "idp:delete:humans"), humans.DeleteHumans(env) )
 
-  r.POST( "/humans/authenticate", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PostAuthenticate(env) )
-  r.PUT(  "/humans/password", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PutPassword(env) )
+  r.POST( "/humans/authenticate", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), humans.PostAuthenticate(env) )
+  r.PUT(  "/humans/password", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), humans.PutPassword(env) )
 
-  r.PUT(  "/humans/totp", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PutTotp(env) )
+  r.PUT(  "/humans/totp", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), humans.PutTotp(env) )
 
   r.GET(  "/humans/logout", utils.AuthorizationRequired(aconf, "idp:read:logout"),    humans.GetLogout(env) )
   r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "idp:create:logout"),  humans.PostLogout(env) )
   r.PUT(  "/humans/logout",  utils.AuthorizationRequired(aconf, "idp:accept:logout"), humans.PutLogout(env) )
 
-  r.PUT(  "/humans/deleteverification", utils.AuthorizationRequired(aconf, "idp:delete:human"), humans.PutDeleteVerification(env) )
+  r.PUT(  "/humans/deleteverification", utils.AuthorizationRequired(aconf, "idp:delete:humans"), humans.PutDeleteVerification(env) )
 
-  r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "idp:recover:human"), humans.PostRecover(env) )
-  r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:authenticate:human"), humans.PutRecoverVerification(env) )
+  r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "idp:recover:humans"), humans.PostRecover(env) )
+  r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), humans.PutRecoverVerification(env) )
 
-  r.GET ( "/clients", utils.AuthorizationRequired(aconf, "idp:read:client"), clients.GetClients(env))
-  r.POST( "/clients", utils.AuthorizationRequired(aconf, "idp:create:client"), clients.PostClients(env) )
-  r.DELETE( "/clients", utils.AuthorizationRequired(aconf, "idp:delete:client"), clients.DeleteClients(env) )
+  r.GET ( "/clients", utils.AuthorizationRequired(aconf, "idp:read:clients"), clients.GetClients(env))
+  r.POST( "/clients", utils.AuthorizationRequired(aconf, "idp:create:clients"), clients.PostClients(env) )
+  r.DELETE( "/clients", utils.AuthorizationRequired(aconf, "idp:delete:clients"), clients.DeleteClients(env) )
 
-  r.GET ( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:read:resourceserver"), resourceservers.GetResourceServers(env))
-  r.POST( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:create:resourceserver"), resourceservers.PostResourceServers(env) )
-  r.DELETE( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:delete:resourceserver"), resourceservers.DeleteResourceServers(env) )
+  r.GET ( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:read:resourceservers"), resourceservers.GetResourceServers(env))
+  r.POST( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:create:resourceservers"), resourceservers.PostResourceServers(env) )
+  r.DELETE( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:delete:resourceservers"), resourceservers.DeleteResourceServers(env) )
 
-  r.GET(  "/invites", utils.AuthorizationRequired(aconf, "idp:read:invite"), invites.GetInvites(env) )
-  r.POST( "/invites", utils.AuthorizationRequired(aconf, "idp:create:invite"), invites.PostInvites(env) )
-  r.POST( "/invites/send", utils.AuthorizationRequired(aconf, "idp:send:invite"), invites.PostInvitesSend(env) )
-  r.POST( "/invites/claim", utils.AuthorizationRequired(aconf, "idp:claim:invite"), invites.PostInvitesClaim(env) )
+  r.GET(  "/invites", utils.AuthorizationRequired(aconf, "idp:read:invites"), invites.GetInvites(env) )
+  r.POST( "/invites", utils.AuthorizationRequired(aconf, "idp:create:invites"), invites.PostInvites(env) )
+  r.POST( "/invites/send", utils.AuthorizationRequired(aconf, "idp:send:invites"), invites.PostInvitesSend(env) )
+  r.POST( "/invites/claim", utils.AuthorizationRequired(aconf, "idp:claim:invites"), invites.PostInvitesClaim(env) )
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
