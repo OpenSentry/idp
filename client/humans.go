@@ -57,9 +57,9 @@ type CreateHumansResponse Human
 type CreateHumansRequest struct {
   Id               string `json:"id"                 validate:"required,uuid"`
   Password         string `json:"password"           validate:"required"`
-  Username         string `json:"username,omitempty" validate:"required"`
-  Email            string `json:"email,omitempty"    validate:"required,email"`
-  Name             string `json:"name,omitempty"     validate:"required"`
+  Username         string `json:"username,omitempty" validate:"omitempty"`
+  Email            string `json:"email,omitempty"    validate:"omitempty,email"`
+  Name             string `json:"name,omitempty"     validate:"omitempty"`
   AllowLogin       bool   `json:"allow_login"`
   EmailConfirmedAt int64  `json:"email_confirmed_at"`
 }
