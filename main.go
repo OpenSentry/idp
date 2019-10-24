@@ -152,6 +152,18 @@ func main() {
     AuthStyle: 2, // https://godoc.org/golang.org/x/oauth2#AuthStyle
   }
 
+  // Setup the hydra client idp is going to use (oauth2 client credentials)
+  // NOTE: We store the hydraConfig also as we are going to need it to let idp app start the Oauth2 Authorization code flow.
+  aapConfig := &clientcredentials.Config{
+    ClientID:     config.GetString("oauth2.client.id"),
+    ClientSecret: config.GetString("oauth2.client.secret"),
+    TokenURL:     provider.Endpoint().TokenURL,
+    Scopes:       config.GetStringSlice("oauth2.scopes.required"),
+    EndpointParams: url.Values{"audience": {"aap"}},
+    AuthStyle: 2, // https://godoc.org/golang.org/x/oauth2#AuthStyle
+  }
+
+
   bannedUsernames, err := createBanList("/ban/usernames")
   if err != nil {
     log.WithFields(appFields).Panic(err.Error())
@@ -194,6 +206,7 @@ func main() {
   env := &environment.State{
     Provider: provider,
     HydraConfig: hydraConfig,
+    AapConfig: aapConfig,
     Driver: driver,
     BannedUsernames: bannedUsernames,
     IssuerSignKey: signKey,

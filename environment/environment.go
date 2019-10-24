@@ -18,6 +18,7 @@ const (
 type State struct {
   Provider *oidc.Provider
   HydraConfig *clientcredentials.Config
+  AapConfig *clientcredentials.Config
   Driver   neo4j.Driver
   BannedUsernames map[string]bool
   IssuerSignKey *rsa.PrivateKey
