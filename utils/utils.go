@@ -7,13 +7,17 @@ import (
   "net/http"
   "crypto/rand"
   "encoding/base64"
-    "time"
+  "time"
   "golang.org/x/oauth2"
-  "golang.org/x/oauth2/clientcredentials"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
   "github.com/gofrs/uuid"
+  "golang.org/x/oauth2/clientcredentials"
+
   hydra "github.com/charmixer/hydra/client"
+  aap "github.com/charmixer/aap/client"
+  bulky "github.com/charmixer/bulky/client"
+  "github.com/charmixer/idp/config"
 )
 
 const ERROR_INVALID_ACCESS_TOKEN = 1
@@ -30,6 +34,7 @@ type AuthorizationConfig struct {
   AccessTokenKey     string
   HydraConfig        *clientcredentials.Config
   HydraIntrospectUrl string
+  AapConfig          *clientcredentials.Config
 }
 
 func GenerateRandomBytes(n int) ([]byte, error) {
@@ -352,19 +357,56 @@ func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) 
 
     if introspectResponse.Active == true {
 
+      sub := introspectResponse.Sub
+
       // Check scopes. (is done by hydra according to doc)
       // https://www.ory.sh/docs/hydra/sdk/api#introspect-oauth2-tokens
 
-      // See #4 of QTNA
-      log.WithFields(logrus.Fields{"fixme": 1, "qtna": 4}).Debug("Missing check if the user or client giving the grants in the access token authorized to use the scopes granted")
+      // A client, I, is calling GET /identities and hydra tjekked that access token idp:read:identites er gyldig
+      // IDP skal nu judge om
 
-      foundRequiredScopes := true
-      if foundRequiredScopes {
-        log.WithFields(logrus.Fields{"sub": introspectResponse.Sub, "scope": strRequiredScopes}).Debug("Authorized")
-        c.Set("sub", introspectResponse.Sub)
-        c.Next() // Authentication successful, continue.
-        return;
+      // See #4 of QTNA
+      //log.WithFields(logrus.Fields{"fixme": 1, "qtna": 4}).Debug("Missing check if the user or client giving the grants in the access token authorized to use the scopes granted")
+      aapClient := aap.NewAapClient(aconf.AapConfig)
+      url := config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.entities.judge")
+      judgeRequests := []aap.ReadEntitiesJudgeRequest{ {
+        Publisher: config.GetString("id"), // ResourceServer receiving the call. IDP
+        Owners: []string{ sub },
+        Scopes: requiredScopes,
+      }}
+      status, responses, err := aap.ReadEntitiesJudge(aapClient, url, judgeRequests)
+      if err != nil {
+        log.Debug(err.Error())
+        c.AbortWithStatus(http.StatusInternalServerError)
+        return
       }
+
+      if status == 200 {
+
+        // QTNA answered by app judge endpoint
+        // #3 - Access token granted required scopes? (hydra token introspect)
+        // #4 - User or client in access token authorized to execute the granted scopes?
+        var verdict aap.ReadEntitiesJudgeResponse
+        status, restErr := bulky.Unmarshal(0, responses, &verdict)
+        if restErr != nil {
+          log.Debug(restErr)
+          c.AbortWithStatus(http.StatusInternalServerError)
+          return
+        }
+
+        if status == 200 {
+
+          if verdict.Granted == true {
+            log.WithFields(logrus.Fields{"sub": sub, "scope": strRequiredScopes}).Debug("Authorized")
+            c.Set("sub", sub)
+            c.Next() // Authentication successful, continue.
+            return
+          }
+
+        }
+
+      }
+
     }
 
     // Deny by default
@@ -375,6 +417,7 @@ func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) 
   }
   return gin.HandlerFunc(fn)
 }
+
 
 func RequestId() gin.HandlerFunc {
   return func(c *gin.Context) {

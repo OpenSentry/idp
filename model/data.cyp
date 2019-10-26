@@ -142,3 +142,5 @@ MATCH (rs:Identity:ResourceServer)
 WHERE rs.aud IN ["aap", "idp"]
 MERGE (c)-[:AUDIENCE]->(rs)
 ;
+
+
