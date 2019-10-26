@@ -152,8 +152,7 @@ func main() {
     AuthStyle: 2, // https://godoc.org/golang.org/x/oauth2#AuthStyle
   }
 
-  // Setup the hydra client idp is going to use (oauth2 client credentials)
-  // NOTE: We store the hydraConfig also as we are going to need it to let idp app start the Oauth2 Authorization code flow.
+  // Client to do protected client credentials calls to AAP like judge
   aapConfig := &clientcredentials.Config{
     ClientID:     config.GetString("oauth2.client.id"),
     ClientSecret: config.GetString("oauth2.client.secret"),
@@ -262,32 +261,33 @@ func serve(env *environment.State) {
     AccessTokenKey:     environment.AccessTokenKey,
     HydraConfig:        env.HydraConfig,
     HydraIntrospectUrl: hydraIntrospectUrl,
+    AapConfig:          env.AapConfig,
   }
 
-  r.GET(  "/challenges",       utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), challenges.GetChallenges(env) )
-  r.POST( "/challenges",       utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), challenges.PostChallenges(env) )
-  r.PUT( "/challenges/verify", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), challenges.PutVerify(env) )
+  r.GET(  "/challenges",       utils.AuthorizationRequired(aconf, "idp:read:challenges"),         challenges.GetChallenges(env) )
+  r.POST( "/challenges",       utils.AuthorizationRequired(aconf, "idp:create:challenges"),        challenges.PostChallenges(env) )
+  r.PUT( "/challenges/verify", utils.AuthorizationRequired(aconf, "idp:update:challenges:verify"), challenges.PutVerify(env) )
 
   r.GET(    "/identities",     utils.AuthorizationRequired(aconf, "idp:read:identities"), identities.GetIdentities(env) )
 
   r.GET(    "/humans", utils.AuthorizationRequired(aconf, "idp:read:humans"), humans.GetHumans(env))
-  r.POST(   "/humans", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), humans.PostHumans(env) )
+  r.POST(   "/humans", utils.AuthorizationRequired(aconf, "idp:create:humans"), humans.PostHumans(env) )
   r.PUT(    "/humans", utils.AuthorizationRequired(aconf, "idp:update:humans"), humans.PutHumans(env) )
   r.DELETE( "/humans", utils.AuthorizationRequired(aconf, "idp:delete:humans"), humans.DeleteHumans(env) )
 
-  r.POST( "/humans/authenticate", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), humans.PostAuthenticate(env) )
-  r.PUT(  "/humans/password", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), humans.PutPassword(env) )
+  r.POST( "/humans/authenticate", utils.AuthorizationRequired(aconf, "idp:create:humans:authenticate"), humans.PostAuthenticate(env) )
+  r.PUT(  "/humans/password", utils.AuthorizationRequired(aconf, "idp:update:humans:password"), humans.PutPassword(env) )
 
-  r.PUT(  "/humans/totp", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), humans.PutTotp(env) )
+  r.PUT(  "/humans/totp", utils.AuthorizationRequired(aconf, "idp:update:humans:totp"), humans.PutTotp(env) )
 
-  r.GET(  "/humans/logout", utils.AuthorizationRequired(aconf, "idp:read:logout"),    humans.GetLogout(env) )
-  r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "idp:create:logout"),  humans.PostLogout(env) )
-  r.PUT(  "/humans/logout",  utils.AuthorizationRequired(aconf, "idp:accept:logout"), humans.PutLogout(env) )
+  r.GET(  "/humans/logout", utils.AuthorizationRequired(aconf, "idp:read:humans:logout"),    humans.GetLogout(env) )
+  r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "idp:create:humans:logout"),  humans.PostLogout(env) )
+  r.PUT(  "/humans/logout",  utils.AuthorizationRequired(aconf, "idp:update:humans:logout"), humans.PutLogout(env) )
 
-  r.PUT(  "/humans/deleteverification", utils.AuthorizationRequired(aconf, "idp:delete:humans"), humans.PutDeleteVerification(env) )
+  r.PUT(  "/humans/deleteverification", utils.AuthorizationRequired(aconf, "idp:update:humans:deleteverification"), humans.PutDeleteVerification(env) )
 
-  r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "idp:recover:humans"), humans.PostRecover(env) )
-  r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:authenticate:humans"), humans.PutRecoverVerification(env) )
+  r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "idp:create:humans:recover"), humans.PostRecover(env) )
+  r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:update:humans:recoververification"), humans.PutRecoverVerification(env) )
 
   r.GET ( "/clients", utils.AuthorizationRequired(aconf, "idp:read:clients"), clients.GetClients(env))
   r.POST( "/clients", utils.AuthorizationRequired(aconf, "idp:create:clients"), clients.PostClients(env) )
