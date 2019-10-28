@@ -358,19 +358,17 @@ func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) 
     if introspectResponse.Active == true {
 
       sub := introspectResponse.Sub
+      // clientId := introspectResponse.ClientId // Identity.Id of the Oauth2 client doing the function call. If using client credentials flow this will be the same as introspectResponse.sub
 
       // Check scopes. (is done by hydra according to doc)
       // https://www.ory.sh/docs/hydra/sdk/api#introspect-oauth2-tokens
 
-      // A client, I, is calling GET /identities and hydra tjekked that access token idp:read:identites er gyldig
-      // IDP skal nu judge om
-
       // See #4 of QTNA
-      //log.WithFields(logrus.Fields{"fixme": 1, "qtna": 4}).Debug("Missing check if the user or client giving the grants in the access token authorized to use the scopes granted")
       aapClient := aap.NewAapClient(aconf.AapConfig)
       url := config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.entities.judge")
       judgeRequests := []aap.ReadEntitiesJudgeRequest{ {
         Publisher: config.GetString("id"), // ResourceServer receiving the call. IDP
+        Requestor: sub,
         Owners: []string{ sub },
         Scopes: requiredScopes,
       }}
