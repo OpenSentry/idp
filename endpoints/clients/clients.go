@@ -13,7 +13,7 @@ import (
   E "github.com/charmixer/idp/client/errors"
 
   aap "github.com/charmixer/aap/client"
-
+  hydra "github.com/charmixer/hydra/client"
   bulky "github.com/charmixer/bulky/server"
 )
 
@@ -91,8 +91,8 @@ func GetClients(env *environment.State) gin.HandlerFunc {
           for _, d := range dbClients {
 
             var descryptedClientSecret string = ""
-            if d.ClientSecret != "" {
-              descryptedClientSecret, err = idp.Decrypt(d.ClientSecret, cryptoKey)
+            if d.Secret != "" {
+              descryptedClientSecret, err = idp.Decrypt(d.Secret, cryptoKey)
               if err != nil {
                 e := tx.Rollback()
                 if e != nil {
@@ -107,7 +107,7 @@ func GetClients(env *environment.State) gin.HandlerFunc {
 
             ok = append(ok, client.Client{
               Id: d.Id,
-              ClientSecret: descryptedClientSecret,
+              Secret: descryptedClientSecret,
               Name: d.Name,
               Description: d.Description,
             })
@@ -185,7 +185,7 @@ func PostClients(env *environment.State) gin.HandlerFunc {
         }
       }
 
-      var ids []string
+      var newClients []idp.Client
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateClientsRequest)
@@ -198,11 +198,11 @@ func PostClients(env *environment.State) gin.HandlerFunc {
           Description: r.Description,
         }
 
-        var clientSecret string
+        var secret string
         if r.IsPublic == false {
 
-          if r.ClientSecret == "" {
-            clientSecret, err = utils.GenerateRandomString(64)
+          if r.Secret == "" {
+            secret, err = utils.GenerateRandomString(64)
             if err != nil {
               e := tx.Rollback()
               if e != nil {
@@ -214,10 +214,10 @@ func PostClients(env *environment.State) gin.HandlerFunc {
               return
             }
           } else {
-            clientSecret = r.ClientSecret
+            secret = r.Secret
           }
 
-          encryptedClientSecret, err := idp.Encrypt(clientSecret, cryptoKey) // Encrypt the secret before storage
+          encryptedClientSecret, err := idp.Encrypt(secret, cryptoKey) // Encrypt the secret before storage
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -229,7 +229,7 @@ func PostClients(env *environment.State) gin.HandlerFunc {
             return
           }
 
-          newClient.ClientSecret = encryptedClientSecret
+          newClient.Secret = encryptedClientSecret
         }
 
         objClient, err := idp.CreateClient(tx, requestedBy, newClient)
@@ -244,14 +244,20 @@ func PostClients(env *environment.State) gin.HandlerFunc {
           return
         }
 
-        if objClient != (idp.Client{}) {
-          ids = append(ids, objClient.Id)
+        if objClient.Id != "" {
+          newClients = append(newClients, objClient)
 
           ok := client.CreateClientsResponse{
             Id: objClient.Id,
-            ClientSecret: clientSecret,
+            Secret: secret,
             Name: objClient.Name,
             Description: objClient.Description,
+            GrantTypes: objClient.GrantTypes,
+            Audiences: objClient.Audiences,
+            ResponseTypes: objClient.ResponseTypes,
+            RedirectUris: objClient.RedirectUris,
+            TokenEndpointAuthMethod: objClient.TokenEndpointAuthMethod,
+            PostLogoutRedirectUris: objClient.PostLogoutRedirectUris,
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)
           idp.EmitEventClientCreated(env.Nats, objClient)
@@ -274,21 +280,42 @@ func PostClients(env *environment.State) gin.HandlerFunc {
       if err == nil {
         tx.Commit()
 
+        // proxy to hydra
+        var hydraClients []hydra.CreateClientRequest
+
         var createEntitiesRequests []aap.CreateEntitiesRequest
-        for _,id := range ids {
+        for _,c := range newClients {
+          hydraClients = append(hydraClients, hydra.CreateClientRequest{
+            Id:                      c.Id,
+            Name:                    c.Name,
+            Secret:                  c.Secret,
+            Scope:                   "", // nothing yet, subscribe does this
+            GrantTypes:              c.GrantTypes,
+            Audience:                c.Audiences,
+            ResponseTypes:           c.ResponseTypes,
+            RedirectUris:            c.RedirectUris,
+            PostLogoutRedirectUris:  c.PostLogoutRedirectUris,
+            TokenEndpointAuthMethod: c.TokenEndpointAuthMethod,
+          })
+
           createEntitiesRequests = append(createEntitiesRequests, aap.CreateEntitiesRequest{
-            Reference: id,
+            Reference: c.Id,
             Creator: requestedBy.Id,
           })
         }
 
+        url := config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.clients")
+        for _, h := range hydraClients {
+          hydra.CreateClient(url, h)
+        }
+
         // Initialize in AAP model
         aapClient := aap.NewAapClient(env.AapConfig)
-        url := config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.entities.collection")
+        url = config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.entities.collection")
         status, response, err := aap.CreateEntities(aapClient, url, createEntitiesRequests)
 
         if err != nil {
-          log.WithFields(logrus.Fields{ "error": err.Error(), "ids": ids }).Debug("Failed to initialize entity in AAP model")
+          log.WithFields(logrus.Fields{ "error": err.Error(), "newClients": newClients }).Debug("Failed to initialize entity in AAP model")
         }
 
         log.WithFields(logrus.Fields{ "status": status, "response": response }).Debug("Initialize request for clients in AAP model")
@@ -374,7 +401,7 @@ func DeleteClients(env *environment.State) gin.HandlerFunc {
         }
         clientToDelete := dbClients[0]
 
-        if clientToDelete != (idp.Client{}) {
+        if clientToDelete.Id != "" {
 
           deletedClient, err := idp.DeleteClient(tx, requestedBy, clientToDelete)
           if err != nil {
@@ -419,4 +446,3 @@ func DeleteClients(env *environment.State) gin.HandlerFunc {
   }
   return gin.HandlerFunc(fn)
 }
-

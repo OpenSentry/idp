@@ -20,6 +20,8 @@ github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+Ce
 github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc h1:biVzkmvwrH8WK8raXaxBx6fRVTlJILwEwQGL1I/ByEI=
 github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
+github.com/charmixer/aap v0.0.0-20191025081801-453cb590980a h1:+9TKy8otSbNm/H6kf9IoCyR1LckZlH9CYDB3JnO9VnE=
+github.com/charmixer/aap v0.0.0-20191025081801-453cb590980a/go.mod h1:PzEgDlyL65O3Gp9xrCAmK8ZJ9hHkCiYdxtxAuUuDZtU=
 github.com/charmixer/bulky v0.0.0-20191009081602-fc0bf88ae021 h1:nsRe6Cu8RwS/T3dg+pWyske3jme2wSomeciBPSiNpWY=
 github.com/charmixer/bulky v0.0.0-20191009081602-fc0bf88ae021/go.mod h1:UFx87rGfxT72uKbELFfrOqJoCJn2AksfanG5s8zkzRM=
 github.com/charmixer/bulky v0.0.0-20191009101030-25ef207972a9 h1:iUpbNJ5I59EnWdekWI5DZa5/JV7W8XQl+hLhy74Mh5c=
