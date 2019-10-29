@@ -156,28 +156,63 @@ func marshalNodeToResourceServer(node neo4j.Node) (ResourceServer) {
 
 type Client struct {
   Identity
-
-  // ClientId     string // Renamed to Identity.Id
-  ClientSecret string
-  Name         string
-  Description  string
+  Secret                   string
+  Name                     string
+  Description              string
+  GrantTypes               []string
+  Audiences                []string
+  ResponseTypes            []string
+  RedirectUris             []string
+  PostLogoutRedirectUris   []string
+  TokenEndpointAuthMethod  string
 }
 func marshalNodeToClient(node neo4j.Node) (Client) {
   p := node.Props()
 
-  var clientSecret string
-  cs := p["client_secret"]
+  var secret string
+  cs := p["secret"]
   if cs == nil {
-    clientSecret = ""
+    secret = ""
   } else {
-    clientSecret = cs.(string)
+    secret = cs.(string)
+  }
+
+  var grantTypes []string
+  for _,e := range p["grant_types"].([]interface{}) {
+    grantTypes = append(grantTypes, e.(string))
+  }
+
+  var audiences []string
+  for _,e := range p["audiences"].([]interface{}) {
+    audiences = append(audiences, e.(string))
+  }
+
+  var responseTypes []string
+  for _,e := range p["response_types"].([]interface{}) {
+    responseTypes = append(responseTypes, e.(string))
+  }
+
+  var redirectUris []string
+  for _,e := range p["redirect_uris"].([]interface{}) {
+    redirectUris = append(redirectUris, e.(string))
+  }
+
+  var postLogoutRedirectUris []string
+  for _,e := range p["post_logout_redirect_uris"].([]interface{}) {
+    postLogoutRedirectUris = append(postLogoutRedirectUris, e.(string))
   }
 
   return Client{
-    Identity: marshalNodeToIdentity(node), // This is client_id
-    ClientSecret: clientSecret,
-    Name:         p["name"].(string),
-    Description:  p["description"].(string),
+    Identity:                marshalNodeToIdentity(node), // This is client_id
+    Secret:                  secret,
+    Name:                    p["name"].(string),
+    Description:             p["description"].(string),
+    GrantTypes:              grantTypes,
+    Audiences:               audiences,
+    ResponseTypes:           responseTypes,
+    RedirectUris:            redirectUris,
+    PostLogoutRedirectUris:  postLogoutRedirectUris,
+    TokenEndpointAuthMethod: p["token_endpoint_auth_method"].(string),
   }
 }
 

@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	cloud.google.com/go v0.46.3 // indirect
+	github.com/charmixer/aap v0.0.0-20191025081801-453cb590980a
 	github.com/charmixer/bulky v0.0.0-20191009122503-4027f55965f8
 	github.com/charmixer/hydra v0.0.0-20190919102541-aa8327fe2d8d
 	github.com/coreos/go-oidc v2.1.0+incompatible
