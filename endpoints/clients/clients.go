@@ -373,6 +373,8 @@ func DeleteClients(env *environment.State) gin.HandlerFunc {
         }
       }
 
+      var deleteHydraClients []string
+
       for _, request := range iRequests {
         r := request.Input.(client.DeleteClientsRequest)
 
@@ -402,6 +404,8 @@ func DeleteClients(env *environment.State) gin.HandlerFunc {
         clientToDelete := dbClients[0]
 
         if clientToDelete.Id != "" {
+
+          deleteHydraClients = append(deleteHydraClients, clientToDelete.Id)
 
           deletedClient, err := idp.DeleteClient(tx, requestedBy, clientToDelete)
           if err != nil {
@@ -434,6 +438,13 @@ func DeleteClients(env *environment.State) gin.HandlerFunc {
       err = bulky.OutputValidateRequests(iRequests)
       if err == nil {
         tx.Commit()
+
+        // proxy to hydra
+        url := config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.clients")
+        for _,c := range deleteHydraClients {
+          hydra.DeleteClient(url, c)
+        }
+
         return
       }
 
