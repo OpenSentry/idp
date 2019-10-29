@@ -11,6 +11,8 @@ import (
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
 
+  aap "github.com/charmixer/aap/client"
+
   bulky "github.com/charmixer/bulky/server"
 )
 
@@ -175,6 +177,8 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
       //  }
       // }
 
+      var ids []string
+
       for _, request := range iRequests {
         r := request.Input.(client.CreateHumansRequest)
 
@@ -253,6 +257,8 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
         }
 
         if human != (idp.Human{}) {
+          ids = append(ids, human.Id)
+
           ok := client.CreateHumansResponse{
               Id: human.Id,
               Username: human.Username,
@@ -296,6 +302,54 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
       err = bulky.OutputValidateRequests(iRequests)
       if err == nil {
         tx.Commit()
+
+        var createGrantsRequests []aap.CreateGrantsRequest
+        for _,id := range ids {
+
+          // TODO: Make this a role on IDP and just grant that.
+          publisherId := config.GetString("id")
+
+          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
+            Identity: id,
+            Scope: "idp:read:humans",
+            Publisher: publisherId,
+            OnBehalfOf: id, // Only allow access to self
+          })
+
+          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
+            Identity: id,
+            Scope: "idp:create:humans:logout",
+            Publisher: publisherId,
+            OnBehalfOf: id, // Only allow access to self
+          })
+
+          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
+            Identity: id,
+            Scope: "idp:read:humans:logout",
+            Publisher: publisherId,
+            OnBehalfOf: id, // Only allow access to self
+          })
+
+          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
+            Identity: id,
+            Scope: "idp:update:humans:logout",
+            Publisher: publisherId,
+            OnBehalfOf: id, // Only allow access to self
+          })
+
+        }
+
+        // Initialize in AAP model
+        aapClient := aap.NewAapClient(env.AapConfig)
+        url := config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.grants")
+        status, response, err := aap.CreateGrants(aapClient, url, createGrantsRequests)
+
+        if err != nil {
+          log.WithFields(logrus.Fields{ "error": err.Error(), "ids": ids }).Debug("Failed to initialize grants in AAP model")
+        }
+
+        log.WithFields(logrus.Fields{ "status": status, "response": response }).Debug("Initialize request for humans in AAP model")
+
         return
       }
 
