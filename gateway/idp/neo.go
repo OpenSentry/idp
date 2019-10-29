@@ -43,6 +43,8 @@ func logCypher(query string, params map[string]interface{}) {
         query = strings.Replace(query, "$"+i, "\""+strconv.FormatInt(e.(int64), 10)+"\"", -1)
       case string:
         query = strings.Replace(query, "$"+i, "\""+e.(string)+"\"", -1)
+      case []string:
+        query = strings.Replace(query, "$"+i, "["+strings.Join(e.([]string), ",")+"]", -1)
       default:
         panic(fmt.Sprintf("Unsupported type %T", t))
     }

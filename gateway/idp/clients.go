@@ -29,10 +29,36 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
   }
   params["description"] = newClient.Description
 
+  params["grantTypes"] = []string{}
+  params["responseTypes"] = []string{}
+  params["redirectUris"] = []string{}
+  params["postLogoutRedirectUris"] = []string{}
+  params["audiences"] = []string{}
+  params["tokenEndpointAuthMethod"] = ""
+
+  if len(newClient.GrantTypes) > 0 {
+    params["grantTypes"] = newClient.GrantTypes
+  }
+  if len(newClient.ResponseTypes) > 0 {
+    params["responseTypes"] = newClient.ResponseTypes
+  }
+  if len(newClient.RedirectUris) > 0 {
+    params["redirectUris"] = newClient.RedirectUris
+  }
+  if len(newClient.PostLogoutRedirectUris) > 0 {
+    params["postLogoutRedirectUris"] = newClient.PostLogoutRedirectUris
+  }
+  if len(newClient.Audiences) > 0 {
+    params["audiences"] = newClient.Audiences
+  }
+  if newClient.TokenEndpointAuthMethod != "" {
+    params["tokenEndpointAuthMethod"] = newClient.TokenEndpointAuthMethod
+  }
+
   cypClientSecret := ""
-  if newClient.ClientSecret != "" {
-    params["client_secret"] = newClient.ClientSecret
-    cypClientSecret = `client_secret:$client_secret,`
+  if newClient.Secret != "" {
+    params["client_secret"] = newClient.Secret
+    cypClientSecret = `secret:$client_secret,`
   }
 
   cypManages := ""
@@ -49,7 +75,13 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
       exp:0,
       %s
       name:$name,
-      description:$description
+      description:$description,
+      grant_types:$grantTypes,
+      response_types:$responseTypes,
+      redirect_uris:$redirectUris,
+      post_logout_redirect_uris:$postLogoutRedirectUris,
+      token_endpoint_auth_method:$tokenEndpointAuthMethod,
+      audiences:$audiences
     })
 
     WITH c
@@ -58,6 +90,8 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
 
     RETURN c
   `, cypClientSecret, cypManages)
+
+  logCypher(cypher, params)
 
   if result, err = tx.Run(cypher, params); err != nil {
     return Client{}, err
@@ -74,7 +108,6 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
     return Client{}, errors.New("Unable to create Client")
   }
 
-  logCypher(cypher, params)
 
   // Check if we encountered any error during record streaming
   if err = result.Err(); err != nil {

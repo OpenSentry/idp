@@ -5,18 +5,30 @@ import (
 )
 
 type Client struct {
-  Id           string `json:"id"            validate:"required,uuid"`
-  ClientSecret string `json:"client_secret,omitempty" validate:"omitempty"`
-  Name         string `json:"name"          validate:"required"`
-  Description  string `json:"description"   validate:"required"`
+  Id                      string   `json:"id" validate:"required,uuid"`
+  Name                    string   `json:"name" validate:"required"`
+  Description             string   `json:"description" validate:"required"`
+  Secret                  string   `json:"secret,omitempty" validate:"omitempty"`
+  GrantTypes              []string `json:"grant_types" validate:"omitempty"`
+  Audiences               []string `json:"audiences"                  validate:"omitempty"`
+  ResponseTypes           []string `json:"response_types" validate:"omitempty"`
+  RedirectUris            []string `json:"redirect_uris" validate:"omitempty"`
+  TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method" validate:"omitempty"`
+  PostLogoutRedirectUris  []string `json:"post_logout_redirect_uris" validate:"omitempty"`
 }
 
 type CreateClientsResponse Client
 type CreateClientsRequest struct {
-  Name         string `json:"name"                    validate:"required"`
-  Description  string `json:"description"             validate:"required"`
-  IsPublic     bool   `json:"is_public"               `
-  ClientSecret string `json:"client_secret,omitempty" validate:"omitempty"`
+  Name                    string   `json:"name"                       validate:"required"`
+  Description             string   `json:"description"                validate:"required"`
+  IsPublic                bool     `json:"is_public"                  `
+  Secret                  string   `json:"secret,omitempty"           validate:"omitempty"`
+  GrantTypes              []string `json:"grant_types"                validate:"omitempty"`
+  Audiences               []string `json:"audiences"                  validate:"omitempty"`
+  ResponseTypes           []string `json:"response_types"             validate:"omitempty"`
+  RedirectUris            []string `json:"redirect_uris"              validate:"omitempty"`
+  TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method" validate:"omitempty"`
+  PostLogoutRedirectUris  []string `json:"post_logout_redirect_uris"  validate:"omitempty"`
 }
 
 type ReadClientsResponse []Client
