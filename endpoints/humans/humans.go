@@ -337,6 +337,20 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
             OnBehalfOf: id, // Only allow access to self
           })
 
+          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
+            Identity: id,
+            Scope: "idp:read:resourceservers",
+            Publisher: publisherId,
+            OnBehalfOf: id, // Only allow access to self
+          })
+
+          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
+            Identity: id,
+            Scope: "idp:create:resourceservers",
+            Publisher: publisherId,
+            OnBehalfOf: id, // Only allow access to self
+          })
+
         }
 
         // Initialize in AAP model
