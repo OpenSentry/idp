@@ -309,47 +309,35 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
           // TODO: Make this a role on IDP and just grant that.
           publisherId := config.GetString("id")
 
-          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
-            Identity: id,
-            Scope: "idp:read:humans",
-            Publisher: publisherId,
-            OnBehalfOf: id, // Only allow access to self
-          })
+          // openid ?
+          // offline ?
+          // idp:update:humans:password ?
+          // idp:update:humans:totp ?
 
-          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
-            Identity: id,
-            Scope: "idp:create:humans:logout",
-            Publisher: publisherId,
-            OnBehalfOf: id, // Only allow access to self
-          })
+          grantScopes := []string{
+            "idp:create:humans:recover",
+            "idp:delete:humans",
+            "idp:update:humans",
+            "idp:read:humans",
+            "idp:create:humans:logout",
+            "idp:read:humans:logout",
+            "idp:update:humans:logout",
+            "idp:read:resourceservers", // ?
+            "idp:create:resourceservers", // ?
+            "idp:delete:resourceservers", // ?
+            "idp:create:clients",
+            "idp:read:clients",
+            "idp:delete:clients",
+          }
 
-          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
-            Identity: id,
-            Scope: "idp:read:humans:logout",
-            Publisher: publisherId,
-            OnBehalfOf: id, // Only allow access to self
-          })
-
-          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
-            Identity: id,
-            Scope: "idp:update:humans:logout",
-            Publisher: publisherId,
-            OnBehalfOf: id, // Only allow access to self
-          })
-
-          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
-            Identity: id,
-            Scope: "idp:read:resourceservers",
-            Publisher: publisherId,
-            OnBehalfOf: id, // Only allow access to self
-          })
-
-          createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
-            Identity: id,
-            Scope: "idp:create:resourceservers",
-            Publisher: publisherId,
-            OnBehalfOf: id, // Only allow access to self
-          })
+          for _,s := range grantScopes {
+            createGrantsRequests = append(createGrantsRequests, aap.CreateGrantsRequest{
+              Identity: id,
+              Scope: s,
+              Publisher: publisherId,
+              OnBehalfOf: id, // Only allow access to self
+            })
+          }
 
         }
 
