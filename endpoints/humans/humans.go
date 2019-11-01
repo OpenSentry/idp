@@ -38,6 +38,8 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
       return
     }
 
+    // owners := c.Get("owners")
+
     var handleRequests = func(iRequests []*bulky.Request) {
 
       session, tx, err := idp.BeginReadTx(env.Driver)
