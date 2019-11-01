@@ -183,23 +183,35 @@ func marshalNodeToClient(node neo4j.Node) (Client) {
   }
 
   var audiences []string
-  for _,e := range p["audiences"].([]interface{}) {
-    audiences = append(audiences, e.(string))
+  aud := p["audiences"]
+  if aud != nil {
+    for _,e := range aud.([]interface{}) {
+      audiences = append(audiences, e.(string))
+    }
   }
 
   var responseTypes []string
-  for _,e := range p["response_types"].([]interface{}) {
-    responseTypes = append(responseTypes, e.(string))
+  rt := p["response_types"]
+  if rt != nil {
+    for _,e := range rt.([]interface{}) {
+      responseTypes = append(responseTypes, e.(string))
+    }
   }
 
   var redirectUris []string
-  for _,e := range p["redirect_uris"].([]interface{}) {
-    redirectUris = append(redirectUris, e.(string))
+  ru := p["redirect_uris"]
+  if ru != nil {
+    for _,e := range ru.([]interface{}) {
+      redirectUris = append(redirectUris, e.(string))
+    }
   }
 
   var postLogoutRedirectUris []string
-  for _,e := range p["post_logout_redirect_uris"].([]interface{}) {
-    postLogoutRedirectUris = append(postLogoutRedirectUris, e.(string))
+  plru := p["post_logout_redirect_uris"]
+  if plru != nil {
+    for _,e := range plru.([]interface{}) {
+      postLogoutRedirectUris = append(postLogoutRedirectUris, e.(string))
+    }
   }
 
   return Client{
