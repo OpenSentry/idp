@@ -363,13 +363,15 @@ func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) 
       // Check scopes. (is done by hydra according to doc)
       // https://www.ory.sh/docs/hydra/sdk/api#introspect-oauth2-tokens
 
+      // owners := c.Get("owners")
+
       // See #4 of QTNA
       aapClient := aap.NewAapClient(aconf.AapConfig)
       url := config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.entities.judge")
       judgeRequests := []aap.ReadEntitiesJudgeRequest{ {
         Publisher: config.GetString("id"), // ResourceServer receiving the call. IDP
         Requestor: sub,
-        Owners: []string{ sub },
+        Owners: []string{ sub }, // should be owners
         Scopes: requiredScopes,
       }}
       status, responses, err := aap.ReadEntitiesJudge(aapClient, url, judgeRequests)
