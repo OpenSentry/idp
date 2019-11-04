@@ -110,6 +110,11 @@ func GetClients(env *environment.State) gin.HandlerFunc {
               Secret: descryptedClientSecret,
               Name: d.Name,
               Description: d.Description,
+              GrantTypes: d.GrantTypes,
+              ResponseTypes: d.ResponseTypes,
+              RedirectUris: d.RedirectUris,
+              TokenEndpointAuthMethod: d.TokenEndpointAuthMethod,
+              PostLogoutRedirectUris: d.PostLogoutRedirectUris,
             })
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)
@@ -259,7 +264,6 @@ func PostClients(env *environment.State) gin.HandlerFunc {
             Name: objClient.Name,
             Description: objClient.Description,
             GrantTypes: objClient.GrantTypes,
-            Audiences: objClient.Audiences,
             ResponseTypes: objClient.ResponseTypes,
             RedirectUris: objClient.RedirectUris,
             TokenEndpointAuthMethod: objClient.TokenEndpointAuthMethod,
