@@ -18,7 +18,7 @@ const HUMAN_NOT_UPDATED = 22
 const HUMAN_TOTP_NOT_REQUIRED = 23
 const HUMAN_ALREADY_EXISTS = 24
 
-const CLIENT_NOT_FOUND = 50
+//const CLIENT_NOT_FOUND = 50
 const CLIENT_NOT_CREATED = 51
 
 const RESOURCESERVER_NOT_FOUND = 60
@@ -90,11 +90,11 @@ func InitRestErrors() {
           "dev": "TOTP not required",
         },
 
-      CLIENT_NOT_FOUND:
+      /*CLIENT_NOT_FOUND:
         {
           "en":  "Not found",
           "dev": "Client not found",
-        },
+        },*/
       CLIENT_NOT_CREATED:
         {
           "en":  "Not created",
