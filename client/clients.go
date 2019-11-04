@@ -6,15 +6,14 @@ import (
 
 type Client struct {
   Id                      string   `json:"id" validate:"required,uuid"`
-  Name                    string   `json:"name" validate:"required"`
-  Description             string   `json:"description" validate:"required"`
-  Secret                  string   `json:"secret,omitempty" validate:"omitempty"`
-  GrantTypes              []string `json:"grant_types" validate:"omitempty"`
-  Audiences               []string `json:"audiences"                  validate:"omitempty"`
-  ResponseTypes           []string `json:"response_types" validate:"omitempty"`
-  RedirectUris            []string `json:"redirect_uris" validate:"omitempty"`
-  TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method" validate:"omitempty"`
-  PostLogoutRedirectUris  []string `json:"post_logout_redirect_uris" validate:"omitempty"`
+  Name                    string   `json:"name"                       validate:"required"`
+  Description             string   `json:"description"                validate:"required"`
+  Secret                  string   `json:"secret,omitempty"           validate:"omitempty"`
+  GrantTypes              []string `json:"grant_types"                validate:"omitempty,dive,eq=authorization_code|eq=implicit|eq=password|eq=client_credientials|eq=device_code|eq=refresh_token"`
+  ResponseTypes           []string `json:"response_types"             validate:"omitempty,dive,eq=code|eq=token"`
+  RedirectUris            []string `json:"redirect_uris"              validate:"omitempty,dive,url"`
+  TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method" validate:"omitempty,eq=none|eq=client_secret_post|eq=client_secret_basic|eq=private_key_jwt"`
+  PostLogoutRedirectUris  []string `json:"post_logout_redirect_uris"  validate:"omitempty,dive,url"`
 }
 
 type CreateClientsResponse Client
