@@ -154,6 +154,21 @@ func marshalNodeToResourceServer(node neo4j.Node) (ResourceServer) {
   }
 }
 
+type Role struct {
+  Identity
+  Name         string
+  Description  string
+}
+func marshalNodeToRole(node neo4j.Node) (Role) {
+  p := node.Props()
+
+  return Role{
+    Identity: marshalNodeToIdentity(node),
+    Name:         p["name"].(string),
+    Description:  p["description"].(string),
+  }
+}
+
 type Client struct {
   Identity
   Secret                   string
