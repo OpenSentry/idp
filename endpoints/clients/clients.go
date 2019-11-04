@@ -196,6 +196,12 @@ func PostClients(env *environment.State) gin.HandlerFunc {
           },
           Name: r.Name,
           Description: r.Description,
+          Secret: r.Secret,
+          GrantTypes: r.GrantTypes,
+          ResponseTypes: r.ResponseTypes,
+          RedirectUris: r.RedirectUris,
+          TokenEndpointAuthMethod: r.TokenEndpointAuthMethod,
+          PostLogoutRedirectUris: r.PostLogoutRedirectUris,
         }
 
         var secret string
