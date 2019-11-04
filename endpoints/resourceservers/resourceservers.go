@@ -9,7 +9,7 @@ import (
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
-  E "github.com/charmixer/idp/client/errors"
+  _ "github.com/charmixer/idp/client/errors"
 
   aap "github.com/charmixer/aap/client"
 
@@ -92,7 +92,7 @@ func GetResourceServers(env *environment.State) gin.HandlerFunc {
         }
 
         // Deny by default
-        request.Output = bulky.NewClientErrorResponse(request.Index, E.RESOURCESERVER_NOT_FOUND)
+        request.Output = bulky.NewOkResponse(request.Index, []client.ResourceServer{})
         continue
       }
 
@@ -297,13 +297,10 @@ func DeleteResourceServers(env *environment.State) gin.HandlerFunc {
         }
 
         if len(dbResourceServers) <= 0  {
-          e := tx.Rollback()
-          if e != nil {
-            log.Debug(e.Error())
-          }
-          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-          request.Output = bulky.NewClientErrorResponse(request.Index, E.RESOURCESERVER_NOT_FOUND)
-          return
+          // not found translate into already deleted
+          ok := client.DeleteResourceServersResponse{ Id: r.Id }
+          request.Output = bulky.NewOkResponse(request.Index, ok)
+          continue;
         }
         resourceServerToDelete := dbResourceServers[0]
 
@@ -332,7 +329,7 @@ func DeleteResourceServers(env *environment.State) gin.HandlerFunc {
           log.Debug(e.Error())
         }
         bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-        request.Output = bulky.NewClientErrorResponse(request.Index, E.RESOURCESERVER_NOT_FOUND)
+        request.Output = bulky.NewInternalErrorResponse(request.Index)
         log.Debug("Delete resource server failed. Hint: Maybe input validation needs to be improved.")
         return
       }
