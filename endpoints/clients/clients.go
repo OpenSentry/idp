@@ -10,7 +10,7 @@ import (
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/utils"
   "github.com/charmixer/idp/client"
-  E "github.com/charmixer/idp/client/errors"
+  _ "github.com/charmixer/idp/client/errors"
 
   aap "github.com/charmixer/aap/client"
   hydra "github.com/charmixer/hydra/client"
@@ -122,7 +122,7 @@ func GetClients(env *environment.State) gin.HandlerFunc {
         }
 
         // Deny by default
-        request.Output = bulky.NewClientErrorResponse(request.Index, E.CLIENT_NOT_FOUND)
+        request.Output = bulky.NewOkResponse(request.Index, []client.Client{})
         continue
       }
 
@@ -403,13 +403,9 @@ func DeleteClients(env *environment.State) gin.HandlerFunc {
         }
 
         if len(dbClients) <= 0  {
-          e := tx.Rollback()
-          if e != nil {
-            log.Debug(e.Error())
-          }
-          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-          request.Output = bulky.NewClientErrorResponse(request.Index, E.CLIENT_NOT_FOUND)
-          return
+          // not found translates to already deleted
+          request.Output = bulky.NewOkResponse(request.Index, client.DeleteClientsResponse{Id: r.Id})
+          continue
         }
         clientToDelete := dbClients[0]
 
@@ -440,7 +436,7 @@ func DeleteClients(env *environment.State) gin.HandlerFunc {
           log.Debug(e.Error())
         }
         bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-        request.Output = bulky.NewClientErrorResponse(request.Index, E.CLIENT_NOT_FOUND)
+        request.Output = bulky.NewInternalErrorResponse(request.Index)
         log.Debug("Delete client failed. Hint: Maybe input validation needs to be improved.")
         return
       }
