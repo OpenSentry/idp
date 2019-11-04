@@ -151,8 +151,9 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
             ACR: acr,
             Context: map[string]string{
-              "human.name": human.Name,
-              "client.name": application.Name,
+              "client_name": application.Name,
+              "subject_name": human.Name,
+              "subject_email": human.Email,
             },
           })
           if err != nil {
@@ -234,8 +235,9 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
               ACR: acr,
               Context: map[string]string{
-                "human.name": human.Name,
-                "client.name": application.Name,
+                "client_name": application.Name,
+                "subject_name": human.Name,
+                "subject_email": human.Email,
               },
             })
             if err != nil {
@@ -307,8 +309,9 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
               ACR: acr,
               Context: map[string]string{
-                "human.name": human.Name,
-                "client.name": application.Name,
+                "client_name": application.Name,
+                "subject_name": human.Name,
+                "subject_email": human.Email,
               },
             })
             if err != nil {
@@ -505,8 +508,9 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                   RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
                   ACR: acr,
                   Context: map[string]string{
-                    "human.name": human.Name,
-                    "client.name": application.Name,
+                    "client_name": application.Name,
+                    "subject_name": human.Name,
+                    "subject_email": human.Email,
                   },
                 }
                 hydraLoginAcceptResponse, err := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, r.Challenge, hydraLoginAcceptRequest)
