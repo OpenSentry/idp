@@ -1,4 +1,4 @@
-package resourceservers
+package roles
 
 import (
   "net/http"
@@ -16,14 +16,14 @@ import (
   bulky "github.com/charmixer/bulky/server"
 )
 
-func GetResourceServers(env *environment.State) gin.HandlerFunc {
+func GetRoles(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "GetResourceServers",
+      "func": "GetRoles",
     })
 
-    var requests []client.ReadResourceServersRequest
+    var requests []client.ReadRolesRequest
     err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -42,30 +42,17 @@ func GetResourceServers(env *environment.State) gin.HandlerFunc {
       defer session.Close()
 
       requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-      if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
-      }
 
       for _, request := range iRequests {
-
-        var dbResourceServers []idp.ResourceServer
+        var dbRoles []idp.Role
         var err error
-        var ok client.ReadResourceServersResponse
+        var ok client.ReadRolesResponse
 
         if request.Input == nil {
-          dbResourceServers, err = idp.FetchResourceServers(tx, requestedBy, nil)
+          dbRoles, err = idp.FetchRoles(tx, nil, idp.Identity{Id:requestor})
         } else {
-          r := request.Input.(client.ReadResourceServersRequest)
-          dbResourceServers, err = idp.FetchResourceServers(tx, requestedBy, []idp.ResourceServer{ {Identity:idp.Identity{Id: r.Id}} })
+          r := request.Input.(client.ReadRolesRequest)
+          dbRoles, err = idp.FetchRoles(tx, []idp.Role{ {Identity: idp.Identity{Id: r.Id}} }, idp.Identity{Id:requestor})
         }
         if err != nil {
           e := tx.Rollback()
@@ -78,13 +65,12 @@ func GetResourceServers(env *environment.State) gin.HandlerFunc {
           return
         }
 
-        if len(dbResourceServers) > 0 {
-          for _, d := range dbResourceServers {
-            ok = append(ok, client.ResourceServer{
+        if len(dbRoles) > 0 {
+          for _, d := range dbRoles {
+            ok = append(ok, client.Role{
               Id: d.Id,
               Name: d.Name,
               Description: d.Description,
-              Audience: d.Audience,
             })
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)
@@ -92,7 +78,7 @@ func GetResourceServers(env *environment.State) gin.HandlerFunc {
         }
 
         // Deny by default
-        request.Output = bulky.NewOkResponse(request.Index, []client.ResourceServer{})
+        request.Output = bulky.NewOkResponse(request.Index, []client.Role{})
         continue
       }
 
@@ -112,15 +98,15 @@ func GetResourceServers(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PostResourceServers(env *environment.State) gin.HandlerFunc {
+func PostRoles(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PostResourceServers",
+      "func": "PostRoles",
     })
 
-    var requests []client.CreateResourceServersRequest
+    var requests []client.CreateRolesRequest
     err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -139,34 +125,21 @@ func PostResourceServers(env *environment.State) gin.HandlerFunc {
       defer session.Close()
 
       requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-      if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
-      }
 
       var ids []string
 
       for _, request := range iRequests {
-        r := request.Input.(client.CreateResourceServersRequest)
+        r := request.Input.(client.CreateRolesRequest)
 
-        newResourceServer := idp.ResourceServer{
+        newRole := idp.Role{
           Identity: idp.Identity{
             Issuer: config.GetString("idp.public.issuer"),
           },
           Name: r.Name,
           Description: r.Description,
-          Audience: r.Audience,
         }
 
-        resourceServer, err := idp.CreateResourceServer(tx, requestedBy, newResourceServer)
+        dbRole, err := idp.CreateRole(tx, newRole, idp.Identity{Id:requestor})
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -178,17 +151,16 @@ func PostResourceServers(env *environment.State) gin.HandlerFunc {
           return
         }
 
-        if resourceServer != (idp.ResourceServer{}) {
-          ids = append(ids, resourceServer.Id)
+        if dbRole != (idp.Role{}) {
+          ids = append(ids, dbRole.Id)
 
-          ok := client.CreateResourceServersResponse{
-            Id: resourceServer.Id,
-            Name: resourceServer.Name,
-            Description: resourceServer.Description,
-            Audience: r.Audience,
+          ok := client.CreateRolesResponse{
+            Id: dbRole.Id,
+            Name: dbRole.Name,
+            Description: dbRole.Description,
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)
-          idp.EmitEventResourceServerCreated(env.Nats, resourceServer)
+          //idp.EmitEventResourceServerCreated(env.Nats, resourceServer)
           continue
         }
 
@@ -199,7 +171,7 @@ func PostResourceServers(env *environment.State) gin.HandlerFunc {
         }
         bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
         request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-        log.WithFields(logrus.Fields{ "name": newResourceServer.Name}).Debug(err.Error())
+        log.WithFields(logrus.Fields{ "name": r.Name}).Debug(err.Error())
         return
       }
 
@@ -211,7 +183,7 @@ func PostResourceServers(env *environment.State) gin.HandlerFunc {
         for _,id := range ids {
           createEntitiesRequests = append(createEntitiesRequests, aap.CreateEntitiesRequest{
             Reference: id,
-            Creator: requestedBy.Id,
+            Creator: requestor,
           })
         }
 
@@ -224,7 +196,7 @@ func PostResourceServers(env *environment.State) gin.HandlerFunc {
           log.WithFields(logrus.Fields{ "error": err.Error(), "ids": ids }).Debug("Failed to initialize entity in AAP model")
         }
 
-        log.WithFields(logrus.Fields{ "status": status, "response": response }).Debug("Initialize request for resourceserver in AAP model")
+        log.WithFields(logrus.Fields{ "status": status, "response": response }).Debug("Initialize request for role in AAP model")
 
         return
       }
@@ -239,15 +211,15 @@ func PostResourceServers(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func DeleteResourceServers(env *environment.State) gin.HandlerFunc {
+func DeleteRoles(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "DeleteResourceServers",
+      "func": "DeleteRoles",
     })
 
-    var requests []client.DeleteResourceServersRequest
+    var requests []client.DeleteRolesRequest
     err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -266,47 +238,30 @@ func DeleteResourceServers(env *environment.State) gin.HandlerFunc {
       defer session.Close()
 
       requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-        if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
-      }
 
       for _, request := range iRequests {
-        r := request.Input.(client.DeleteResourceServersRequest)
+        r := request.Input.(client.DeleteRolesRequest)
 
-        log = log.WithFields(logrus.Fields{"id": r.Id})
+        log = log.WithFields(logrus.Fields{"id": requestor})
 
-        dbResourceServers, err := idp.FetchResourceServers(tx, requestedBy, []idp.ResourceServer{ {Identity:idp.Identity{Id:r.Id}} })
+        dbRoles, err := idp.FetchRoles(tx, []idp.Role{ {Identity: idp.Identity{Id:r.Id}} }, idp.Identity{Id:requestor})
         if err != nil {
-          e := tx.Rollback()
-          if e != nil {
-            log.Debug(e.Error())
-          }
-          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
           request.Output = bulky.NewInternalErrorResponse(request.Index)
           log.Debug(err.Error())
           return
         }
 
-        if len(dbResourceServers) <= 0  {
+        if len(dbRoles) <= 0  {
           // not found translate into already deleted
-          ok := client.DeleteResourceServersResponse{ Id: r.Id }
+          ok := client.DeleteRolesResponse{ Id: r.Id }
           request.Output = bulky.NewOkResponse(request.Index, ok)
           continue;
         }
-        resourceServerToDelete := dbResourceServers[0]
+        roleToDelete := dbRoles[0]
 
-        if resourceServerToDelete != (idp.ResourceServer{}) {
+        if roleToDelete != (idp.Role{}) {
 
-          deletedResourceServer, err := idp.DeleteResourceServer(tx, requestedBy, resourceServerToDelete)
+          dbDeletedRole, err := idp.DeleteRole(tx, roleToDelete, idp.Identity{Id:requestor})
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -318,7 +273,7 @@ func DeleteResourceServers(env *environment.State) gin.HandlerFunc {
             return
           }
 
-          ok := client.DeleteResourceServersResponse{ Id: deletedResourceServer.Id }
+          ok := client.DeleteRolesResponse{ Id: dbDeletedRole.Id }
           request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
         }
@@ -330,7 +285,7 @@ func DeleteResourceServers(env *environment.State) gin.HandlerFunc {
         }
         bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
         request.Output = bulky.NewInternalErrorResponse(request.Index)
-        log.Debug("Delete resource server failed. Hint: Maybe input validation needs to be improved.")
+        log.Debug("Delete role failed. Hint: Maybe input validation needs to be improved.")
         return
       }
 

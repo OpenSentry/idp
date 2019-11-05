@@ -27,6 +27,7 @@ import (
   "github.com/charmixer/idp/endpoints/challenges"
   "github.com/charmixer/idp/endpoints/invites"
   "github.com/charmixer/idp/endpoints/resourceservers"
+  "github.com/charmixer/idp/endpoints/roles"
 
   E "github.com/charmixer/idp/client/errors"
 )
@@ -298,6 +299,10 @@ func serve(env *environment.State) {
   r.GET ( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:read:resourceservers"), resourceservers.GetResourceServers(env))
   r.POST( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:create:resourceservers"), resourceservers.PostResourceServers(env) )
   r.DELETE( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:delete:resourceservers"), resourceservers.DeleteResourceServers(env) )
+
+  r.GET ( "/roles", utils.AuthorizationRequired(aconf, "idp:read:roles"), roles.GetRoles(env))
+  r.POST( "/roles", utils.AuthorizationRequired(aconf, "idp:create:roles"), roles.PostRoles(env) )
+  r.DELETE( "/roles", utils.AuthorizationRequired(aconf, "idp:delete:roles"), roles.DeleteRoles(env) )
 
   r.GET(  "/invites", utils.AuthorizationRequired(aconf, "idp:read:invites"), invites.GetInvites(env) )
   r.POST( "/invites", utils.AuthorizationRequired(aconf, "idp:create:invites"), invites.PostInvites(env) )
