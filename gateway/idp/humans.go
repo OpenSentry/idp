@@ -230,7 +230,7 @@ func FetchHumansByUsername(tx neo4j.Transaction, iHumans []Human) (humans []Huma
     for _, human := range iHumans {
       usernames = append(usernames, human.Username)
     }
-    cypfilterUsernames = ` WHERE h.email in split($usernames, ",") `
+    cypfilterUsernames = ` WHERE h.username in split($usernames, ",") `
     params["usernames"] = strings.Join(usernames, ",")
   }
 
