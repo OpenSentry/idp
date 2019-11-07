@@ -328,6 +328,11 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
             "idp:create:clients",
             "idp:read:clients",
             "idp:delete:clients",
+
+            // not sure this is ideal
+            "idp:create:roles",
+            "idp:read:roles",
+            "idp:delete:roles",
           }
 
           for _,s := range grantScopes {
