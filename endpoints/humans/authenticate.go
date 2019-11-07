@@ -127,6 +127,20 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         deny := client.CreateHumansAuthenticateResponse{}
         deny.Id = hydraLoginResponse.Subject
 
+        // Lookup subject
+        var human idp.Human
+        humans, err := idp.FetchHumans(tx, []idp.Human{ {Identity: idp.Identity{Id:hydraLoginResponse.Subject}} })
+        if err != nil {
+          human = humans[0]
+        }
+
+        // Lookup client
+        var application idp.Client
+        clients, err := idp.FetchClients(tx, nil, []idp.Client{ {Identity: idp.Identity{Id:hydraLoginResponse.Client.ClientId}} })
+        if err != nil {
+          application = clients[0]
+        }
+
         // Skip if hydra dictated it.
         if hydraLoginResponse.Skip == true {
           acr := "skip"
@@ -136,6 +150,11 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
             Remember: true,
             RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
             ACR: acr,
+            Context: map[string]string{
+              "client_name": application.Name,
+              "subject_name": human.Name,
+              "subject_email": human.Email,
+            },
           })
           if err != nil {
             e := tx.Rollback()
@@ -215,6 +234,11 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               Remember: true,
               RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
               ACR: acr,
+              Context: map[string]string{
+                "client_name": application.Name,
+                "subject_name": human.Name,
+                "subject_email": human.Email,
+              },
             })
             if err != nil {
               e := tx.Rollback()
@@ -284,6 +308,11 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
               Remember: true,
               RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
               ACR: acr,
+              Context: map[string]string{
+                "client_name": application.Name,
+                "subject_name": human.Name,
+                "subject_email": human.Email,
+              },
             })
             if err != nil {
               e := tx.Rollback()
@@ -478,6 +507,11 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                   Remember: true,
                   RememberFor: config.GetIntStrict("hydra.session.timeout"), // This means auto logout in hydra after n seconds!
                   ACR: acr,
+                  Context: map[string]string{
+                    "client_name": application.Name,
+                    "subject_name": human.Name,
+                    "subject_email": human.Email,
+                  },
                 }
                 hydraLoginAcceptResponse, err := hydra.AcceptLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginAccept"), hydraClient, r.Challenge, hydraLoginAcceptRequest)
                 if err != nil {
