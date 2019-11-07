@@ -245,6 +245,8 @@ func serve(env *environment.State) {
   r.Use(utils.RequestId())
   r.Use(utils.RequestLogger(environment.LogKey, environment.RequestIdKey, log, appFields))
 
+  // r.Use(utils.ProcessOwnersHeaderAndInitializeContext())
+
   // ## QTNA - Questions that need answering before granting access to a protected resource
   // 1. Is the user or client authenticated? Answered by the process of obtaining an access token.
   // 2. Is the access token expired?
