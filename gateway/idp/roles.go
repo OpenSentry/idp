@@ -36,7 +36,7 @@ func CreateRole(tx neo4j.Transaction, iRole Role, requestor Identity) (rRole Rol
       exp:0,
       iss:$iss,
       name:$name,
-      description:$description,
+      description:$description
     })
 
     RETURN role
@@ -85,9 +85,9 @@ func FetchRoles(tx neo4j.Transaction, iFilterRoles []Role, iRequest Identity) (r
   cypher = fmt.Sprintf(`
     // Fetch roles
 
-    MATCH (role:ResourceServer:Identity)
+    MATCH (role:Role:Identity)
     WHERE 1=1 %s
-    RETURN rs
+    RETURN role
   `, where1)
 
   logCypher(cypher, params)

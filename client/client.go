@@ -36,6 +36,7 @@ func handleRequest(client *IdpClient, request interface{}, method string, url st
   }
 
   status, responseData, err := callService(client, method, url, bytes.NewBuffer(body))
+
   if err != nil {
     return status, err
   }
