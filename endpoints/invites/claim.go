@@ -74,19 +74,19 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
 
-      requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-      if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
-      }
+      // requestor := c.MustGet("sub").(string)
+      // var requestedBy *idp.Identity
+      // if requestor != "" {
+      //   identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //   if err != nil {
+      //     bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //     log.Debug(err.Error())
+      //     return
+      //   }
+      //   if len(identities) > 0 {
+      //     requestedBy = &identities[0]
+      //   }
+      // }
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateInvitesClaimRequest)
@@ -107,7 +107,7 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
         }
 
         inv := idp.Invite{ Identity: idp.Identity{ Id: r.Id } }
-        dbInvites, err := idp.FetchInvites(tx, requestedBy, []idp.Invite{ inv })
+        dbInvites, err := idp.FetchInvites(tx, nil, []idp.Invite{ inv })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
