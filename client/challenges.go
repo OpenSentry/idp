@@ -17,7 +17,7 @@ func (d OTPType) String() string {
 
 const (
   ConfirmOTP EmailTemplate = EmailTemplate(iota)
-  ConfirmEmail EmailTemplate = EmailTemplate(iota)
+  ConfirmEmail 
   ConfirmDelete
   ConfirmRecover
 )

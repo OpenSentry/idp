@@ -1,7 +1,9 @@
 package humans
 
 import (
+  "time"
   "net/http"
+  "net/url"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -501,10 +503,17 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    sender := idp.SMTPSender{
-      Name: config.GetString("delete.sender.name"),
-      Email: config.GetString("delete.sender.email"),
+    controllerDeleteConfirm := config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.deleteconfirm")
+    redirectToConfirmDelete, err := url.Parse(controllerDeleteConfirm)
+    if err != nil {
+      log.WithFields(logrus.Fields{ "url":controllerDeleteConfirm }).Debug(err.Error())
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
     }
+
+    var sender idp.SMTPSender = idp.SMTPSender{ Name: config.GetString("delete.sender.name"), Email: config.GetString("delete.sender.email") }
+    var templateFile string = config.GetString("delete.template.email.file")
+    var emailSubject string = config.GetString("delete.template.email.subject")
 
     smtpConfig := idp.SMTPConfig{
       Host: config.GetString("mail.smtp.host"),
@@ -513,9 +522,6 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
       Sender: sender,
       SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
     }
-
-    templateFile := config.GetString("delete.template.email.file")
-    emailSubject := config.GetString("delete.template.email.subject")
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
@@ -528,24 +534,35 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
 
-      // requestor := c.MustGet("sub").(string)
-      // var requestedBy *idp.Identity
-      // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-      //  if err != nil {
-      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-      //    log.Debug(err.Error())
-      //    return
-      //  }
-      //  if len(identities) > 0 {
-      //    requestedBy = &identities[0]
-      //  }
-      // }
+      requestor := c.MustGet("sub").(string)
+      var requestedBy *idp.Identity
+      if requestor != "" {
+        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        if err != nil {
+          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+          log.Debug(err.Error())
+          return
+        }
+        if len(identities) > 0 {
+          requestedBy = &identities[0]
+        }
+      }
 
       for _, request := range iRequests {
         r := request.Input.(client.DeleteHumansRequest)
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
+
+        // Sanity check. Do not allow updating on anything but the access token subject
+        if requestedBy.Id != r.Id {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewErrorResponse(request.Index, http.StatusForbidden, E.HUMAN_TOKEN_INVALID)
+          return
+        }
 
         dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
@@ -572,74 +589,63 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
 
         if human != (idp.Human{}) {
 
-          // FIXME: Use challenge system!
+          // Require email confirmation challenge
 
-          challenge, err := idp.CreateDeleteChallenge(config.GetString("delete.link"), human, 60 * 5) // Fixme configfy 60*5
-          if err != nil {
-            e := tx.Rollback()
-            if e != nil {
-              log.Debug(e.Error())
-            }
-            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            log.Debug(err.Error())
-            return
-          }
-
-          hashedCode, err := idp.CreatePassword(challenge.Code)
-          if err != nil {
-            e := tx.Rollback()
-            if e != nil {
-              log.Debug(e.Error())
-            }
-            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            log.Debug(err.Error())
-            return
-          }
-
-          n := idp.Human{
-            Identity: idp.Identity{
-              Id: human.Id,
-              OtpDeleteCode: hashedCode,
-              OtpDeleteCodeExpire: challenge.Expire,
+          newChallenge := idp.Challenge{
+            JwtRegisteredClaims: idp.JwtRegisteredClaims{
+              Subject: human.Id,
+              Issuer: config.GetString("idp.public.issuer"),
+              Audience: config.GetString("idp.public.url") + config.GetString("idp.public.endpoints.challenges.verify"),
+              ExpiresAt: time.Now().Unix() + 900, // 15 min,  FIXME: Should be configurable
             },
+            RedirectTo: r.RedirectTo, // Requested success url redirect.
+            CodeType: int64(client.OTP),
           }
-          updatedHuman, err := idp.UpdateOtpDeleteCode(tx, n)
+          challenge, otpCode, err := idp.CreateChallengeForOTP(tx, newChallenge)
           if err != nil {
             e := tx.Rollback()
             if e != nil {
               log.Debug(e.Error())
             }
             bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
             log.Debug(err.Error())
             return
           }
 
-          if updatedHuman != (idp.Human{}) {
-            data := DeleteTemplateData{
-              Sender: sender.Name,
-              Name: updatedHuman.Id,
-              VerificationCode: challenge.Code,
-            }
-            _, err = idp.SendEmailUsingTemplate(smtpConfig, updatedHuman.Name, updatedHuman.Email, emailSubject, templateFile, data)
-            if err != nil {
-              e := tx.Rollback()
-              if e != nil {
-                log.Debug(e.Error())
+          if challenge != (idp.Challenge{}) {
+
+            if otpCode.Code != "" && human.Email != "" {
+
+              var data = ConfirmTemplateData{
+                Challenge: challenge.Id,
+                Sender: sender.Name,
+                Id: challenge.Subject,
+                Email: human.Email,
+                Code: otpCode.Code, // Note this is the clear text generated code and not the hashed one stored in DB.
               }
-              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-              request.Output = bulky.NewInternalErrorResponse(request.Index)
-              log.WithFields(logrus.Fields{ "id": updatedHuman.Id, "file": templateFile }).Debug(err.Error())
-              return
+              _, err = idp.SendEmailUsingTemplate(smtpConfig, human.Email, human.Email, emailSubject, templateFile, data)
+              if err != nil {
+                e := tx.Rollback()
+                if e != nil {
+                  log.Debug(e.Error())
+                }
+                bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+                request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+                log.Debug(err.Error())
+                return
+              }
+
             }
 
-            ok := client.DeleteHumansResponse{
-              Id: updatedHuman.Id,
-              RedirectTo: challenge.RedirectTo,
-            }
-            request.Output = bulky.NewOkResponse(request.Index, ok)
+            q := redirectToConfirmDelete.Query()
+            q.Add("delete_challenge", challenge.Id)
+            redirectToConfirmDelete.RawQuery = q.Encode()
+
+            request.Output = bulky.NewOkResponse(request.Index, client.DeleteHumansResponse{
+              Id: human.Id,
+              RedirectTo: redirectToConfirmDelete.String(),
+            })
             continue
           }
 
