@@ -18,6 +18,8 @@ const HUMAN_NOT_UPDATED = 22
 const HUMAN_TOTP_NOT_REQUIRED = 23
 const HUMAN_ALREADY_EXISTS = 24
 
+const HUMAN_TOKEN_INVALID = 25
+
 //const CLIENT_NOT_FOUND = 50
 const CLIENT_NOT_CREATED = 51
 
@@ -39,6 +41,11 @@ const FOLLOW_NOT_CREATED = 111
 func InitRestErrors() {
   bulky.AppendErrors(
     map[int]map[string]string{
+      HUMAN_TOKEN_INVALID: {
+        "en":  "Forbidden",
+        "dev": "Forbidden. Hint: Access token subject and requested Identity.Id does not match.",
+      },
+
       HUMAN_ALREADY_EXISTS:
         {
           "en":  "Already exists",

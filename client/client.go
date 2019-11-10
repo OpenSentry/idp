@@ -52,6 +52,10 @@ func handleRequest(client *IdpClient, request interface{}, method string, url st
 }
 
 func callService(client *IdpClient, method string, url string, data *bytes.Buffer) (int, []byte, error) {
+  if client == nil {
+    return http.StatusInternalServerError, nil, errors.New("Missing client")
+  }
+
   // for logging only
   start := time.Now()
   reqData := (*data).Bytes()

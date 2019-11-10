@@ -199,6 +199,10 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
               sender = idp.SMTPSender{ Name: config.GetString("emailconfirm.sender.name"), Email: config.GetString("emailconfirm.sender.email") }
               templateFile = config.GetString("emailconfirm.template.email.file")
               emailSubject = config.GetString("emailconfirm.template.email.subject")
+            case client.ConfirmDelete:
+              sender = idp.SMTPSender{ Name: config.GetString("delete.sender.name"), Email: config.GetString("delete.sender.email") }
+              templateFile = config.GetString("delete.template.email.file")
+              emailSubject = config.GetString("delete.template.email.subject")
             default:
               sender = idp.SMTPSender{ Name: config.GetString("otp.sender.name"), Email: config.GetString("otp.sender.email") }
               templateFile = config.GetString("otp.template.email.file")

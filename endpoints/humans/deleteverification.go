@@ -56,9 +56,9 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
       for _, request := range iRequests {
         r := request.Input.(client.UpdateHumansDeleteVerifyRequest)
 
-        log = log.WithFields(logrus.Fields{"id": r.Id})
+        log = log.WithFields(logrus.Fields{"delete_challenge": r.DeleteChallenge})
 
-        dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
+        dbChallenges, err := idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.DeleteChallenge} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -70,35 +70,29 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
           return
         }
 
-        if len(dbHumans) <= 0 {
+        if len(dbChallenges) <= 0 {
           e := tx.Rollback()
           if e != nil {
             log.Debug(e.Error())
           }
           bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-          request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
           return
         }
-        human := dbHumans[0]
 
-        valid, err := idp.ValidatePassword(human.OtpDeleteCode, r.Code)
-        if err != nil {
-          log.Debug(err.Error())
-          request.Output = bulky.NewInternalErrorResponse(request.Index)
-          continue
-        }
+        challenge := dbChallenges[0]
 
-        if valid == true {
+        if challenge.VerifiedAt > 0 {
 
+          // FIXME: We need to make sure the challenge was actually for a deletion else any challenge can be used.
+          // -- solution could be to add a challenge_type to the challenge system {Login, EmailConfirmation, DeleteConfirmation, ...}
+
+          // Challenge verified, delete human
           log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all access tokens for identity - put them on revoked list or rely on expire")
           log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all consents in hydra for identity - this is probably aap?")
+          log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all sessions in hydra for identity - this is probably aap?")
 
-          n := idp.Human{
-            Identity: idp.Identity{
-              Id: human.Id,
-            },
-          }
-          deletedHuman, err := idp.DeleteHuman(tx, n)
+          deletedHuman, err := idp.DeleteHuman(tx, idp.Human{Identity: idp.Identity{ Id: challenge.Subject }})
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -112,17 +106,18 @@ func PutDeleteVerification(env *environment.State) gin.HandlerFunc {
 
           if deletedHuman != (idp.Human{}) {
             request.Output = bulky.NewOkResponse(request.Index, client.UpdateHumansDeleteVerifyResponse{
-              Id: deletedHuman.Id,
+              Id: challenge.Subject,
               Verified: true,
-              RedirectTo: r.RedirectTo,
+              RedirectTo: challenge.RedirectTo,
             })
             continue
           }
+
         }
 
         // Deny by default
         request.Output = bulky.NewOkResponse(request.Index, client.UpdateHumansDeleteVerifyResponse{
-          Id: r.Id,
+          Id: challenge.Subject,
           Verified: false,
           RedirectTo: "",
         })
