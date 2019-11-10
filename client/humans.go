@@ -79,14 +79,13 @@ type UpdateHumansRequest struct {
 
 type DeleteHumansResponse HumanRedirect
 type DeleteHumansRequest struct {
-  Id string `json:"id" validate:"required,uuid"`
+  Id         string `json:"id"          validate:"required,uuid"`
+  RedirectTo string `json:"redirect_to" validate:"required,uri"`
 }
 
 type UpdateHumansDeleteVerifyResponse HumanVerification
 type UpdateHumansDeleteVerifyRequest struct {
-  Id         string `json:"id"          validate:"required,uuid"`
-  Code       string `json:"code"        validate:"required"`
-  RedirectTo string `json:"redirect_to" validate:"required,uri"`
+  DeleteChallenge string `json:"delete_challenge" validate:"required,uuid"`
 }
 
 type UpdateHumansPasswordResponse Human

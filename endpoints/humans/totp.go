@@ -52,24 +52,35 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
 
-      // requestor := c.MustGet("sub").(string)
-      // var requestedBy *idp.Identity
-      // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-      //  if err != nil {
-      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-      //    log.Debug(err.Error())
-      //    return
-      //  }
-      //  if len(identities) > 0 {
-      //    requestedBy = &identities[0]
-      //  }
-      // }
+      requestor := c.MustGet("sub").(string)
+        var requestedBy *idp.Identity
+        if requestor != "" {
+        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        if err != nil {
+          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+          log.Debug(err.Error())
+          return
+        }
+        if len(identities) > 0 {
+          requestedBy = &identities[0]
+        }
+      }
 
       for _, request := range iRequests {
         r := request.Input.(client.UpdateHumansTotpRequest)
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
+
+        // Sanity check. Do not allow updating on anything but the access token subject
+        if requestedBy.Id != r.Id {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewErrorResponse(request.Index, http.StatusForbidden, E.HUMAN_TOKEN_INVALID)
+          return
+        }
 
         dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
