@@ -1,7 +1,9 @@
 package humans
 
 import (
+  "time"
   "net/http"
+  "net/url"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -35,10 +37,17 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    sender := idp.SMTPSender{
-      Name: config.GetString("recover.sender.name"),
-      Email: config.GetString("recover.sender.email"),
+    controllerConfirm := config.GetString("idpui.public.url") + config.GetString("idpui.public.endpoints.recoverconfirm")
+    redirectToConfirm, err := url.Parse(controllerConfirm)
+    if err != nil {
+      log.WithFields(logrus.Fields{ "url":controllerConfirm }).Debug(err.Error())
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
     }
+
+    var sender idp.SMTPSender = idp.SMTPSender{ Name: config.GetString("recover.sender.name"), Email: config.GetString("recover.sender.email") }
+    var templateFile string = config.GetString("recover.template.email.file")
+    var emailSubject string = config.GetString("recover.template.email.subject")
 
     smtpConfig := idp.SMTPConfig{
       Host: config.GetString("mail.smtp.host"),
@@ -47,9 +56,6 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       Sender: sender,
       SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
     }
-
-    templateFile := config.GetString("recover.template.email.file")
-    emailSubject := config.GetString("recover.template.email.subject")
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
@@ -65,21 +71,32 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
       // requestor := c.MustGet("sub").(string)
       // var requestedBy *idp.Identity
       // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-      //  if err != nil {
-      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-      //    log.Debug(err.Error())
-      //    return
-      //  }
-      //  if len(identities) > 0 {
-      //    requestedBy = &identities[0]
-      //  }
+      //   identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //   if err != nil {
+      //     bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+      //     log.Debug(err.Error())
+      //     return
+      //   }
+      //   if len(identities) > 0 {
+      //     requestedBy = &identities[0]
+      //   }
       // }
 
       for _, request := range iRequests {
         r := request.Input.(client.CreateHumansRecoverRequest)
-        
+
         log = log.WithFields(logrus.Fields{"id": r.Id})
+
+        // // Sanity check. Do not allow updating on anything but the access token subject
+        // if requestedBy.Id != r.Id {
+        //   e := tx.Rollback()
+        //   if e != nil {
+        //     log.Debug(e.Error())
+        //   }
+        //   bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+        //   request.Output = bulky.NewErrorResponse(request.Index, http.StatusForbidden, E.HUMAN_TOKEN_INVALID)
+        //   return
+        // }
 
         dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
@@ -88,43 +105,37 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
             log.Debug(e.Error())
           }
           bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
           log.Debug(err.Error())
           return
         }
 
-        if len(dbHumans) > 0 {
-          human := dbHumans[0]
-
-          // FIXME: Use challenge system!
-
-          challenge, err := idp.CreateRecoverChallenge(config.GetString("recover.link"), human, 60 * 5) // Fixme configfy 60*5
-          if err != nil {
-            log.Debug(err.Error())
-            request.Output = bulky.NewInternalErrorResponse(request.Index)
-            continue
+        if len(dbHumans) <= 0  {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
           }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
+          return
+        }
+        human := dbHumans[0]
 
-          hashedCode, err := idp.CreatePassword(challenge.Code)
-          if err != nil {
-            e := tx.Rollback()
-            if e != nil {
-              log.Debug(e.Error())
-            }
-            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-            log.Debug(err.Error())
-            return
-          }
+        if human != (idp.Human{}) {
 
-          n := idp.Human{
-            Identity: idp.Identity{
-              Id: human.Id,
+          // Require email confirmation challenge
+
+          newChallenge := idp.Challenge{
+            JwtRegisteredClaims: idp.JwtRegisteredClaims{
+              Subject: human.Id,
+              Issuer: config.GetString("idp.public.issuer"),
+              Audience: config.GetString("idp.public.url") + config.GetString("idp.public.endpoints.challenges.verify"),
+              ExpiresAt: time.Now().Unix() + 900, // 15 min,  FIXME: Should be configurable
             },
-            OtpRecoverCode: hashedCode,
-            OtpRecoverCodeExpire: challenge.Expire,
+            RedirectTo: r.RedirectTo, // Requested success url redirect.
+            CodeType: int64(client.OTP),
           }
-          updatedHuman, err := idp.UpdateOtpRecoverCode(tx, n)
+          challenge, otpCode, err := idp.CreateChallengeForOTP(tx, newChallenge)
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -136,27 +147,38 @@ func PostRecover(env *environment.State) gin.HandlerFunc {
             return
           }
 
-          if updatedHuman != (idp.Human{}) {
-            data := RecoverTemplateData{
-              Sender: sender.Name,
-              Name: updatedHuman.Id,
-              VerificationCode: challenge.Code,
-            }
-            _, err = idp.SendEmailUsingTemplate(smtpConfig, updatedHuman.Name, updatedHuman.Email, emailSubject, templateFile, data)
-            if err != nil {
-              e := tx.Rollback()
-              if e != nil {
-                log.Debug(e.Error())
+          if challenge != (idp.Challenge{}) {
+
+            if otpCode.Code != "" && human.Email != "" {
+
+              var data = ConfirmTemplateData{
+                Challenge: challenge.Id,
+                Sender: sender.Name,
+                Id: challenge.Subject,
+                Email: human.Email,
+                Code: otpCode.Code, // Note this is the clear text generated code and not the hashed one stored in DB.
               }
-              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-              request.Output = bulky.NewInternalErrorResponse(request.Index)
-              log.WithFields(logrus.Fields{ "id": updatedHuman.Id, "file": templateFile }).Debug(err.Error())
-              return
+              _, err = idp.SendEmailUsingTemplate(smtpConfig, human.Email, human.Email, emailSubject, templateFile, data)
+              if err != nil {
+                e := tx.Rollback()
+                if e != nil {
+                  log.Debug(e.Error())
+                }
+                bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+                request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+                log.Debug(err.Error())
+                return
+              }
+
             }
+
+            q := redirectToConfirm.Query()
+            q.Add("recover_challenge", challenge.Id)
+            redirectToConfirm.RawQuery = q.Encode()
 
             request.Output = bulky.NewOkResponse(request.Index, client.CreateHumansRecoverResponse{
-              Id: updatedHuman.Id,
-              RedirectTo: challenge.RedirectTo,
+              Id: human.Id,
+              RedirectTo: redirectToConfirm.String(),
             })
             continue
           }

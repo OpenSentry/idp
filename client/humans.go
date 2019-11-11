@@ -110,17 +110,16 @@ type CreateHumansAuthenticateRequest struct {
   EmailChallenge string `json:"email_challenge,omitempty" validate:"omitempty,uuid"`
 }
 
-type CreateHumansRecoverResponse HumanRedirect
+type CreateHumansRecoverResponse HumanVerification
 type CreateHumansRecoverRequest struct {
-  Id string `json:"id" validate:"required,uuid"`
+  Id          string `json:"id"          validate:"required,uuid"`
+  RedirectTo  string `json:"redirect_to" validate:"required,uri"`
 }
 
 type UpdateHumansRecoverVerifyResponse HumanVerification
 type UpdateHumansRecoverVerifyRequest struct {
-  Id         string `json:"id"          validate:"required,uuid"`
-  Code       string `json:"code"        validate:"required"`
-  Password   string `json:"password"    validate:"required"`
-  RedirectTo string `json:"redirect_to" validate:"required,uri"`
+  RecoverChallenge string `json:"recover_challenge" validate:"required,uuid"`
+  NewPassword string `json:"new_password"    validate:"required"`
 }
 
 type CreateHumansLogoutResponse Logout
@@ -229,7 +228,7 @@ func CreateHumansAuthenticate(client *IdpClient, url string, requests []CreateHu
 
 
 func RecoverHumans(client *IdpClient, url string, requests []CreateHumansRecoverRequest) (status int, responses bulky.Responses, err error) {
-  status, err = handleRequest(client, requests, "PUT", url, &responses)
+  status, err = handleRequest(client, requests, "POST", url, &responses)
 
   if err != nil {
     return status, nil, err
@@ -240,7 +239,7 @@ func RecoverHumans(client *IdpClient, url string, requests []CreateHumansRecover
 
 
 func RecoverHumansVerify(client *IdpClient, url string, requests []UpdateHumansRecoverVerifyRequest) (status int, responses bulky.Responses, err error) {
-  status, err = handleRequest(client, requests, "POST", url, &responses)
+  status, err = handleRequest(client, requests, "PUT", url, &responses)
 
   if err != nil {
     return status, nil, err
