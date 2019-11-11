@@ -1,12 +1,10 @@
 Greetings {{ .Email }}
 
-We have received a request to gain access to your account using your email. Your verification code is:
+A request to recover your profile has been made. To confirm recovery of your profile use this code:
 
 {{.Code}}
 
-If you did not request this code, it is possible, that someone else is trying to gain access to your account. Please do not send this or give this code to others.
-
-Please consider changing your password for your account and enable two-factor authentication if not already done.
+If you did not request this code, it is possible, that someone else is trying to recover your profile. Please consider changing your password for your profile and enable two-factor authentication if not already done.
 
 Kind Regards,
 {{ .Sender }}

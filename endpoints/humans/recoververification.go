@@ -56,9 +56,9 @@ func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
       for _, request := range iRequests {
         r := request.Input.(client.UpdateHumansRecoverVerifyRequest)
 
-        log = log.WithFields(logrus.Fields{"id": r.Id})
+        log = log.WithFields(logrus.Fields{"recover_challenge": r.RecoverChallenge})
 
-        dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
+        dbChallenges, err := idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.RecoverChallenge} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -70,33 +70,30 @@ func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
           return
         }
 
-        if len(dbHumans) <= 0 {
+        if len(dbChallenges) <= 0 {
           e := tx.Rollback()
           if e != nil {
             log.Debug(e.Error())
           }
           bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-          request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_NOT_FOUND)
-          return
-        }
-        human := dbHumans[0]
-
-        valid, err := idp.ValidatePassword(human.OtpRecoverCode, r.Code)
-        if err != nil {
-          e := tx.Rollback()
-          if e != nil {
-            log.Debug(e.Error())
-          }
-          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-          log.Debug(err.Error())
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_NOT_FOUND)
           return
         }
 
-        if valid == true {
+        challenge := dbChallenges[0]
+
+        if challenge.VerifiedAt > 0 {
+
+          // FIXME: We need to make sure the challenge was actually for a deletion else any challenge can be used.
+          // -- solution could be to add a challenge_type to the challenge system {Login, EmailConfirmation, DeleteConfirmation, ...}
+
+          // Challenge verified, delete human
+          log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all access tokens for identity - put them on revoked list or rely on expire")
+          log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all consents in hydra for identity - this is probably aap?")
+          log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all sessions in hydra for identity - this is probably aap?")
 
           // Update the password
-          hashedPassword, err := idp.CreatePassword(r.Password)
+          hashedPassword, err := idp.CreatePassword(r.NewPassword)
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -108,13 +105,7 @@ func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
             return
           }
 
-          n := idp.Human{
-            Identity: idp.Identity{
-              Id: human.Id,
-            },
-            Password: hashedPassword,
-          }
-          updatedHuman, err := idp.UpdatePassword(tx, n)
+          updatedHuman, err := idp.UpdatePassword(tx, idp.Human{ Identity: idp.Identity{ Id: challenge.Subject }, Password: hashedPassword })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -128,9 +119,9 @@ func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
 
           if updatedHuman != (idp.Human{}) {
             request.Output = bulky.NewOkResponse(request.Index, client.UpdateHumansRecoverVerifyResponse{
-              Id: updatedHuman.Id,
+              Id: challenge.Subject,
               Verified: true,
-              RedirectTo: r.RedirectTo,
+              RedirectTo: challenge.RedirectTo,
             })
             continue
           }
@@ -139,7 +130,7 @@ func PutRecoverVerification(env *environment.State) gin.HandlerFunc {
 
         // Deny by default
         request.Output = bulky.NewOkResponse(request.Index, client.UpdateHumansRecoverVerifyResponse{
-          Id: r.Id,
+          Id: challenge.Subject,
           Verified: false,
           RedirectTo: "",
         })
