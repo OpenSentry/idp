@@ -124,20 +124,64 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
           return
         }
 
-        deny := client.CreateHumansAuthenticateResponse{}
-        deny.Id = hydraLoginResponse.Subject
-
-        // Lookup subject
         var human idp.Human
-        humans, err := idp.FetchHumans(tx, []idp.Human{ {Identity: idp.Identity{Id:hydraLoginResponse.Subject}} })
-        if err != nil {
+        var application idp.Client
+
+        var subject string = hydraLoginResponse.Subject
+        var clientId string = hydraLoginResponse.Client.ClientId
+
+        deny := client.CreateHumansAuthenticateResponse{}
+        deny.Id = subject
+
+        // Lookup subject        
+        if subject != "" {
+          humans, err := idp.FetchHumans(tx, []idp.Human{ {Identity: idp.Identity{Id:subject}} })
+          if err != nil {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+            log.Debug(err.Error())
+            return
+          }
+          if len(humans) <= 0 {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+            log.WithFields(logrus.Fields{"id":subject}).Debug("Human not found")
+            return
+          }
           human = humans[0]
         }
 
         // Lookup client
-        var application idp.Client
-        clients, err := idp.FetchClients(tx, nil, []idp.Client{ {Identity: idp.Identity{Id:hydraLoginResponse.Client.ClientId}} })
-        if err != nil {
+        if clientId != "" {
+          clients, err := idp.FetchClients(tx, nil, []idp.Client{ {Identity: idp.Identity{Id:clientId}} })
+          if err != nil {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+            log.WithFields(logrus.Fields{"id":clientId}).Debug("Client not found")
+            return
+          }
+          if len(clients) <= 0 {
+            e := tx.Rollback()
+            if e != nil {
+              log.Debug(e.Error())
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+            log.Debug(err.Error())
+            return
+          }
           application = clients[0]
         }
 
