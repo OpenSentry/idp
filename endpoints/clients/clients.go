@@ -170,7 +170,7 @@ func PostClients(env *environment.State) gin.HandlerFunc {
       session, tx, err := idp.BeginWriteTx(env.Driver)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-        log.Debug(err.Error())
+        log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to begin transaction")
         return
       }
       defer tx.Close() // rolls back if not already committed/rolled back
@@ -182,7 +182,7 @@ func PostClients(env *environment.State) gin.HandlerFunc {
         identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
         if err != nil {
           bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
+          log.WithFields(logrus.Fields{ "error": err.Error(), "id": requestor }).Debug("Failed to fetch identity")
           return
         }
         if len(identities) > 0 {
@@ -215,28 +215,31 @@ func PostClients(env *environment.State) gin.HandlerFunc {
           if r.Secret == "" {
             secret, err = utils.GenerateRandomString(64)
             if err != nil {
+              log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to generate random secret")
+
               e := tx.Rollback()
               if e != nil {
-                log.Debug(e.Error())
+                log.WithFields(logrus.Fields{ "error": e.Error() }).Debug("Failed to rollback transaction")
               }
               bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
               request.Output = bulky.NewInternalErrorResponse(request.Index)
-              log.Debug(err.Error())
               return
             }
           } else {
             secret = r.Secret
           }
 
+          log.Debug(secret)
           encryptedClientSecret, err := idp.Encrypt(secret, cryptoKey) // Encrypt the secret before storage
           if err != nil {
+            log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to encrypt secret")
+
             e := tx.Rollback()
             if e != nil {
-              log.Debug(e.Error())
+              log.WithFields(logrus.Fields{ "error": e.Error() }).Debug("Failed to rollback transaction")
             }
             bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
             request.Output = bulky.NewInternalErrorResponse(request.Index)
-            log.Debug(err.Error())
             return
           }
 
@@ -245,13 +248,15 @@ func PostClients(env *environment.State) gin.HandlerFunc {
 
         objClient, err := idp.CreateClient(tx, requestedBy, newClient)
         if err != nil {
+          log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to create client")
+
           e := tx.Rollback()
           if e != nil {
-            log.Debug(e.Error())
+            log.WithFields(logrus.Fields{ "error": e.Error() }).Debug("Failed to rollback transaction")
           }
+
           bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
           request.Output = bulky.NewInternalErrorResponse(request.Index)
-          log.Debug(err.Error())
           return
         }
 
@@ -277,7 +282,7 @@ func PostClients(env *environment.State) gin.HandlerFunc {
         // Deny by default
         e := tx.Rollback()
         if e != nil {
-          log.Debug(e.Error())
+          log.WithFields(logrus.Fields{ "error": e.Error() }).Debug("Failed to rollback transaction")
         }
         bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
         request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
