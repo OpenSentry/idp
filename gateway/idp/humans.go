@@ -408,6 +408,53 @@ func UpdatePassword(tx neo4j.Transaction, newHuman Human) (human Human, err erro
   return human, nil
 }
 
+func UpdateEmail(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
+  var result neo4j.Result
+  var cypher string
+  var params = make(map[string]interface{})
+
+  if newHuman.Id == "" {
+    return Human{}, errors.New("Missing Human.Id")
+  }
+
+  if newHuman.Email == "" {
+    return Human{}, errors.New("Missing Human.Email")
+  }
+
+  params["id"] = newHuman.Id
+  params["email"] = newHuman.Email
+
+  cypher = fmt.Sprintf(`
+    MATCH (i:Human:Identity {id:$id})
+    SET i.email=$email
+    RETURN i
+  `)
+
+  if result, err = tx.Run(cypher, params); err != nil {
+    return Human{}, err
+  }
+
+  if result.Next() {
+    record          := result.Record()
+    humanNode       := record.GetByIndex(0)
+
+    if humanNode != nil {
+      human = marshalNodeToHuman(humanNode.(neo4j.Node))
+    }
+  } else {
+    return Human{}, errors.New("Unable to update email for human")
+  }
+
+  logCypher(cypher, params)
+
+  // Check if we encountered any error during record streaming
+  if err = result.Err(); err != nil {
+    return Human{}, err
+  }
+
+  return human, nil
+}
+
 func UpdateAllowLogin(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
   var result neo4j.Result
   var cypher string
