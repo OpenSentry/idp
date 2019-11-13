@@ -172,7 +172,7 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
               }
               bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
               request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-              log.Debug(err.Error())
+              log.WithFields(logrus.Fields{"error": err.Error()}).Debug("Failed to send email")
               return
             }
 
