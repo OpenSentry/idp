@@ -122,6 +122,19 @@ type UpdateHumansRecoverVerifyRequest struct {
   NewPassword string `json:"new_password"    validate:"required"`
 }
 
+type CreateHumansEmailChangeResponse HumanVerification
+type CreateHumansEmailChangeRequest struct {
+  Id          string `json:"id"          validate:"required,uuid"`
+  RedirectTo  string `json:"redirect_to" validate:"required,uri"`
+  Email       string `json:"email"       validate:"required,email"`
+}
+
+type UpdateHumansEmailConfirmResponse HumanVerification
+type UpdateHumansEmailConfirmRequest struct {
+  EmailChallenge string `json:"email_challenge" validate:"required,uuid"`
+  Email          string `json:"email"           validate:"required,email"`
+}
+
 type CreateHumansLogoutResponse Logout
 type CreateHumansLogoutRequest struct {
   IdToken    string `json:"id_token"              validate:"required"`
@@ -204,7 +217,6 @@ func UpdateHumansPassword(client *IdpClient, url string, requests []UpdateHumans
   return status, responses, nil
 }
 
-
 func UpdateHumansTotp(client *IdpClient, url string, requests []UpdateHumansTotpRequest) (status int, responses bulky.Responses, err error) {
   status, err = handleRequest(client, requests, "PUT", url, &responses)
 
@@ -239,6 +251,26 @@ func RecoverHumans(client *IdpClient, url string, requests []CreateHumansRecover
 
 
 func RecoverHumansVerify(client *IdpClient, url string, requests []UpdateHumansRecoverVerifyRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "PUT", url, &responses)
+
+  if err != nil {
+    return status, nil, err
+  }
+
+  return status, responses, nil
+}
+
+func CreateHumansEmailChange(client *IdpClient, url string, requests []CreateHumansEmailChangeRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "POST", url, &responses)
+
+  if err != nil {
+    return status, nil, err
+  }
+
+  return status, responses, nil
+}
+
+func UpdateHumansEmailConfirm(client *IdpClient, url string, requests []UpdateHumansEmailConfirmRequest) (status int, responses bulky.Responses, err error) {
   status, err = handleRequest(client, requests, "PUT", url, &responses)
 
   if err != nil {

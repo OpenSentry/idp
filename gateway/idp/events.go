@@ -20,6 +20,11 @@ func EmitEventHumanPasswordChanged(natsConnection *nats.Conn, human Human) {
   natsConnection.Publish("idp.human.password.changed", []byte(e))
 }
 
+func EmitEventHumanEmailChanged(natsConnection *nats.Conn, human Human) {
+  e := fmt.Sprintf("{id:%s}", human.Id)
+  natsConnection.Publish("idp.human.email.changed", []byte(e))
+}
+
 func EmitEventClientCreated(natsConnection *nats.Conn, client Client) {
   e := fmt.Sprintf("{id:%s}", client.Id)
   natsConnection.Publish("idp.client.created", []byte(e))
