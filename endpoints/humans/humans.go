@@ -325,6 +325,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
             "idp:read:humans",
             "idp:update:humans:totp",
             "idp:update:humans:password",
+            "idp:create:humans:emailchange",
             "idp:create:humans:logout",
             "idp:read:humans:logout",
             "idp:update:humans:logout",

@@ -292,6 +292,9 @@ func serve(env *environment.State) {
   r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "idp:create:humans:recover"), humans.PostRecover(env) )
   r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:update:humans:recoververification"), humans.PutRecoverVerification(env) )
 
+  r.POST( "/humans/emailchange", utils.AuthorizationRequired(aconf, "idp:create:humans:emailchange"), humans.PostEmailChange(env) )
+  r.PUT(  "/humans/emailchange", utils.AuthorizationRequired(aconf, "idp:update:humans:emailchange"), humans.PutEmailChange(env) )
+
   r.GET ( "/clients", utils.AuthorizationRequired(aconf, "idp:read:clients"), clients.GetClients(env))
   r.POST( "/clients", utils.AuthorizationRequired(aconf, "idp:create:clients"), clients.PostClients(env) )
   r.DELETE( "/clients", utils.AuthorizationRequired(aconf, "idp:delete:clients"), clients.DeleteClients(env) )
