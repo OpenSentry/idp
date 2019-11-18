@@ -110,10 +110,6 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
               AllowLogin:           i.AllowLogin,
               TotpRequired:         i.TotpRequired,
               TotpSecret:           i.TotpSecret,
-              OtpRecoverCode:       i.OtpRecoverCode,
-              OtpRecoverCodeExpire: i.OtpRecoverCodeExpire,
-              OtpDeleteCode:        i.OtpDeleteCode,
-              OtpDeleteCodeExpire:  i.OtpDeleteCodeExpire,
             })
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)
@@ -273,10 +269,6 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
               AllowLogin: human.AllowLogin,
               TotpRequired: human.TotpRequired,
               TotpSecret: human.TotpSecret,
-              OtpRecoverCode: human.OtpRecoverCode,
-              OtpRecoverCodeExpire: human.OtpRecoverCodeExpire,
-              OtpDeleteCode: human.OtpDeleteCode,
-              OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)
           log.WithFields(logrus.Fields{"id":ok.Id}).Debug("Human created")
@@ -326,6 +318,7 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
             "idp:update:humans:totp",
             "idp:update:humans:password",
             "idp:create:humans:emailchange",
+            "idp:update:humans:emailchange",
             "idp:create:humans:logout",
             "idp:read:humans:logout",
             "idp:update:humans:logout",
@@ -450,10 +443,6 @@ func PutHumans(env *environment.State) gin.HandlerFunc {
             AllowLogin: human.AllowLogin,
             TotpRequired: human.TotpRequired,
             TotpSecret: human.TotpSecret,
-            OtpRecoverCode: human.OtpRecoverCode,
-            OtpRecoverCodeExpire: human.OtpRecoverCodeExpire,
-            OtpDeleteCode: human.OtpDeleteCode,
-            OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)
           continue
@@ -512,9 +501,9 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var sender idp.SMTPSender = idp.SMTPSender{ Name: config.GetString("delete.sender.name"), Email: config.GetString("delete.sender.email") }
-    var templateFile string = config.GetString("delete.template.email.file")
-    var emailSubject string = config.GetString("delete.template.email.subject")
+    var sender idp.SMTPSender = idp.SMTPSender{ Name: config.GetString("provider.name"), Email: config.GetString("provider.email") }
+    var templateFile string = config.GetString("templates.delete.email.templatefile")
+    var emailSubject string = config.GetString("templates.delete.email.subject")
 
     smtpConfig := idp.SMTPConfig{
       Host: config.GetString("mail.smtp.host"),
@@ -602,7 +591,7 @@ func DeleteHumans(env *environment.State) gin.HandlerFunc {
             RedirectTo: r.RedirectTo, // Requested success url redirect.
             CodeType: int64(client.OTP),
           }
-          challenge, otpCode, err := idp.CreateChallengeForOTP(tx, newChallenge)
+          challenge, otpCode, err := idp.CreateChallengeUsingOtp(tx, idp.ChallengeEmailConfirm, newChallenge)
           if err != nil {
             e := tx.Rollback()
             if e != nil {

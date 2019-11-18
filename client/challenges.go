@@ -4,9 +4,19 @@ import (
   bulky "github.com/charmixer/bulky/client"
 )
 
-type EmailTemplate int
-type OTPType int
+type ConfirmationType int
+const (
+  ConfirmIdentity ConfirmationType = iota + 1 // Start from one so required input validation will work.
+  ConfirmIdentityDeletion
+  ConfirmIdentityRecovery
+  ConfirmIdentityControlOfEmail
+  ConfirmIdentityControlOfEmailDuringChange
+)
+func (d ConfirmationType) String() string {
+  return [...]string{"ConfirmIdentity", "ConfirmIdentityDeletion", "ConfirmIdentityRecovery", "ConfirmIdentityControlOfEmail", "ConfirmIdentityControlOfEmailDuringChange"}[d]
+}
 
+type OTPType int
 const (
   OTP OTPType = OTPType(iota)
   TOTP
@@ -15,18 +25,10 @@ func (d OTPType) String() string {
   return [...]string{"OTP", "TOTP"}[d]
 }
 
-const (
-  ConfirmOTP EmailTemplate = EmailTemplate(iota)
-  ConfirmEmail 
-  ConfirmDelete
-  ConfirmRecover
-)
-func (d EmailTemplate) String() string {
-  return [...]string{"ConfirmEmail", "ConfirmDelete", "ConfirmRecover", "ConfirmOTP"}[d]
-}
-
 type Challenge struct {
   OtpChallenge  string `json:"otp_challenge"  validate:"required"`
+  ConfirmationType int `json:"confirmation_type" validate:"numeric"`
+
   Subject       string `json:"sub"            validate:"required,uuid"`
   Audience      string `json:"aud"            validate:"required"`
   IssuedAt      int64  `json:"iat"            validate:"required"`
@@ -35,7 +37,11 @@ type Challenge struct {
   RedirectTo    string `json:"redirect_to"    validate:"required,url"`
   CodeType      int64  `json:"code_type"`
   Code          string `json:"code,omitempty"`
+
   VerifiedAt    int64  `json:"verified_at"`
+
+  Data          string `json:"data,omitempty"`
+
 }
 
 type ChallengeVerification struct {
@@ -46,6 +52,8 @@ type ChallengeVerification struct {
 
 type CreateChallengesResponse Challenge
 type CreateChallengesRequest struct {
+  ConfirmationType int `json:"confirmation_type" validate:"numeric"`
+
   Subject       string `json:"sub"         validate:"required,uuid"`
   Audience      string `json:"aud"         validate:"required"`
   TTL           int64  `json:"ttl"         validate:"required"`
@@ -54,7 +62,7 @@ type CreateChallengesRequest struct {
   Code          string `json:"code"        validate:"required"`
 
   Email         string `json:"email,omitempty" validate:"omitempty,email"`
-  Template      EmailTemplate `json:"tpl,omitempty" validate:"omitempty,numeric"`
+  // Template      EmailTemplate `json:"tpl,omitempty" validate:"omitempty,numeric"`
 }
 
 type ReadChallengesResponse []Challenge

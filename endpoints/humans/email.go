@@ -5,7 +5,6 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
-  "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
@@ -14,28 +13,20 @@ import (
   bulky "github.com/charmixer/bulky/server"
 )
 
-func PutTotp(env *environment.State) gin.HandlerFunc {
+func PutEmail(env *environment.State) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
     log := c.MustGet(environment.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
-      "func": "PutTotp",
+      "func": "PutEmail",
     })
 
-    var requests []client.UpdateHumansTotpRequest
+    var requests []client.UpdateHumansEmailRequest
     err := c.BindJSON(&requests)
     if err != nil {
       c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
       return
     }
-
-    keys := config.GetStringSlice("crypto.keys.totp")
-    if len(keys) <= 0 {
-      log.WithFields(logrus.Fields{"key":"crypto.keys.totp"}).Debug("Missing config")
-      c.AbortWithStatus(http.StatusInternalServerError)
-      return
-    }
-    cryptoKey := keys[0]
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
@@ -63,7 +54,7 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
       }
 
       for _, request := range iRequests {
-        r := request.Input.(client.UpdateHumansTotpRequest)
+        r := request.Input.(client.UpdateHumansEmailRequest)
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
@@ -101,25 +92,7 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
         }
         human := dbHumans[0]
 
-        encryptedSecret, err := idp.Encrypt(r.TotpSecret, cryptoKey)
-        if err != nil {
-          e := tx.Rollback()
-          if e != nil {
-            log.Debug(e.Error())
-          }
-          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-          log.Debug(err.Error())
-          return
-        }
-
-        updatedHuman, err := idp.UpdateTotp(tx, idp.Human{
-          Identity: idp.Identity{
-            Id: human.Id,
-          },
-          TotpRequired: r.TotpRequired,
-          TotpSecret: encryptedSecret,
-        })
+        updatedHuman, err := idp.UpdateEmail(tx, idp.Human{ Identity: idp.Identity{ Id:  human.Id }, Email: r.Email })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -132,7 +105,7 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
         }
 
         if updatedHuman != (idp.Human{}) {
-          request.Output = bulky.NewOkResponse(request.Index, client.UpdateHumansTotpResponse{
+          request.Output = bulky.NewOkResponse(request.Index, client.UpdateHumansEmailResponse{
             Id: updatedHuman.Id,
             Username: updatedHuman.Username,
             //Password: updatedHuman.Password,
@@ -152,7 +125,7 @@ func PutTotp(env *environment.State) gin.HandlerFunc {
         }
         bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
         request.Output = bulky.NewInternalErrorResponse(request.Index)
-        log.Debug("Update totp failed. Hint: Maybe input validation needs to be improved.")
+        log.Debug("Update email failed. Hint: Maybe input validation needs to be improved.")
         return
       }
 
