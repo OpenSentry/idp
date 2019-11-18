@@ -14,10 +14,6 @@ type Human struct {
   AllowLogin           bool   `json:"allow_login"             validate:"required"`
   TotpRequired         bool   `json:"totp_required"           `
   TotpSecret           string `json:"totp_secret"             `
-  OtpRecoverCode       string `json:"otp_recover_code"        `
-  OtpRecoverCodeExpire int64  `json:"otp_recover_code_expire" `
-  OtpDeleteCode        string `json:"otp_delete_code"         `
-  OtpDeleteCodeExpire  int64  `json:"otp_delete_code_expire"  `
 }
 
 type HumanAuthentication struct {
@@ -100,6 +96,13 @@ type UpdateHumansTotpRequest struct {
   TotpRequired bool   `json:"totp_required"`
   TotpSecret   string `json:"totp_secret"   validate:"required"`
 }
+
+type UpdateHumansEmailResponse Human
+type UpdateHumansEmailRequest struct {
+  Id    string `json:"id"    validate:"required,uuid"`
+  Email string `json:"email" validate:"required,email"`
+}
+
 
 type CreateHumansAuthenticateResponse HumanAuthentication
 type CreateHumansAuthenticateRequest struct {

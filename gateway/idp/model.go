@@ -62,25 +62,18 @@ type Identity struct {
 func marshalNodeToIdentity(node neo4j.Node) (Identity) {
   p := node.Props()
 
-  var otpDeleteCode string
-  var OtpDeleteCodeExpire int64
-
-  if p["otp_delete_code"] != nil { otpDeleteCode = p["otp_delete_code"].(string) }
-  if p["otp_delete_code_expire"] != nil { OtpDeleteCodeExpire = p["otp_delete_code_expire"].(int64) }
-
   return Identity{
     Id:        p["id"].(string),
     Labels:    strings.Join(node.Labels(), ":"),
     Issuer:    p["iss"].(string),
     ExpiresAt: p["exp"].(int64),
     IssuedAt:  p["iat"].(int64),
-    OtpDeleteCode:        otpDeleteCode,
-    OtpDeleteCodeExpire:  OtpDeleteCodeExpire,
   }
 }
 
 type Challenge struct {
   Id string
+  ChallengeType ChallengeType
 
   JwtRegisteredClaims
 
@@ -90,15 +83,68 @@ type Challenge struct {
   Code         string
 
   VerifiedAt   int64
+
+  Data string
 }
+
+type ChallengeType int
+
+const (
+    ChallengeNotSupported ChallengeType = iota + 0 // Start a 0
+    ChallengeAuthenticate
+    ChallengeRecover
+    ChallengeDelete
+    ChallengeEmailConfirm
+    ChallengeEmailChange
+)
+
+func (d ChallengeType) String() string {
+    return [...]string{"ChallengeNotSupported", "ChallengeAuthenticate", "ChallengeRecover", "ChallengeDelete", "ChallengeEmailConfirm", "ChallengeEmailChange"}[d]
+}
+
 func marshalNodeToChallenge(node neo4j.Node) (Challenge) {
   p := node.Props()
 
   var verifiedAt int64
   if (p["verified_at"] != nil) { verifiedAt = p["verified_at"].(int64) }
 
+  var ct ChallengeType = ChallengeNotSupported
+  for _, label := range node.Labels() {
+
+    if label == "Authenticate" {
+      ct = ChallengeAuthenticate
+      break;
+    }
+
+    if label == "Recover" {
+      ct = ChallengeRecover
+      break;
+    }
+
+    if label == "Delete" {
+      ct = ChallengeDelete
+      break;
+    }
+
+    if label == "EmailConfirm" {
+      ct = ChallengeEmailConfirm
+      break;
+    }
+
+    if label == "EmailChange" {
+      ct = ChallengeEmailChange
+      break;
+    }
+  }
+
+  var data string
+  if p["data"] != nil {
+    data = p["data"].(string)
+  }
+
   return Challenge{
     Id:         p["id"].(string),
+    ChallengeType: ct,
 
     JwtRegisteredClaims: marshalNodeToJwtRegisteredClaims(node),
 
@@ -108,6 +154,8 @@ func marshalNodeToChallenge(node neo4j.Node) (Challenge) {
     Code:       p["code"].(string),
 
     VerifiedAt:   verifiedAt,
+
+    Data: data,
   }
 }
 
@@ -259,9 +307,6 @@ type Human struct {
 
   TotpRequired         bool
   TotpSecret           string
-
-  OtpRecoverCode       string
-  OtpRecoverCodeExpire int64
 }
 func marshalNodeToHuman(node neo4j.Node) (Human) {
   p := node.Props()
@@ -281,9 +326,6 @@ func marshalNodeToHuman(node neo4j.Node) (Human) {
 
     TotpRequired:         p["totp_required"].(bool),
     TotpSecret:           p["totp_secret"].(string),
-
-    OtpRecoverCode:       p["otp_recover_code"].(string),
-    OtpRecoverCodeExpire: p["otp_recover_code_expire"].(int64),
 
   }
 }

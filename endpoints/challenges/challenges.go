@@ -1,16 +1,19 @@
 package challenges
 
 import (
+  "errors"
   "time"
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
-
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
+
+  aap "github.com/charmixer/aap/client"
+  bulkyClient "github.com/charmixer/bulky/client"
 
   bulky "github.com/charmixer/bulky/server"
 )
@@ -98,6 +101,7 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
               RedirectTo: d.RedirectTo,
               CodeType: d.CodeType,
               VerifiedAt: d.VerifiedAt,
+              Data: d.Data,
             })
           }
           request.Output = bulky.NewOkResponse(request.Index, ok)
@@ -163,8 +167,50 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
       //  }
       // }
 
+      challengeTypeRequiredScopes := map[idp.ChallengeType][]string{
+        idp.ChallengeAuthenticate: []string{"idp:create:challenge.authenticate"},
+        idp.ChallengeRecover: []string{"idp:create:challenge.recover"},
+        idp.ChallengeDelete: []string{"idp:create:challenge.delete"},
+      }
+
       for _, request := range iRequests {
         r := request.Input.(client.CreateChallengesRequest)
+
+        ct := translateConfirmationTypeToChallengeType(r.ConfirmationType)
+        if ct == idp.ChallengeNotSupported {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewClientErrorResponse(request.Index, E.CHALLENGE_CONFIRMATION_TYPE_INVALID)
+          return
+        }
+
+        // Call judge to test if allowed to call endpoint for challenge type
+        requiredScopes := challengeTypeRequiredScopes[ct]
+        valid, err := judgeRequiredScope(env, c, log, requiredScopes...)
+        if err != nil {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+          log.Debug(err.Error())
+          return
+        }
+
+        // Judgement!
+        if valid == false {
+          e := tx.Rollback()
+          if e != nil {
+            log.Debug(e.Error())
+          }
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewErrorResponse(request.Index, http.StatusForbidden, E.HUMAN_TOKEN_INVALID)
+          return
+        }
 
         newChallenge := idp.Challenge{
           JwtRegisteredClaims: idp.JwtRegisteredClaims{
@@ -180,9 +226,9 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
         var otpCode idp.ChallengeCode
         var challenge idp.Challenge
         if client.OTPType(newChallenge.CodeType) == client.TOTP {
-          challenge, err = idp.CreateChallengeForTOTP(tx, newChallenge)
+          challenge, err = idp.CreateChallengeUsingTotp(tx, ct, newChallenge)
         } else {
-          challenge, otpCode, err = idp.CreateChallengeForOTP(tx, newChallenge)
+          challenge, otpCode, err = idp.CreateChallengeUsingOtp(tx, ct, newChallenge)
         }
         if err == nil && challenge.Id != "" {
 
@@ -190,41 +236,34 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
 
             // Sent challenge to requested email
 
-            var templateFile string
-            var emailSubject string
-            var sender idp.SMTPSender
+            emailTemplate := (*env.TemplateMap)[ct]
+            if emailTemplate == (environment.EmailTemplate{}) {
+              e := tx.Rollback()
+              if e != nil {
+                log.Debug(e.Error())
+              }
+              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+              request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+              log.WithFields(logrus.Fields{ "challenge_type":ct.String() }).Debug("Email template not found")
+              return
+            }
 
-            switch (r.Template) {
-            case client.ConfirmEmail:
-              sender = idp.SMTPSender{ Name: config.GetString("emailconfirm.sender.name"), Email: config.GetString("emailconfirm.sender.email") }
-              templateFile = config.GetString("emailconfirm.template.email.file")
-              emailSubject = config.GetString("emailconfirm.template.email.subject")
-            case client.ConfirmDelete:
-              sender = idp.SMTPSender{ Name: config.GetString("delete.sender.name"), Email: config.GetString("delete.sender.email") }
-              templateFile = config.GetString("delete.template.email.file")
-              emailSubject = config.GetString("delete.template.email.subject")
-            default:
-              sender = idp.SMTPSender{ Name: config.GetString("otp.sender.name"), Email: config.GetString("otp.sender.email") }
-              templateFile = config.GetString("otp.template.email.file")
-              emailSubject = config.GetString("otp.template.email.subject")
+            var data = ConfirmTemplateData{
+              Challenge: challenge.Id,
+              Sender: emailTemplate.Sender.Name,
+              Id: challenge.Subject,
+              Email: r.Email,
+              Code: otpCode.Code, // Note this is the clear text generated code and not the hashed one stored in DB.
             }
 
             smtpConfig := idp.SMTPConfig{
               Host: config.GetString("mail.smtp.host"),
               Username: config.GetString("mail.smtp.user"),
               Password: config.GetString("mail.smtp.password"),
-              Sender: sender,
+              Sender: emailTemplate.Sender,
               SkipTlsVerify: config.GetInt("mail.smtp.skip_tls_verify"),
             }
-
-            var data = ConfirmTemplateData{
-              Challenge: challenge.Id,
-              Sender: sender.Name,
-              Id: challenge.Subject,
-              Email: r.Email,
-              Code: otpCode.Code, // Note this is the clear text generated code and not the hashed one stored in DB.
-            }
-            _, err = idp.SendEmailUsingTemplate(smtpConfig, r.Email, r.Email, emailSubject, templateFile, data)
+            _, err = idp.SendEmailUsingTemplate(smtpConfig, r.Email, r.Email, emailTemplate.Subject, emailTemplate.File, data)
             if err != nil {
               e := tx.Rollback()
               if e != nil {
@@ -238,8 +277,11 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
 
           }
 
+          confirmationType := translateChallengeTypeToConfirmationType(challenge.ChallengeType)
+
           request.Output = bulky.NewOkResponse(request.Index, client.CreateChallengesResponse{
             OtpChallenge: challenge.Id,
+            ConfirmationType: int(confirmationType),
             Subject: challenge.Subject,
             Audience: challenge.Audience,
             IssuedAt: challenge.IssuedAt,
@@ -277,5 +319,108 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
     c.JSON(http.StatusOK, responses)
   }
   return gin.HandlerFunc(fn)
+}
+
+func judgeRequiredScope(env *environment.State, c *gin.Context, log *logrus.Entry, requiredScopes ...string) (valid bool, err error) {
+
+  // Check that access token has required scopes
+  v, exists := c.Get("scope") // scope from introspection call
+  if exists == false {
+    return false, errors.New("Missing scope in context")
+  }
+  scope := v.(string)
+
+  // TODO: Check the access token for required scopes.
+  log.Debug(scope)
+
+  // Check that subject is granted scopes.
+  v, exists = c.Get("sub") // sub from introspection call
+  if exists == false {
+    return false, errors.New("Missing sub in context")
+  }
+  sub := v.(string)
+
+  aapClient := aap.NewAapClient(env.AapConfig)
+  url := config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.entities.judge")
+  judgeRequests := []aap.ReadEntitiesJudgeRequest{ {
+    Publisher: config.GetString("id"), // ResourceServer receiving the call. IDP
+    Requestor: sub,
+    Owners: []string{ sub }, // should be owners
+    Scopes: requiredScopes,
+  }}
+  status, responses, err := aap.ReadEntitiesJudge(aapClient, url, judgeRequests)
+  if err != nil {
+    return false, err
+  }
+
+  if status == http.StatusOK {
+
+    var verdict aap.ReadEntitiesJudgeResponse
+    status, restErr := bulkyClient.Unmarshal(0, responses, &verdict)
+    if restErr != nil {
+      log.Debug(restErr)
+      return false, errors.New("Unmarshal ReadEntitiesJudgeResponse failed")
+    }
+
+    if status == http.StatusOK {
+
+      if verdict.Granted == true {
+        // log.WithFields(logrus.Fields{"sub": sub, "scope": strRequiredScopes}).Debug("Authorized")
+        return true, nil // Authenticated
+      }
+
+    }
+
+  }
+
+  // Deny by default
+  return false, nil
+}
+
+func translateConfirmationTypeToChallengeType(confirmationType int) (challengeType idp.ChallengeType) {
+  ct := client.ConfirmationType(confirmationType)
+  switch ct {
+
+  case client.ConfirmIdentity:
+    return idp.ChallengeAuthenticate
+
+  case client.ConfirmIdentityDeletion:
+    return idp.ChallengeDelete
+
+  case client.ConfirmIdentityRecovery:
+    return idp.ChallengeRecover
+
+  case client.ConfirmIdentityControlOfEmail:
+    return idp.ChallengeEmailConfirm
+
+  case client.ConfirmIdentityControlOfEmailDuringChange:
+    return idp.ChallengeEmailChange
+
+  default:
+    return idp.ChallengeNotSupported
+  }
+}
+
+func translateChallengeTypeToConfirmationType(challengeType idp.ChallengeType) (confirmationType client.ConfirmationType) {
+  switch challengeType {
+
+  case idp.ChallengeAuthenticate:
+    return client.ConfirmIdentity
+
+  case idp.ChallengeDelete:
+    return client.ConfirmIdentityDeletion
+
+  case idp.ChallengeRecover:
+    return client.ConfirmIdentityRecovery
+
+  case idp.ChallengeEmailConfirm:
+    return client.ConfirmIdentityControlOfEmail
+
+  case idp.ChallengeEmailChange:
+    return client.ConfirmIdentityControlOfEmailDuringChange
+
+  default:
+    return client.ConfirmationType(0)
+  }
 }
 
