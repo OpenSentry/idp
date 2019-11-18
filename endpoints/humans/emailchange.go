@@ -45,9 +45,9 @@ func PostEmailChange(env *environment.State) gin.HandlerFunc {
       return
     }
 
-    var sender idp.SMTPSender = idp.SMTPSender{ Name: config.GetString("emailchange.sender.name"), Email: config.GetString("emailchange.sender.email") }
-    var templateFile string = config.GetString("emailchange.template.email.file")
-    var emailSubject string = config.GetString("emailchange.template.email.subject")
+    var sender idp.SMTPSender = idp.SMTPSender{ Name: config.GetString("provider.name"), Email: config.GetString("provider.email") }
+    var templateFile string = config.GetString("templates.emailchange.email.templatefile")
+    var emailSubject string = config.GetString("templates.emailchange.email.subject")
 
     smtpConfig := idp.SMTPConfig{
       Host: config.GetString("mail.smtp.host"),
@@ -134,8 +134,9 @@ func PostEmailChange(env *environment.State) gin.HandlerFunc {
             },
             RedirectTo: r.RedirectTo, // Requested success url redirect.
             CodeType: int64(client.OTP),
+            Data: r.Email,
           }
-          challenge, otpCode, err := idp.CreateChallengeForOTP(tx, newChallenge)
+          challenge, otpCode, err := idp.CreateChallengeUsingOtp(tx, idp.ChallengeEmailChange, newChallenge)
           if err != nil {
             e := tx.Rollback()
             if e != nil {
