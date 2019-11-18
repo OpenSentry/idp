@@ -14,10 +14,6 @@ type Human struct {
   AllowLogin           bool   `json:"allow_login"             validate:"required"`
   TotpRequired         bool   `json:"totp_required"           `
   TotpSecret           string `json:"totp_secret"             `
-  OtpRecoverCode       string `json:"otp_recover_code"        `
-  OtpRecoverCodeExpire int64  `json:"otp_recover_code_expire" `
-  OtpDeleteCode        string `json:"otp_delete_code"         `
-  OtpDeleteCodeExpire  int64  `json:"otp_delete_code_expire"  `
 }
 
 type HumanAuthentication struct {
@@ -101,6 +97,13 @@ type UpdateHumansTotpRequest struct {
   TotpSecret   string `json:"totp_secret"   validate:"required"`
 }
 
+type UpdateHumansEmailResponse Human
+type UpdateHumansEmailRequest struct {
+  Id    string `json:"id"    validate:"required,uuid"`
+  Email string `json:"email" validate:"required,email"`
+}
+
+
 type CreateHumansAuthenticateResponse HumanAuthentication
 type CreateHumansAuthenticateRequest struct {
   Challenge    string `json:"challenge"                validate:"required"`
@@ -120,6 +123,19 @@ type UpdateHumansRecoverVerifyResponse HumanVerification
 type UpdateHumansRecoverVerifyRequest struct {
   RecoverChallenge string `json:"recover_challenge" validate:"required,uuid"`
   NewPassword string `json:"new_password"    validate:"required"`
+}
+
+type CreateHumansEmailChangeResponse HumanVerification
+type CreateHumansEmailChangeRequest struct {
+  Id          string `json:"id"          validate:"required,uuid"`
+  RedirectTo  string `json:"redirect_to" validate:"required,uri"`
+  Email       string `json:"email"       validate:"required,email"`
+}
+
+type UpdateHumansEmailConfirmResponse HumanVerification
+type UpdateHumansEmailConfirmRequest struct {
+  EmailChallenge string `json:"email_challenge" validate:"required,uuid"`
+  Email          string `json:"email"           validate:"required,email"`
 }
 
 type CreateHumansLogoutResponse Logout
@@ -204,7 +220,6 @@ func UpdateHumansPassword(client *IdpClient, url string, requests []UpdateHumans
   return status, responses, nil
 }
 
-
 func UpdateHumansTotp(client *IdpClient, url string, requests []UpdateHumansTotpRequest) (status int, responses bulky.Responses, err error) {
   status, err = handleRequest(client, requests, "PUT", url, &responses)
 
@@ -239,6 +254,26 @@ func RecoverHumans(client *IdpClient, url string, requests []CreateHumansRecover
 
 
 func RecoverHumansVerify(client *IdpClient, url string, requests []UpdateHumansRecoverVerifyRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "PUT", url, &responses)
+
+  if err != nil {
+    return status, nil, err
+  }
+
+  return status, responses, nil
+}
+
+func CreateHumansEmailChange(client *IdpClient, url string, requests []CreateHumansEmailChangeRequest) (status int, responses bulky.Responses, err error) {
+  status, err = handleRequest(client, requests, "POST", url, &responses)
+
+  if err != nil {
+    return status, nil, err
+  }
+
+  return status, responses, nil
+}
+
+func UpdateHumansEmailConfirm(client *IdpClient, url string, requests []UpdateHumansEmailConfirmRequest) (status int, responses bulky.Responses, err error) {
   status, err = handleRequest(client, requests, "PUT", url, &responses)
 
   if err != nil {

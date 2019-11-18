@@ -7,16 +7,16 @@ import (
   "github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-func CreateChallengeForTOTP(tx neo4j.Transaction, newChallenge Challenge) (challenge Challenge, err error) {
+func CreateChallengeUsingTotp(tx neo4j.Transaction, challengeType ChallengeType, newChallenge Challenge) (challenge Challenge, err error) {
   newChallenge.Code = "" // Do not set this on TOTP requests
-  challenge, err = createChallenge(tx, newChallenge)
+  challenge, err = createChallenge(tx, newChallenge, ChallengeAuthenticate)
   if err != nil {
     return Challenge{}, err
   }
   return challenge, nil
 }
 
-func CreateChallengeForOTP(tx neo4j.Transaction, newChallenge Challenge) (challenge Challenge, otpCode ChallengeCode, err error) {
+func CreateChallengeUsingOtp(tx neo4j.Transaction, challengeType ChallengeType, newChallenge Challenge) (challenge Challenge, otpCode ChallengeCode, err error) {
   otpCode, err = CreateChallengeCode()
   if err != nil {
     return Challenge{}, ChallengeCode{}, err
@@ -28,14 +28,14 @@ func CreateChallengeForOTP(tx neo4j.Transaction, newChallenge Challenge) (challe
   }
   newChallenge.Code = hashedCode
 
-  challenge, err = createChallenge(tx, newChallenge)
+  challenge, err = createChallenge(tx, newChallenge, challengeType)
   if err != nil {
     return Challenge{}, ChallengeCode{}, err
   }
   return challenge, otpCode, nil
 }
 
-func createChallenge(tx neo4j.Transaction, newChallenge Challenge) (challenge Challenge, err error) {
+func createChallenge(tx neo4j.Transaction, newChallenge Challenge, challengeType ChallengeType) (challenge Challenge, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
@@ -61,13 +61,36 @@ func createChallenge(tx neo4j.Transaction, newChallenge Challenge) (challenge Ch
   params["code_type"] = newChallenge.CodeType
   params["code"] = newChallenge.Code
 
+  cypData := ""
+  if newChallenge.Data != "" {
+    cypData = ", data:$data "
+    params["data"] = newChallenge.Data
+  }
+
+  cypChallengeType := ""
+  switch (challengeType) {
+  case ChallengeAuthenticate:
+    cypChallengeType = ":Authenticate"
+  case ChallengeRecover:
+    cypChallengeType = ":Recover"
+  case ChallengeDelete:
+    cypChallengeType = ":Delete"
+  case ChallengeEmailConfirm:
+    cypChallengeType = ":EmailConfirm"
+  case ChallengeEmailChange:
+    cypChallengeType = ":EmailChange"
+  default:
+    return Challenge{}, errors.New("Unsupported challenge type")
+  }
+
   cypher = fmt.Sprintf(`
     MATCH (i:Identity {id:$sub})
-    MERGE (c:Challenge {
+    MERGE (c:Challenge%s {
       id:randomUUID(), iat:datetime().epochSeconds, iss:$iss, exp:$exp, aud:$aud, sub:$sub,
       redirect_to:$redirect_to,
       code_type:$code_type, code:$code,
       verified_at:0
+      %s
     })-[:CHALLENGES]->(i)
 
     WITH c
@@ -75,7 +98,7 @@ func createChallenge(tx neo4j.Transaction, newChallenge Challenge) (challenge Ch
     OPTIONAL MATCH (d:Challenge) WHERE id(c) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
 
     RETURN c
-  `)
+  `, cypChallengeType, cypData)
 
   if result, err = tx.Run(cypher, params); err != nil {
     return Challenge{}, err
