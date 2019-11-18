@@ -57,8 +57,6 @@ func init() {
   logDebug = config.GetInt("log.debug")
   logFormat = config.GetString("log.format")
 
-  // We only have 2 log levels. Things developers care about (debug) and things the user of the app cares about (info)
-  log = logrus.New();
   log.SetReportCaller(true)
   log.Formatter = &logrus.TextFormatter{
     CallerPrettyfier: func(f *runtime.Frame) (string, string) {
@@ -67,6 +65,7 @@ func init() {
     },
   }
 
+  // We only have 2 log levels. Things developers care about (debug) and things the user of the app cares about (info)
   if logDebug == 1 {
     log.SetLevel(logrus.DebugLevel)
   } else {
