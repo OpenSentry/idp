@@ -1,6 +1,7 @@
 package utils
 
 import (
+  "fmt"
   "bytes"
   "strings"
   "net"
@@ -353,9 +354,16 @@ func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) 
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
-    log.Debug(introspectResponse)
+    fmt.Printf("===== INSTROSPECTION ==========\n")
+    fmt.Printf("%#v", introspectResponse)
 
     if introspectResponse.Active == true {
+
+      if introspectResponse.TokenType != "access_token" {
+        log.Debug("Token is not an access_token")
+        c.AbortWithStatus(http.StatusForbidden)
+        return
+      }
 
       sub := introspectResponse.Sub
       // clientId := introspectResponse.ClientId // Identity.Id of the Oauth2 client doing the function call. If using client credentials flow this will be the same as introspectResponse.sub
@@ -399,6 +407,7 @@ func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) 
           if verdict.Granted == true {
             log.WithFields(logrus.Fields{"sub": sub, "scope": strRequiredScopes}).Debug("Authorized")
             c.Set("sub", sub)
+            c.Set("scope", introspectResponse.Scope)
             c.Next() // Authentication successful, continue.
             return
           }

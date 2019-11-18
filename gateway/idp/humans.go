@@ -48,10 +48,6 @@ func CreateHumanFromInvite(tx neo4j.Transaction, newHuman Human) (human Human, e
           i.password=$password,
           i.totp_required=false,
           i.totp_secret="",
-          i.otp_recover_code="",
-          i.otp_recover_code_expire=0,
-          i.otp_delete_code="",
-          i.otp_delete_code_expire=0,
           i.exp=0,
           i:Human
 
@@ -139,12 +135,7 @@ func CreateHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) 
       password: $password,
 
       totp_required: false,
-      totp_secret: "",
-
-      otp_recover_code: "",
-      otp_recover_code_expire: 0,
-      otp_delete_code: "",
-      otp_delete_code_expire: 0
+      totp_secret: ""
     })
     RETURN i
   `)
@@ -408,6 +399,53 @@ func UpdatePassword(tx neo4j.Transaction, newHuman Human) (human Human, err erro
   return human, nil
 }
 
+func UpdateEmail(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
+  var result neo4j.Result
+  var cypher string
+  var params = make(map[string]interface{})
+
+  if newHuman.Id == "" {
+    return Human{}, errors.New("Missing Human.Id")
+  }
+
+  if newHuman.Email == "" {
+    return Human{}, errors.New("Missing Human.Email")
+  }
+
+  params["id"] = newHuman.Id
+  params["email"] = newHuman.Email
+
+  cypher = fmt.Sprintf(`
+    MATCH (i:Human:Identity {id:$id})
+    SET i.email=$email
+    RETURN i
+  `)
+
+  if result, err = tx.Run(cypher, params); err != nil {
+    return Human{}, err
+  }
+
+  if result.Next() {
+    record          := result.Record()
+    humanNode       := record.GetByIndex(0)
+
+    if humanNode != nil {
+      human = marshalNodeToHuman(humanNode.(neo4j.Node))
+    }
+  } else {
+    return Human{}, errors.New("Unable to update email for human")
+  }
+
+  logCypher(cypher, params)
+
+  // Check if we encountered any error during record streaming
+  if err = result.Err(); err != nil {
+    return Human{}, err
+  }
+
+  return human, nil
+}
+
 func UpdateAllowLogin(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
   var result neo4j.Result
   var cypher string
@@ -530,106 +568,5 @@ func DeleteHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) 
   }
 
   human.Id = newHuman.Id
-  return human, nil
-}
-
-
-// @TODO: These should probably be refactored to challenge system and get deleted from here
-
-func UpdateOtpDeleteCode(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
-  var cypher string
-  var params = make(map[string]interface{})
-
-  if newHuman.Id == "" {
-    return Human{}, errors.New("Missing Human.Id")
-  }
-
-  if newHuman.OtpDeleteCode == "" {
-    return Human{}, errors.New("Missing Human.OtpDeleteCode")
-  }
-
-  params["id"] = newHuman.Id
-  params["otp_delete_code"] = newHuman.OtpDeleteCode
-  params["otp_delete_code_expire"] = newHuman.OtpDeleteCodeExpire
-
-  cypher = fmt.Sprintf(`
-    MATCH (i:Human:Identity {id:$id})
-    SET i.otp_delete_code = $otp_delete_code,
-        i.otp_delete_code_expire = $otp_delete_code_expire
-    RETURN i
-  `)
-
-  if result, err = tx.Run(cypher, params); err != nil {
-    return Human{}, err
-  }
-
-  if result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human = marshalNodeToHuman(humanNode.(neo4j.Node))
-    }
-  } else {
-    return Human{}, errors.New("Unable to update OTP delete code for human")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return Human{}, err
-  }
-
-  return human, nil
-}
-
-func UpdateOtpRecoverCode(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
-  var cypher string
-  var params = make(map[string]interface{})
-
-  if newHuman.Id == "" {
-    return Human{}, errors.New("Missing Human.Id")
-  }
-
-  if newHuman.OtpRecoverCode == "" {
-    return Human{}, errors.New("Missing Human.OtpRecoverCode")
-  }
-
-  params["id"] = newHuman.Id
-  params["otp_recover_code"] = newHuman.OtpRecoverCode
-  params["otp_recover_code_expire"] = newHuman.OtpRecoverCodeExpire
-
-  cypher = fmt.Sprintf(`
-    MATCH (i:Human:Identity {id:$id})
-    SET i.otp_recover_code = $otp_recover_code,
-        i.otp_recover_code_expire = $otp_recover_code_expire
-    RETURN i
-  `)
-
-  if result, err = tx.Run(cypher, params); err != nil {
-    return Human{}, err
-  }
-
-  if result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human = marshalNodeToHuman(humanNode.(neo4j.Node))
-    }
-  } else {
-    return Human{}, errors.New("Unable to update OTP recover code for human")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return Human{}, err
-  }
-
   return human, nil
 }

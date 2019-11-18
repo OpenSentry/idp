@@ -9,6 +9,7 @@ const EMPTY_REQUEST_NOT_ALLOWED  = 2
 const MAX_REQUESTS_EXCEEDED      = 3
 const FAILED_DUE_TO_OTHER_ERRORS = 4
 const INTERNAL_SERVER_ERROR      = 5
+const FORBIDDEN                  = 6
 
 const IDENTITY_NOT_FOUND = 10
 
@@ -27,6 +28,7 @@ const RESOURCESERVER_NOT_FOUND = 60
 
 const CHALLENGE_NOT_FOUND = 30
 const CHALLENGE_NOT_CREATED = 31
+const CHALLENGE_CONFIRMATION_TYPE_INVALID = 32
 
 const USERNAME_BANNED = 80
 const USERNAME_EXISTS = 81
@@ -91,6 +93,13 @@ func InitRestErrors() {
           "en": "Not found",
           "dev": "Challenge not found",
         },
+
+      CHALLENGE_CONFIRMATION_TYPE_INVALID:
+        {
+          "en": "Invalid confirmation type",
+          "dev": "Invalid confirmation type",
+        },
+
       HUMAN_TOTP_NOT_REQUIRED:
         {
           "en":  "TOTP not required",

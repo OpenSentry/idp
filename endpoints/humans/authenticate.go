@@ -70,9 +70,9 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
     var emailSubject string
     var sender idp.SMTPSender
 
-    sender = idp.SMTPSender{ Name: config.GetString("emailconfirm.sender.name"), Email: config.GetString("emailconfirm.sender.email") }
-    templateFile = config.GetString("emailconfirm.template.email.file")
-    emailSubject = config.GetString("emailconfirm.template.email.subject")
+    sender = idp.SMTPSender{ Name: config.GetString("provider.name"), Email: config.GetString("provider.email") }
+    templateFile = config.GetString("templates.emailconfirm.email.templatefile")
+    emailSubject = config.GetString("templates.emailconfirm.email.subject")
 
     smtpConfig := idp.SMTPConfig{
       Host: config.GetString("mail.smtp.host"),
@@ -133,7 +133,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
         deny := client.CreateHumansAuthenticateResponse{}
         deny.Id = subject
 
-        // Lookup subject        
+        // Lookup subject
         if subject != "" {
           humans, err := idp.FetchHumans(tx, []idp.Human{ {Identity: idp.Identity{Id:subject}} })
           if err != nil {
@@ -464,8 +464,9 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                     },
                     RedirectTo: redirectToUrlWhenVerified.String(),
                     CodeType: int64(client.OTP),
+                    Data: human.Email,
                   }
-                  challenge, otpCode, err := idp.CreateChallengeForOTP(tx, newChallenge)
+                  challenge, otpCode, err := idp.CreateChallengeUsingOtp(tx, idp.ChallengeAuthenticate, newChallenge)
                   if err != nil {
                     e := tx.Rollback()
                     if e != nil {
@@ -523,7 +524,7 @@ func PostAuthenticate(env *environment.State) gin.HandlerFunc {
                     RedirectTo: redirectToUrlWhenVerified.String(),
                     CodeType: int64(client.TOTP),
                   }
-                  challenge, err := idp.CreateChallengeForTOTP(tx, newChallenge)
+                  challenge, err := idp.CreateChallengeUsingTotp(tx, idp.ChallengeAuthenticate, newChallenge)
                   if err != nil {
                     e := tx.Rollback()
                     if e != nil {
