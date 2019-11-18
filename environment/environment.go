@@ -6,6 +6,7 @@ import (
   oidc "github.com/coreos/go-oidc"
   "github.com/neo4j/neo4j-go-driver/neo4j"
   nats "github.com/nats-io/nats.go"
+  "github.com/charmixer/idp/gateway/idp"
 )
 
 const (
@@ -24,9 +25,11 @@ type State struct {
   IssuerSignKey *rsa.PrivateKey
   IssuerVerifyKey *rsa.PublicKey
   Nats *nats.Conn
+  TemplateMap *map[idp.ChallengeType]EmailTemplate
 }
 
-type Route struct {
-  URL string
-  LogId string
+type EmailTemplate struct {
+  Sender idp.SMTPSender
+  File string
+  Subject string
 }

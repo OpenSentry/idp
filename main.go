@@ -22,6 +22,7 @@ import (
   "github.com/charmixer/idp/utils"
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/environment"
+  "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/migration"
   "github.com/charmixer/idp/endpoints/identities"
   "github.com/charmixer/idp/endpoints/humans"
@@ -43,6 +44,8 @@ var (
   log *logrus.Logger
 
   appFields logrus.Fields
+
+  templateMap map[idp.ChallengeType]environment.EmailTemplate = make(map[idp.ChallengeType]environment.EmailTemplate)
 )
 
 func init() {
@@ -81,7 +84,57 @@ func init() {
     "log.format": logFormat,
   }
 
+  setupTemplateMap()
+
   E.InitRestErrors()
+}
+
+func setupTemplateMap() {
+  senderName := config.GetString("provider.name")
+  if senderName == "" {
+    log.Panic("Missing config provider.name")
+    return
+  }
+
+  senderEmail := config.GetString("provider.email")
+  if (senderEmail == "") {
+    log.Panic("Missing config provider.email")
+    return
+  }
+  sender := idp.SMTPSender{ Name:senderName, Email:senderEmail }
+
+  baseKey := "templates"
+
+  challenges := map[idp.ChallengeType]string{
+    idp.ChallengeAuthenticate: "authenticate",
+    idp.ChallengeRecover: "recover",
+    idp.ChallengeDelete: "delete",
+    idp.ChallengeEmailConfirm: "emailconfirm",
+    idp.ChallengeEmailChange: "emailchange",
+  }
+
+  for ct, challengeKey := range challenges {
+
+    key := baseKey + "." + challengeKey + ".email.templatefile"
+    var templateFile string = config.GetString(key)
+    if templateFile == "" {
+      log.Panic("Missing config " + key)
+      return
+    }
+
+    key = baseKey + "." + challengeKey + ".email.subject"
+    var subject string = config.GetString(key)
+    if subject == "" {
+      log.Panic("Missing config " + key)
+      return
+    }
+
+    templateMap[ct] = environment.EmailTemplate{
+      Sender: sender,
+      File: templateFile,
+      Subject: subject,
+    }
+  }
 }
 
 func createBanList(file string) (map[string]bool, error) {
@@ -221,6 +274,7 @@ func main() {
     IssuerSignKey: signKey,
     IssuerVerifyKey: verifyKey,
     Nats: natsConnection,
+    TemplateMap: &templateMap,
   }
 
   if *optServe {
@@ -276,6 +330,7 @@ func serve(env *environment.State) {
     AapConfig:          env.AapConfig,
   }
 
+  // TODO: Maybe instaed of letting the enpoint do scope requirements on confirmation_type, that should be part of the set up here aswell, but intertwined with the input data somehow?
   r.GET(  "/challenges",       utils.AuthorizationRequired(aconf, "idp:read:challenges"),         challenges.GetChallenges(env) )
   r.POST( "/challenges",       utils.AuthorizationRequired(aconf, "idp:create:challenges"),        challenges.PostChallenges(env) )
   r.PUT( "/challenges/verify", utils.AuthorizationRequired(aconf, "idp:update:challenges:verify"), challenges.PutVerify(env) )
@@ -291,6 +346,7 @@ func serve(env *environment.State) {
   r.PUT(  "/humans/password", utils.AuthorizationRequired(aconf, "idp:update:humans:password"), humans.PutPassword(env) )
 
   r.PUT(  "/humans/totp", utils.AuthorizationRequired(aconf, "idp:update:humans:totp"), humans.PutTotp(env) )
+  r.PUT(  "/humans/email", utils.AuthorizationRequired(aconf, "idp:update:humans:email"), humans.PutEmail(env) )
 
   r.GET(  "/humans/logout", utils.AuthorizationRequired(aconf, "idp:read:humans:logout"),    humans.GetLogout(env) )
   r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "idp:create:humans:logout"),  humans.PostLogout(env) )
@@ -300,6 +356,9 @@ func serve(env *environment.State) {
 
   r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "idp:create:humans:recover"), humans.PostRecover(env) )
   r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:update:humans:recoververification"), humans.PutRecoverVerification(env) )
+
+  r.POST( "/humans/emailchange", utils.AuthorizationRequired(aconf, "idp:create:humans:emailchange"), humans.PostEmailChange(env) )
+  r.PUT(  "/humans/emailchange", utils.AuthorizationRequired(aconf, "idp:update:humans:emailchange"), humans.PutEmailChange(env) )
 
   r.GET ( "/clients", utils.AuthorizationRequired(aconf, "idp:read:clients"), clients.GetClients(env))
   r.POST( "/clients", utils.AuthorizationRequired(aconf, "idp:create:clients"), clients.PostClients(env) )

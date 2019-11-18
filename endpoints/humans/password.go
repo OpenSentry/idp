@@ -104,10 +104,6 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
             AllowLogin: human.AllowLogin,
             TotpRequired: human.TotpRequired,
             TotpSecret: human.TotpSecret,
-            OtpRecoverCode: human.OtpRecoverCode,
-            OtpRecoverCodeExpire: human.OtpRecoverCodeExpire,
-            OtpDeleteCode: human.OtpDeleteCode,
-            OtpDeleteCodeExpire: human.OtpDeleteCodeExpire,
           })
           continue
         }
@@ -150,11 +146,7 @@ func PutPassword(env *environment.State) gin.HandlerFunc {
             Email: updatedHuman.Email,
             AllowLogin: updatedHuman.AllowLogin,
             TotpRequired: updatedHuman.TotpRequired,
-            TotpSecret: updatedHuman.TotpSecret,
-            OtpRecoverCode: updatedHuman.OtpRecoverCode,
-            OtpRecoverCodeExpire: updatedHuman.OtpRecoverCodeExpire,
-            OtpDeleteCode: updatedHuman.OtpDeleteCode,
-            OtpDeleteCodeExpire: updatedHuman.OtpDeleteCodeExpire,
+            TotpSecret: updatedHuman.TotpSecret,            
           })
           idp.EmitEventHumanPasswordChanged(env.Nats, updatedHuman)
           continue

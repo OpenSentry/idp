@@ -51,9 +51,9 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
     var emailSubject string
     var sender idp.SMTPSender
 
-    sender = idp.SMTPSender{ Name: config.GetString("emailconfirm.sender.name"), Email: config.GetString("emailconfirm.sender.email") }
-    templateFile = config.GetString("emailconfirm.template.email.file")
-    emailSubject = config.GetString("emailconfirm.template.email.subject")
+    sender = idp.SMTPSender{ Name: config.GetString("provider.name"), Email: config.GetString("provider.email") }
+    templateFile = config.GetString("templates.emailconfirm.email.templatefile")
+    emailSubject = config.GetString("templates.emailconfirm.email.subject")
 
     smtpConfig := idp.SMTPConfig{
       Host: config.GetString("mail.smtp.host"),
@@ -141,7 +141,7 @@ func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
           RedirectTo: redirectToUrlWhenVerified.String(),
           CodeType: int64(client.OTP),
         }
-        challenge, otpCode, err := idp.CreateChallengeForOTP(tx, newChallenge)
+        challenge, otpCode, err := idp.CreateChallengeUsingOtp(tx, idp.ChallengeEmailConfirm, newChallenge)
         if err != nil {
           e := tx.Rollback()
           if e != nil {
