@@ -6,8 +6,9 @@ import (
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
+
+  "github.com/charmixer/idp/app"
   "github.com/charmixer/idp/config"
-  "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
@@ -26,9 +27,9 @@ type ConfirmTemplateData struct {
   Email string
 }
 
-func GetChallenges(env *environment.State) gin.HandlerFunc {
+func GetChallenges(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "GetChallenges",
     })
@@ -128,9 +129,9 @@ func GetChallenges(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PostChallenges(env *environment.State) gin.HandlerFunc {
+func PostChallenges(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PostChallenges",
     })
@@ -237,7 +238,7 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
             // Sent challenge to requested email
 
             emailTemplate := (*env.TemplateMap)[ct]
-            if emailTemplate == (environment.EmailTemplate{}) {
+            if emailTemplate == (app.EmailTemplate{}) {
               e := tx.Rollback()
               if e != nil {
                 log.Debug(e.Error())
@@ -321,7 +322,7 @@ func PostChallenges(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func judgeRequiredScope(env *environment.State, c *gin.Context, log *logrus.Entry, requiredScopes ...string) (valid bool, err error) {
+func judgeRequiredScope(env *app.Environment, c *gin.Context, log *logrus.Entry, requiredScopes ...string) (valid bool, err error) {
 
   // Check that access token has required scopes
   v, exists := c.Get("scope") // scope from introspection call
@@ -340,14 +341,21 @@ func judgeRequiredScope(env *environment.State, c *gin.Context, log *logrus.Entr
   }
   sub := v.(string)
 
+
+  publisherId := config.GetString("id") // Resource Server (this)
+
+  var judgeRequests []aap.ReadEntitiesJudgeRequest
+  for _, scope := range requiredScopes {
+    judgeRequests = append(judgeRequests, aap.ReadEntitiesJudgeRequest{
+      Identity: sub,
+      Publisher: publisherId,
+      Scope: scope,
+      Owners: []string{ sub }, // should be owners
+    })
+  }
+
   aapClient := aap.NewAapClient(env.AapConfig)
   url := config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.entities.judge")
-  judgeRequests := []aap.ReadEntitiesJudgeRequest{ {
-    Publisher: config.GetString("id"), // ResourceServer receiving the call. IDP
-    Requestor: sub,
-    Owners: []string{ sub }, // should be owners
-    Scopes: requiredScopes,
-  }}
   status, responses, err := aap.ReadEntitiesJudge(aapClient, url, judgeRequests)
   if err != nil {
     return false, err
