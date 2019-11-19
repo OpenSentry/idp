@@ -7,8 +7,8 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
+  "github.com/charmixer/idp/app"
   "github.com/charmixer/idp/config"
-  "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
@@ -24,10 +24,10 @@ type ConfirmTemplateData struct {
   Email string
 }
 
-func PostInvitesClaim(env *environment.State) gin.HandlerFunc {
+func PostInvitesClaim(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PostInvitesClaim",
     })

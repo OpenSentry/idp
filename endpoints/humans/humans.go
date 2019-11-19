@@ -7,8 +7,8 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
+  "github.com/charmixer/idp/app"
   "github.com/charmixer/idp/config"
-  "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
@@ -24,10 +24,10 @@ type DeleteTemplateData struct {
   Sender string
 }
 
-func GetHumans(env *environment.State) gin.HandlerFunc {
+func GetHumans(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "GetHumans",
     })
@@ -137,10 +137,10 @@ func GetHumans(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PostHumans(env *environment.State) gin.HandlerFunc {
+func PostHumans(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PostHumans",
     })
@@ -370,10 +370,10 @@ func PostHumans(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PutHumans(env *environment.State) gin.HandlerFunc {
+func PutHumans(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PutHumans",
     })
@@ -478,10 +478,10 @@ func PutHumans(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func DeleteHumans(env *environment.State) gin.HandlerFunc {
+func DeleteHumans(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "DeleteHumans",
     })
