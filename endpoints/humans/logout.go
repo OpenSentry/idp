@@ -7,18 +7,18 @@ import (
   "github.com/gin-gonic/gin"
   hydra "github.com/charmixer/hydra/client"
 
+  "github.com/charmixer/idp/app"
   "github.com/charmixer/idp/config"
-  "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/client"
   E "github.com/charmixer/idp/client/errors"
 
   bulky "github.com/charmixer/bulky/server"
 )
 
-func PostLogout(env *environment.State) gin.HandlerFunc {
+func PostLogout(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PostLogout",
     })
@@ -79,10 +79,10 @@ func PostLogout(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func GetLogout(env *environment.State) gin.HandlerFunc {
+func GetLogout(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "GetLogout",
     })
@@ -142,10 +142,10 @@ func GetLogout(env *environment.State) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func PutLogout(env *environment.State) gin.HandlerFunc {
+func PutLogout(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
-    log := c.MustGet(environment.LogKey).(*logrus.Entry)
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PutLogout",
     })

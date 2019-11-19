@@ -19,9 +19,8 @@ import (
 
   nats "github.com/nats-io/nats.go"
 
-  "github.com/charmixer/idp/utils"
+  "github.com/charmixer/idp/app"
   "github.com/charmixer/idp/config"
-  "github.com/charmixer/idp/environment"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/migration"
   "github.com/charmixer/idp/endpoints/identities"
@@ -35,7 +34,7 @@ import (
   E "github.com/charmixer/idp/client/errors"
 )
 
-const app = "idp"
+const appName = "idp"
 
 var (
   logDebug int // Set to 1 to enable debug
@@ -45,7 +44,7 @@ var (
 
   appFields logrus.Fields
 
-  templateMap map[idp.ChallengeType]environment.EmailTemplate = make(map[idp.ChallengeType]environment.EmailTemplate)
+  templateMap map[idp.ChallengeType]app.EmailTemplate = make(map[idp.ChallengeType]app.EmailTemplate)
 )
 
 func init() {
@@ -79,7 +78,7 @@ func init() {
   }
 
   appFields = logrus.Fields{
-    "appname": app,
+    "appname": appName,
     "log.debug": logDebug,
     "log.format": logFormat,
   }
@@ -129,7 +128,7 @@ func setupTemplateMap() {
       return
     }
 
-    templateMap[ct] = environment.EmailTemplate{
+    templateMap[ct] = app.EmailTemplate{
       Sender: sender,
       File: templateFile,
       Subject: subject,
@@ -265,7 +264,22 @@ func main() {
   defer natsConnection.Close()
 
   // Setup app state variables. Can be used in handler functions by doing closures see exchangeAuthorizationCodeCallback
-  env := &environment.State{
+  env := &app.Environment{
+    Constants: &app.EnvironmentConstants{
+      RequestIdKey: "RequestId",
+      LogKey: "log",
+      AccessTokenKey: "access_token",
+      IdTokenKey: "id_token",
+
+      ContextAccessTokenKey: "access_token",
+      ContextIdTokenKey: "id_token",
+      ContextIdTokenHintKey: "id_token_hint",
+      ContextIdentityKey: "id",
+      ContextOAuth2ConfigKey: "oauth2_config",
+      ContextRequiredScopesKey: "required_scopes",
+      ContextPrecalculatedStateKey: "precalculated_state",
+    },
+
     Provider: provider,
     HydraConfig: hydraConfig,
     AapConfig: aapConfig,
@@ -300,13 +314,13 @@ func requestAfterAuth() gin.HandlerFunc {
 	}
 }
 
-func serve(env *environment.State) {
+func serve(env *app.Environment) {
 
   r := gin.New() // Clean gin to take control with logging.
   r.Use(gin.Recovery())
-  r.Use(utils.ProcessMethodOverride(r))
-  r.Use(utils.RequestId())
-  r.Use(utils.RequestLogger(environment.LogKey, environment.RequestIdKey, log, appFields))
+  r.Use(app.ProcessMethodOverride(r))
+  r.Use(app.RequestId())
+  r.Use(app.RequestLogger(env.Constants.LogKey, env.Constants.RequestIdKey, log, appFields))
 
   // r.Use(utils.ProcessOwnersHeaderAndInitializeContext())
 
@@ -318,64 +332,72 @@ func serve(env *environment.State) {
   // 5. Is the access token revoked?
 
   // All requests need to be authenticated.
-  r.Use(utils.AuthenticationRequired(environment.LogKey, environment.AccessTokenKey))
+  r.Use(app.AuthenticationRequired(env.Constants.LogKey, env.Constants.AccessTokenKey))
 
   hydraIntrospectUrl := config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.introspect")
 
-  aconf := utils.AuthorizationConfig{
-    LogKey:             environment.LogKey,
-    AccessTokenKey:     environment.AccessTokenKey,
+  aconf := app.AuthorizationConfig{
+    LogKey:             env.Constants.LogKey,
+    AccessTokenKey:     env.Constants.AccessTokenKey,
     HydraConfig:        env.HydraConfig,
     HydraIntrospectUrl: hydraIntrospectUrl,
     AapConfig:          env.AapConfig,
   }
 
   // TODO: Maybe instaed of letting the enpoint do scope requirements on confirmation_type, that should be part of the set up here aswell, but intertwined with the input data somehow?
-  r.GET(  "/challenges",       utils.AuthorizationRequired(aconf, "idp:read:challenges"),         challenges.GetChallenges(env) )
-  r.POST( "/challenges",       utils.AuthorizationRequired(aconf, "idp:create:challenges"),        challenges.PostChallenges(env) )
-  r.PUT( "/challenges/verify", utils.AuthorizationRequired(aconf, "idp:update:challenges:verify"), challenges.PutVerify(env) )
+  r.GET(  "/challenges",       app.AuthorizationRequired(aconf, "idp:read:challenges"),         challenges.GetChallenges(env) )
+  r.POST( "/challenges",       app.AuthorizationRequired(aconf, "idp:create:challenges"),        challenges.PostChallenges(env) )
+  r.PUT( "/challenges/verify", app.AuthorizationRequired(aconf, "idp:update:challenges:verify"), challenges.PutVerify(env) )
 
-  r.GET(    "/identities",     utils.AuthorizationRequired(aconf, "idp:read:identities"), identities.GetIdentities(env) )
+  r.GET(    "/identities",     app.AuthorizationRequired(aconf, "idp:read:identities"), identities.GetIdentities(env) )
 
-  r.GET(    "/humans", utils.AuthorizationRequired(aconf, "idp:read:humans"), humans.GetHumans(env))
-  r.POST(   "/humans", utils.AuthorizationRequired(aconf, "idp:create:humans"), humans.PostHumans(env) )
-  r.PUT(    "/humans", utils.AuthorizationRequired(aconf, "idp:update:humans"), humans.PutHumans(env) )
-  r.DELETE( "/humans", utils.AuthorizationRequired(aconf, "idp:delete:humans"), humans.DeleteHumans(env) )
+  r.GET(    "/humans", app.AuthorizationRequired(aconf, "idp:read:humans"), humans.GetHumans(env))
+  r.POST(   "/humans", app.AuthorizationRequired(aconf, "idp:create:humans"), humans.PostHumans(env) )
+  r.PUT(    "/humans", app.AuthorizationRequired(aconf, "idp:update:humans"), humans.PutHumans(env) )
 
-  r.POST( "/humans/authenticate", utils.AuthorizationRequired(aconf, "idp:create:humans:authenticate"), humans.PostAuthenticate(env) )
-  r.PUT(  "/humans/password", utils.AuthorizationRequired(aconf, "idp:update:humans:password"), humans.PutPassword(env) )
+  /*r.PUT( "/humans",
+    app.RequireScopes(env, "idp:update:humans"),
+    app.RequireBearerToken(env),
+    app.Judge(env),
+    humans.PutHumans(env),
+  )*/
 
-  r.PUT(  "/humans/totp", utils.AuthorizationRequired(aconf, "idp:update:humans:totp"), humans.PutTotp(env) )
-  r.PUT(  "/humans/email", utils.AuthorizationRequired(aconf, "idp:update:humans:email"), humans.PutEmail(env) )
+  r.DELETE( "/humans", app.AuthorizationRequired(aconf, "idp:delete:humans"), humans.DeleteHumans(env) )
 
-  r.GET(  "/humans/logout", utils.AuthorizationRequired(aconf, "idp:read:humans:logout"),    humans.GetLogout(env) )
-  r.POST( "/humans/logout", utils.AuthorizationRequired(aconf, "idp:create:humans:logout"),  humans.PostLogout(env) )
-  r.PUT(  "/humans/logout",  utils.AuthorizationRequired(aconf, "idp:update:humans:logout"), humans.PutLogout(env) )
+  r.POST( "/humans/authenticate", app.AuthorizationRequired(aconf, "idp:create:humans:authenticate"), humans.PostAuthenticate(env) )
+  r.PUT(  "/humans/password", app.AuthorizationRequired(aconf, "idp:update:humans:password"), humans.PutPassword(env) )
 
-  r.PUT(  "/humans/deleteverification", utils.AuthorizationRequired(aconf, "idp:update:humans:deleteverification"), humans.PutDeleteVerification(env) )
+  r.PUT(  "/humans/totp", app.AuthorizationRequired(aconf, "idp:update:humans:totp"), humans.PutTotp(env) )
+  r.PUT(  "/humans/email", app.AuthorizationRequired(aconf, "idp:update:humans:email"), humans.PutEmail(env) )
 
-  r.POST( "/humans/recover", utils.AuthorizationRequired(aconf, "idp:create:humans:recover"), humans.PostRecover(env) )
-  r.PUT(  "/humans/recoververification", utils.AuthorizationRequired(aconf, "idp:update:humans:recoververification"), humans.PutRecoverVerification(env) )
+  r.GET(  "/humans/logout", app.AuthorizationRequired(aconf, "idp:read:humans:logout"),    humans.GetLogout(env) )
+  r.POST( "/humans/logout", app.AuthorizationRequired(aconf, "idp:create:humans:logout"),  humans.PostLogout(env) )
+  r.PUT(  "/humans/logout",  app.AuthorizationRequired(aconf, "idp:update:humans:logout"), humans.PutLogout(env) )
 
-  r.POST( "/humans/emailchange", utils.AuthorizationRequired(aconf, "idp:create:humans:emailchange"), humans.PostEmailChange(env) )
-  r.PUT(  "/humans/emailchange", utils.AuthorizationRequired(aconf, "idp:update:humans:emailchange"), humans.PutEmailChange(env) )
+  r.PUT(  "/humans/deleteverification", app.AuthorizationRequired(aconf, "idp:update:humans:deleteverification"), humans.PutDeleteVerification(env) )
 
-  r.GET ( "/clients", utils.AuthorizationRequired(aconf, "idp:read:clients"), clients.GetClients(env))
-  r.POST( "/clients", utils.AuthorizationRequired(aconf, "idp:create:clients"), clients.PostClients(env) )
-  r.DELETE( "/clients", utils.AuthorizationRequired(aconf, "idp:delete:clients"), clients.DeleteClients(env) )
+  r.POST( "/humans/recover", app.AuthorizationRequired(aconf, "idp:create:humans:recover"), humans.PostRecover(env) )
+  r.PUT(  "/humans/recoververification", app.AuthorizationRequired(aconf, "idp:update:humans:recoververification"), humans.PutRecoverVerification(env) )
 
-  r.GET ( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:read:resourceservers"), resourceservers.GetResourceServers(env))
-  r.POST( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:create:resourceservers"), resourceservers.PostResourceServers(env) )
-  r.DELETE( "/resourceservers", utils.AuthorizationRequired(aconf, "idp:delete:resourceservers"), resourceservers.DeleteResourceServers(env) )
+  r.POST( "/humans/emailchange", app.AuthorizationRequired(aconf, "idp:create:humans:emailchange"), humans.PostEmailChange(env) )
+  r.PUT(  "/humans/emailchange", app.AuthorizationRequired(aconf, "idp:update:humans:emailchange"), humans.PutEmailChange(env) )
 
-  r.GET ( "/roles", utils.AuthorizationRequired(aconf, "idp:read:roles"), roles.GetRoles(env))
-  r.POST( "/roles", utils.AuthorizationRequired(aconf, "idp:create:roles"), roles.PostRoles(env) )
-  r.DELETE( "/roles", utils.AuthorizationRequired(aconf, "idp:delete:roles"), roles.DeleteRoles(env) )
+  r.GET ( "/clients", app.AuthorizationRequired(aconf, "idp:read:clients"), clients.GetClients(env))
+  r.POST( "/clients", app.AuthorizationRequired(aconf, "idp:create:clients"), clients.PostClients(env) )
+  r.DELETE( "/clients", app.AuthorizationRequired(aconf, "idp:delete:clients"), clients.DeleteClients(env) )
 
-  r.GET(  "/invites", utils.AuthorizationRequired(aconf, "idp:read:invites"), invites.GetInvites(env) )
-  r.POST( "/invites", utils.AuthorizationRequired(aconf, "idp:create:invites"), invites.PostInvites(env) )
-  r.POST( "/invites/send", utils.AuthorizationRequired(aconf, "idp:send:invites"), invites.PostInvitesSend(env) )
-  r.POST( "/invites/claim", utils.AuthorizationRequired(aconf, "idp:claim:invites"), invites.PostInvitesClaim(env) )
+  r.GET ( "/resourceservers", app.AuthorizationRequired(aconf, "idp:read:resourceservers"), resourceservers.GetResourceServers(env))
+  r.POST( "/resourceservers", app.AuthorizationRequired(aconf, "idp:create:resourceservers"), resourceservers.PostResourceServers(env) )
+  r.DELETE( "/resourceservers", app.AuthorizationRequired(aconf, "idp:delete:resourceservers"), resourceservers.DeleteResourceServers(env) )
+
+  r.GET ( "/roles", app.AuthorizationRequired(aconf, "idp:read:roles"), roles.GetRoles(env))
+  r.POST( "/roles", app.AuthorizationRequired(aconf, "idp:create:roles"), roles.PostRoles(env) )
+  r.DELETE( "/roles", app.AuthorizationRequired(aconf, "idp:delete:roles"), roles.DeleteRoles(env) )
+
+  r.GET(  "/invites", app.AuthorizationRequired(aconf, "idp:read:invites"), invites.GetInvites(env) )
+  r.POST( "/invites", app.AuthorizationRequired(aconf, "idp:create:invites"), invites.PostInvites(env) )
+  r.POST( "/invites/send", app.AuthorizationRequired(aconf, "idp:send:invites"), invites.PostInvitesSend(env) )
+  r.POST( "/invites/claim", app.AuthorizationRequired(aconf, "idp:claim:invites"), invites.PostInvitesClaim(env) )
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
