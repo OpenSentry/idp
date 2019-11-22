@@ -229,7 +229,6 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
             secret = r.Secret
           }
 
-          log.Debug(secret)
           encryptedClientSecret, err := idp.Encrypt(secret, cryptoKey) // Encrypt the secret before storage
           if err != nil {
             log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to encrypt secret")
@@ -261,11 +260,15 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
         }
 
         if objClient.Id != "" {
+
+          // The client in the db is encrypted, we need the clean password to return to user and use in hydra.
+          objClient.Secret = secret
+
           newClients = append(newClients, objClient)
 
           ok := client.CreateClientsResponse{
             Id: objClient.Id,
-            Secret: secret,
+            Secret: objClient.Secret,
             Name: objClient.Name,
             Description: objClient.Description,
             GrantTypes: objClient.GrantTypes,
