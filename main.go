@@ -396,8 +396,8 @@ func serve(env *app.Environment) {
 
   r.GET(  "/invites", app.AuthorizationRequired(aconf, "idp:read:invites"), invites.GetInvites(env) )
   r.POST( "/invites", app.AuthorizationRequired(aconf, "idp:create:invites"), invites.PostInvites(env) )
-  r.POST( "/invites/send", app.AuthorizationRequired(aconf, "idp:send:invites"), invites.PostInvitesSend(env) )
-  r.POST( "/invites/claim", app.AuthorizationRequired(aconf, "idp:claim:invites"), invites.PostInvitesClaim(env) )
+  r.POST( "/invites/send", app.AuthorizationRequired(aconf, "idp:create:invites:send"), invites.PostInvitesSend(env) )
+  r.POST( "/invites/claim", app.AuthorizationRequired(aconf, "idp:create:invites:claim"), invites.PostInvitesClaim(env) )
 
   r.RunTLS(":" + config.GetString("serve.public.port"), config.GetString("serve.tls.cert.path"), config.GetString("serve.tls.key.path"))
 }
