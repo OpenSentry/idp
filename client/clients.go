@@ -9,7 +9,7 @@ type Client struct {
   Name                    string   `json:"name"                       validate:"required"`
   Description             string   `json:"description"                validate:"required"`
   Secret                  string   `json:"secret,omitempty"           validate:"omitempty"`
-  GrantTypes              []string `json:"grant_types"                validate:"omitempty,dive,eq=authorization_code|eq=implicit|eq=password|eq=client_credientials|eq=device_code|eq=refresh_token"`
+  GrantTypes              []string `json:"grant_types"                validate:"omitempty,dive,eq=authorization_code|eq=implicit|eq=password|eq=client_credentials|eq=device_code|eq=refresh_token"`
   ResponseTypes           []string `json:"response_types"             validate:"omitempty,dive,eq=code|eq=token"`
   RedirectUris            []string `json:"redirect_uris"              validate:"omitempty,dive,url"`
   TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method" validate:"omitempty,eq=none|eq=client_secret_post|eq=client_secret_basic|eq=private_key_jwt"`
@@ -22,7 +22,7 @@ type CreateClientsRequest struct {
   Description             string   `json:"description"                validate:"required"`
   IsPublic                bool     `json:"is_public"                  `
   Secret                  string   `json:"secret,omitempty"           validate:"omitempty"`
-  GrantTypes              []string `json:"grant_types"                validate:"omitempty,dive,eq=authorization_code|eq=implicit|eq=password|eq=client_credientials|eq=device_code|eq=refresh_token"`
+  GrantTypes              []string `json:"grant_types"                validate:"omitempty,dive,eq=authorization_code|eq=implicit|eq=password|eq=client_credentials|eq=device_code|eq=refresh_token"`
   ResponseTypes           []string `json:"response_types"             validate:"omitempty,dive,eq=code|eq=token"`
   RedirectUris            []string `json:"redirect_uris"              validate:"omitempty,dive,url"`
   TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method" validate:"omitempty,eq=none|eq=client_secret_post|eq=client_secret_basic|eq=private_key_jwt"`
