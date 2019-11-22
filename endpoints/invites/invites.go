@@ -131,7 +131,6 @@ func PostInvites(env *app.Environment) gin.HandlerFunc {
           }
           bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
           request.Output = bulky.NewClientErrorResponse(request.Index, E.HUMAN_ALREADY_EXISTS)
-          log.Debug(err.Error())
           return
         }
 
@@ -149,7 +148,6 @@ func PostInvites(env *app.Environment) gin.HandlerFunc {
           }
           bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
           request.Output = bulky.NewClientErrorResponse(request.Index, E.INVITE_EXPIRES_IN_THE_PAST)
-          log.Debug(err.Error())
           return
         }
 
