@@ -151,9 +151,38 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
             if e != nil {
               log.Debug(e.Error())
             }
+            deny.IdentityExists = false
+
+            // Hydra told us subject has active session, but our identity provider told us that the subject no longer exists.
+            // This happens if we delete identity from neo4j, but fail to revoke sessions from hydra.
+
+            hydraLoginRejectResponse, err := hydra.RejectLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginReject"), hydraClient, r.Challenge, hydra.LoginRejectRequest{
+              Error: "Identity deleted",
+              ErrorDebug: "Identity " + r.Id + " does not exist in IDP, but still has active session. Forgot to revoke session when deleting Identity?",
+              ErrorDescription: "Identity no longer exists, but still has active sessions",
+              ErrorHint: "Restart the login process.",
+              StatusCode: http.StatusUnauthorized,
+            })
+            if err != nil {
+              log.Debug(err.Error())
+              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+              request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+              return
+            }
+            deny.RedirectTo = hydraLoginRejectResponse.RedirectTo
+
+            // Revoke all sessions on subject in hydra, and reject login challenge.
+            _, _ = hydra.DeleteLoginSessions(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.sessionsLogin"), hydraClient, hydra.DeleteLoginSessionRequest{Subject:subject})
+            /*if err != nil {
+              log.Debug(err.Error())
+              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+              request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+              return
+            }
+            log.Debug(deleteLoginSessionsResponse)*/
+
             bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-            request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-            log.WithFields(logrus.Fields{"id":subject}).Debug("Human not found")
+            request.Output = bulky.NewOkResponse(request.Index, deny)
             return
           }
           human = humans[0]
