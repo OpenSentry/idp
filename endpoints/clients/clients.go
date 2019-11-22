@@ -213,7 +213,7 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
         if r.IsPublic == false {
 
           if r.Secret == "" {
-            secret = "1234"
+            secret = "123456789"
             /*secret, err = utils.GenerateRandomString(64) // 64 bytes base64 encoded string for secret
             if err != nil {
               log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to generate random secret")
