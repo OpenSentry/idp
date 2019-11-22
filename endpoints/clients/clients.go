@@ -324,7 +324,12 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
 
         url := config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.clients")
         for _, h := range hydraClients {
-          hydra.CreateClient(url, h)
+          c, err :=hydra.CreateClient(url, h)
+          if err != nil {
+            log.Debug(err.Error())
+          } else {
+            log.Debug(c)
+          }
         }
 
         // Initialize in AAP model
