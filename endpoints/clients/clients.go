@@ -8,7 +8,7 @@ import (
   "github.com/charmixer/idp/app"
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/gateway/idp"
-  "github.com/charmixer/idp/utils"
+  //"github.com/charmixer/idp/utils"
   "github.com/charmixer/idp/client"
   _ "github.com/charmixer/idp/client/errors"
 
@@ -213,7 +213,8 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
         if r.IsPublic == false {
 
           if r.Secret == "" {
-            secret, err = utils.GenerateRandomString(64)
+            secret = "1234"
+            /*secret, err = utils.GenerateRandomString(64) // 64 bytes base64 encoded string for secret
             if err != nil {
               log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to generate random secret")
 
@@ -224,10 +225,13 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
               bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
               request.Output = bulky.NewInternalErrorResponse(request.Index)
               return
-            }
+            }*/
           } else {
             secret = r.Secret
           }
+
+log.Debug(secret)
+log.Debug(cryptoKey)
 
           encryptedClientSecret, err := idp.Encrypt(secret, cryptoKey) // Encrypt the secret before storage
           if err != nil {
