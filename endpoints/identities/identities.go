@@ -9,7 +9,6 @@ import (
   "github.com/charmixer/idp/app"
   "github.com/charmixer/idp/gateway/idp"
   "github.com/charmixer/idp/client"
-  E "github.com/charmixer/idp/client/errors"
 
   bulky "github.com/charmixer/bulky/server"
 )
@@ -65,7 +64,11 @@ func GetIdentities(env *app.Environment) gin.HandlerFunc {
           dbIdentities, err = idp.FetchIdentities(tx, nil)
         } else {
           r := request.Input.(client.ReadIdentitiesRequest)
-          dbIdentities, err = idp.FetchIdentities(tx, []idp.Identity{ {Id: r.Id} })
+          if r.Id != "" {
+            dbIdentities, err = idp.FetchIdentities(tx, []idp.Identity{ {Id: r.Id} })
+          } else {
+            dbIdentities, err = idp.SearchIdentities(tx, r.Search)
+          }
         }
         if err != nil {
           log.Debug(err.Error())
@@ -84,8 +87,8 @@ func GetIdentities(env *app.Environment) gin.HandlerFunc {
           continue
         }
 
-        // Deny by default
-        request.Output = bulky.NewClientErrorResponse(request.Index, E.IDENTITY_NOT_FOUND)
+        // Deny by default - no results
+        request.Output = bulky.NewOkResponse(request.Index, []client.ReadIdentitiesResponse{})
       }
 
       err = bulky.OutputValidateRequests(iRequests)
