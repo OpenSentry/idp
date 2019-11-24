@@ -11,7 +11,8 @@ type Identity struct {
 
 type ReadIdentitiesResponse []Identity
 type ReadIdentitiesRequest struct {
-  Id string `json:"id,omitempty" validate:"uuid"`
+  Id string `json:"id,omitempty" validate:"omitempty,uuid,required_without=Search"`
+  Search string `json:"search,omitempty" validate:"omitempty,required_without=Id"`
 }
 
 func ReadIdentities(client *IdpClient, url string, requests []ReadIdentitiesRequest) (status int, responses bulky.Responses, err error) {
