@@ -8,7 +8,7 @@ import (
   "github.com/charmixer/idp/app"
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/gateway/idp"
-  //"github.com/charmixer/idp/utils"
+  "github.com/charmixer/idp/utils"
   "github.com/charmixer/idp/client"
   _ "github.com/charmixer/idp/client/errors"
 
@@ -94,14 +94,8 @@ func GetClients(env *app.Environment) gin.HandlerFunc {
             if d.Secret != "" {
               descryptedClientSecret, err = idp.Decrypt(d.Secret, cryptoKey)
               if err != nil {
-                e := tx.Rollback()
-                if e != nil {
-                  log.Debug(e.Error())
-                }
-                bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
-                request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
                 log.Debug(err.Error())
-                return
+                descryptedClientSecret = ""
               }
             }
 
@@ -213,8 +207,10 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
         if r.IsPublic == false {
 
           if r.Secret == "" {
-            secret = "123456789"
-            /*secret, err = utils.GenerateRandomString(64) // 64 bytes base64 encoded string for secret
+
+            // BCrypt used by hydra to store passwords securely limits password to 55 chars not counting the terminating zero
+            secret, err = utils.GenerateRandomString(32) // 32 bytes base64 encoded string for secret. We could use more bytes and cut it to max lenght hydra supports to max security on secrets. But then we must check that statistical analysis of secrets are not compromised by the cut.
+
             if err != nil {
               log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to generate random secret")
 
@@ -225,13 +221,10 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
               bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
               request.Output = bulky.NewInternalErrorResponse(request.Index)
               return
-            }*/
+            }
           } else {
             secret = r.Secret
           }
-
-log.Debug(secret)
-log.Debug(cryptoKey)
 
           encryptedClientSecret, err := idp.Encrypt(secret, cryptoKey) // Encrypt the secret before storage
           if err != nil {
