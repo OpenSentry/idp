@@ -209,7 +209,7 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
           if r.Secret == "" {
 
             // BCrypt used by hydra to store passwords securely limits password to 55 chars not counting the terminating zero
-            secret, err = utils.GenerateRandomString(32) // 32 bytes base64 encoded string for secret. We could use more bytes and cut it to max lenght hydra supports to max security on secrets. But then we must check that statistical analysis of secrets are not compromised by the cut.
+            secret, err = utils.GenerateRandomHex(55)
 
             if err != nil {
               log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to generate random secret")
