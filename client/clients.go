@@ -8,7 +8,7 @@ type Client struct {
   Id                      string   `json:"id" validate:"required,uuid"`
   Name                    string   `json:"name"                       validate:"required"`
   Description             string   `json:"description"                validate:"required"`
-  Secret                  string   `json:"secret,omitempty"           validate:"omitempty"`
+  Secret                  string   `json:"secret,omitempty"           validate:"omitempty,max=55"`
   GrantTypes              []string `json:"grant_types"                validate:"omitempty,dive,eq=authorization_code|eq=implicit|eq=password|eq=client_credentials|eq=device_code|eq=refresh_token"`
   ResponseTypes           []string `json:"response_types"             validate:"omitempty,dive,eq=code|eq=token"`
   RedirectUris            []string `json:"redirect_uris"              validate:"omitempty,dive,url"`
@@ -21,7 +21,7 @@ type CreateClientsRequest struct {
   Name                    string   `json:"name"                       validate:"required"`
   Description             string   `json:"description"                validate:"required"`
   IsPublic                bool     `json:"is_public"                  `
-  Secret                  string   `json:"secret,omitempty"           validate:"omitempty"`
+  Secret                  string   `json:"secret,omitempty"           validate:"omitempty,max=55"`
   GrantTypes              []string `json:"grant_types"                validate:"omitempty,dive,eq=authorization_code|eq=implicit|eq=password|eq=client_credentials|eq=device_code|eq=refresh_token"`
   ResponseTypes           []string `json:"response_types"             validate:"omitempty,dive,eq=code|eq=token"`
   RedirectUris            []string `json:"redirect_uris"              validate:"omitempty,dive,url"`
