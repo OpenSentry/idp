@@ -7,7 +7,13 @@ import (
   "net/http"
   "crypto/rand"
   "encoding/base64"
+  "encoding/hex"
 )
+
+func GenerateRandomHex(n int) (string, error) {
+  b, err := GenerateRandomBytes(n)
+  return hex.EncodeToString(b), err
+}
 
 func GenerateRandomBytes(n int) ([]byte, error) {
   b := make([]byte, n)
