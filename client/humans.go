@@ -52,7 +52,7 @@ type Logout struct {
 type CreateHumansResponse Human
 type CreateHumansRequest struct {
   Id               string `json:"id"                 validate:"required,uuid"`
-  Password         string `json:"password"           validate:"required"`
+  Password         string `json:"password"           validate:"required,max=55"`
   Username         string `json:"username,omitempty" validate:"omitempty"`
   Email            string `json:"email,omitempty"    validate:"omitempty,email"`
   Name             string `json:"name,omitempty"     validate:"omitempty"`
@@ -87,7 +87,7 @@ type UpdateHumansDeleteVerifyRequest struct {
 type UpdateHumansPasswordResponse Human
 type UpdateHumansPasswordRequest struct {
   Id       string `json:"id"       validate:"required,uuid"`
-  Password string `json:"password" validate:"required"`
+  Password string `json:"password" validate:"required,max=55"`
 }
 
 type UpdateHumansTotpResponse Human
@@ -106,9 +106,9 @@ type UpdateHumansEmailRequest struct {
 
 type CreateHumansAuthenticateResponse HumanAuthentication
 type CreateHumansAuthenticateRequest struct {
-  Challenge    string `json:"challenge"                validate:"required"`
-  Id           string `json:"id,omitempty"             validate:"omitempty,uuid"`
-  Password     string `json:"password,omitempty"`
+  Challenge    string `json:"challenge"                   validate:"required"`
+  Id           string `json:"id,omitempty"                validate:"omitempty,uuid"`
+  Password     string `json:"password,omitempty"          validate:"omitempty,max=55"`
   OtpChallenge string `json:"otp_challenge,omitempty"     validate:"omitempty,uuid"`
   EmailChallenge string `json:"email_challenge,omitempty" validate:"omitempty,uuid"`
 }
@@ -122,7 +122,7 @@ type CreateHumansRecoverRequest struct {
 type UpdateHumansRecoverVerifyResponse HumanVerification
 type UpdateHumansRecoverVerifyRequest struct {
   RecoverChallenge string `json:"recover_challenge" validate:"required,uuid"`
-  NewPassword string `json:"new_password"    validate:"required"`
+  NewPassword string `json:"new_password"           validate:"required,max=55"`
 }
 
 type CreateHumansEmailChangeResponse HumanVerification
@@ -313,4 +313,3 @@ func UpdateHumansLogoutAccept(client *IdpClient, url string, requests []UpdateHu
 
   return status, responses, nil
 }
-
