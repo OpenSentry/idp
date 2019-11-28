@@ -2,9 +2,8 @@ package app
 
 import (
   "strings"
-  "net/http"
-  "fmt"
   "time"
+  "net/http"
   // "reflect"
   // "encoding/json"
   "golang.org/x/oauth2"
@@ -17,7 +16,6 @@ import (
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/utils"
 
-  hydra "github.com/charmixer/hydra/client"
   aap "github.com/charmixer/aap/client"
   bulky "github.com/charmixer/bulky/client"
 )
@@ -295,8 +293,12 @@ func AuthenticationRequired(logKey string, accessTokenKey string) gin.HandlerFun
 func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+    publisherId := config.GetString("id") // Resource Server (this)
+
+    strRequiredScopes := strings.Join(requiredScopes, " ")
+
     log := c.MustGet(aconf.LogKey).(*logrus.Entry)
-    log = log.WithFields(logrus.Fields{"func": "AuthorizationRequired"})
+    log = log.WithFields(logrus.Fields{"func": "AuthorizationRequired"}).WithFields(logrus.Fields{"required_scopes": strRequiredScopes})
 
     // This is required to be here but should be garantueed by the authenticationRequired function.
     t, accessTokenExists := c.Get(aconf.AccessTokenKey)
@@ -304,108 +306,66 @@ func AuthorizationRequired(aconf AuthorizationConfig, requiredScopes ...string) 
       c.AbortWithStatusJSON(http.StatusForbidden, JsonError{ErrorCode: ERROR_MISSING_BEARER_TOKEN, Error: "No access token found. Hint: Is bearer token missing?"})
       return
     }
-    var accessToken *oauth2.Token = t.(*oauth2.Token)
+    var token *oauth2.Token = t.(*oauth2.Token)
 
-    strRequiredScopes := strings.Join(requiredScopes, " ")
-    log.WithFields(logrus.Fields{"scope": strRequiredScopes}).Debug("Checking required scopes");
-
-    // See #3 of QTNA
-    // log.WithFields(logrus.Fields{"fixme": 1, "qtna": 3}).Debug("Missing check if access token is granted the required scopes")
-    hydraClient := hydra.NewHydraClient(aconf.HydraConfig)
-
-    log.WithFields(logrus.Fields{"token": accessToken.AccessToken}).Debug("Introspecting token")
-
-    introspectRequest := hydra.IntrospectRequest{
-      Token: accessToken.AccessToken,
-      Scope: strRequiredScopes, // This will make hydra check that all scopes are present else introspect.active will be false.
+    var judgeRequests []aap.ReadEntitiesJudgeRequest
+    for _, scope := range requiredScopes {
+      judgeRequests = append(judgeRequests, aap.ReadEntitiesJudgeRequest{
+        AccessToken: token.AccessToken,
+        Publisher: publisherId,
+        Scope: scope,
+      })
     }
-    introspectResponse, err := hydra.IntrospectToken(aconf.HydraIntrospectUrl, hydraClient, introspectRequest)
+
+    aapClient := aap.NewAapClient(aconf.AapConfig)
+    url := config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.entities.judge")
+    status, responses, err := aap.ReadEntitiesJudge(aapClient, url, judgeRequests)
     if err != nil {
-      log.WithFields(logrus.Fields{"scope": strRequiredScopes}).Debug(err.Error())
+      log.Debug(err.Error())
       c.AbortWithStatus(http.StatusInternalServerError)
       return
     }
-    fmt.Printf("===== INSTROSPECTION ==========\n")
-    fmt.Printf("%#v", introspectResponse)
 
-    if introspectResponse.Active == true {
+    if status == http.StatusForbidden {
+      c.AbortWithStatus(http.StatusForbidden)
+      return
+    }
 
-      if introspectResponse.TokenType != "access_token" {
-        log.Debug("Token is not an access_token")
-        c.AbortWithStatus(http.StatusForbidden)
+    if status != http.StatusOK {
+      log.WithFields(logrus.Fields{"status": status}).Debug("Call aap.ReadEntitiesJudge failed");
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+
+    var verdict aap.ReadEntitiesJudgeResponse
+    status, restErr := bulky.Unmarshal(0, responses, &verdict)
+    if restErr != nil {
+      log.Debug(restErr)
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+
+    if status == http.StatusOK {
+
+      if verdict.Granted == true {
+
+        log.WithFields(logrus.Fields{"id": verdict.Identity, "scopes": verdict.Scope}).Debug("Authorized")
+
+        c.Set("sub", verdict.Identity)
+        c.Set("scope", verdict.Scope)
+        c.Next() // Authentication successful, continue.
         return
       }
 
-      sub := introspectResponse.Sub
-      // clientId := introspectResponse.ClientId // Identity.Id of the Oauth2 client doing the function call. If using client credentials flow this will be the same as introspectResponse.sub
-
-      // Check scopes. (is done by hydra according to doc)
-      // https://www.ory.sh/docs/hydra/sdk/api#introspect-oauth2-tokens
-
-      // owners := c.Get("owners")
-
-      // See #4 of QTNA
-
-      publisherId := config.GetString("id") // Resource Server (this)
-
-      var judgeRequests []aap.ReadEntitiesJudgeRequest
-      for _, scope := range requiredScopes {
-        judgeRequests = append(judgeRequests, aap.ReadEntitiesJudgeRequest{
-          Identity: sub,
-          Publisher: publisherId,
-          Scope: scope,
-          Owners: []string{ sub }, // should be owners
-        })
-      }
-
-      aapClient := aap.NewAapClient(aconf.AapConfig)
-      url := config.GetString("aap.public.url") + config.GetString("aap.public.endpoints.entities.judge")
-      status, responses, err := aap.ReadEntitiesJudge(aapClient, url, judgeRequests)
-      if err != nil {
-        log.Debug(err.Error())
-        c.AbortWithStatus(http.StatusInternalServerError)
-        return
-      }
-
-      if status == http.StatusForbidden {
-        c.AbortWithStatus(http.StatusForbidden)
-        return
-      }
-
-      if status == http.StatusOK {
-
-        // QTNA answered by app judge endpoint
-        // #3 - Access token granted required scopes? (hydra token introspect)
-        // #4 - User or client in access token authorized to execute the granted scopes?
-        var verdict aap.ReadEntitiesJudgeResponse
-        status, restErr := bulky.Unmarshal(0, responses, &verdict)
-        if restErr != nil {
-          log.Debug(restErr)
-          c.AbortWithStatus(http.StatusInternalServerError)
-          return
-        }
-
-        if status == http.StatusOK {
-
-          if verdict.Granted == true {
-            log.WithFields(logrus.Fields{"sub": sub, "scope": strRequiredScopes}).Debug("Authorized")
-            c.Set("sub", sub)
-            c.Set("scope", introspectResponse.Scope)
-            c.Next() // Authentication successful, continue.
-            return
-          }
-
-        }
-
-      }
-
+      log.WithFields(logrus.Fields{"id": verdict.Identity, "scopes": verdict.Scope}).Debug("Forbidden")
+      c.AbortWithStatusJSON(http.StatusForbidden, JsonError{})
+      return
     }
 
     // Deny by default
-    log.WithFields(logrus.Fields{"fixme": 1}).Debug("Calculate missing scopes and only log those");
-    c.AbortWithStatusJSON(http.StatusForbidden, JsonError{ErrorCode: ERROR_MISSING_REQUIRED_SCOPES, Error: "Missing required scopes. Hint: Some required scopes are missing, invalid or not granted"})
+    log.WithFields(logrus.Fields{"status": status}).Debug("Unmarshal ReadEntitiesJudgeResponse failed");
+    c.AbortWithStatus(http.StatusInternalServerError)
     return
-
   }
   return gin.HandlerFunc(fn)
 }
