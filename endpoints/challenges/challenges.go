@@ -7,6 +7,8 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
+  "golang.org/x/oauth2"
+
   "github.com/charmixer/idp/app"
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/gateway/idp"
@@ -143,6 +145,14 @@ func PostChallenges(env *app.Environment) gin.HandlerFunc {
       return
     }
 
+    // This is required to be here but should be garantueed by the authenticationRequired function.
+    t, accessTokenExists := c.Get(env.Constants.AccessTokenKey)
+    if accessTokenExists == false {
+      c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Missing access token"})
+      return
+    }
+    var token *oauth2.Token = t.(*oauth2.Token)
+
     var handleRequests = func(iRequests []*bulky.Request) {
 
       session, tx, err := idp.BeginWriteTx(env.Driver)
@@ -190,7 +200,7 @@ func PostChallenges(env *app.Environment) gin.HandlerFunc {
 
         // Call judge to test if allowed to call endpoint for challenge type
         requiredScopes := challengeTypeRequiredScopes[ct]
-        valid, err := judgeRequiredScope(env, c, log, requiredScopes...)
+        valid, err := judgeRequiredScope(env, c, log, token, requiredScopes...)
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -322,7 +332,7 @@ func PostChallenges(env *app.Environment) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
-func judgeRequiredScope(env *app.Environment, c *gin.Context, log *logrus.Entry, requiredScopes ...string) (valid bool, err error) {
+func judgeRequiredScope(env *app.Environment, c *gin.Context, log *logrus.Entry, token *oauth2.Token, requiredScopes ...string) (valid bool, err error) {
 
   // Check that access token has required scopes
   v, exists := c.Get("scope") // scope from introspection call
@@ -347,10 +357,10 @@ func judgeRequiredScope(env *app.Environment, c *gin.Context, log *logrus.Entry,
   var judgeRequests []aap.ReadEntitiesJudgeRequest
   for _, scope := range requiredScopes {
     judgeRequests = append(judgeRequests, aap.ReadEntitiesJudgeRequest{
-      Identity: sub,
+      AccessToken: token.AccessToken,
       Publisher: publisherId,
       Scope: scope,
-      Owners: []string{ sub }, // should be owners
+      Owners: []string{ sub },
     })
   }
 
