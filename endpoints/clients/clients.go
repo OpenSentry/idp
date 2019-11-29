@@ -8,7 +8,7 @@ import (
   "github.com/charmixer/idp/app"
   "github.com/charmixer/idp/config"
   "github.com/charmixer/idp/gateway/idp"
-  "github.com/charmixer/idp/utils"
+  sec "github.com/charmixer/idp/secret"
   "github.com/charmixer/idp/client"
   _ "github.com/charmixer/idp/client/errors"
 
@@ -207,10 +207,9 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
         if r.IsPublic == false {
 
           if r.Secret == "" {
-
+            
             // BCrypt used by hydra to store passwords securely limits password to 55 chars not counting the terminating zero
-            secret, err = utils.GenerateRandomHex(55)
-
+            secret, err = sec.CreateClientSecret(sec.RECOMMENDED_CLIENT_SECRET_ENTROPY_IN_BYTES)
             if err != nil {
               log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to generate random secret")
 
