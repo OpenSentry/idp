@@ -1,0 +1,32 @@
+FROM golang:1.12-alpine AS builder
+
+RUN apk add --update --no-cache ca-certificates cmake make g++ openssl-dev git curl pkgconfig
+RUN git clone -b v1.7.4 https://github.com/neo4j-drivers/seabolt.git /seabolt
+
+WORKDIR /seabolt/build
+
+RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
+
+WORKDIR $GOPATH/src/github.com/charmixer/idp
+
+COPY . .
+
+RUN rm go.mod go.sum
+
+RUN go get -d -v ./...
+
+RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+RUN dep init && dep ensure -add github.com/neo4j/neo4j-go-driver/neo4j
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -tags seabolt_static -o /idp
+
+# Create alpine runtime image
+FROM alpine:latest
+
+COPY --from=builder /idp /
+
+USER 1000
+
+EXPOSE 443
+
+#ENTRYPOINT ["/idp"]
+#CMD ["--help"]
