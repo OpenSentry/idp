@@ -83,7 +83,7 @@ func SendEmail(smtpConfig SMTPConfig, name string, email string, subject string,
 
   // Trick go library into thinking we are encrypting password to allow SMTP with authentication but no encryption
   //auth := unencryptedAuth { smtp.PlainAuth("", smtpConfig.Username, smtpConfig.Password, host) }
-  auth := smtp.PlainAuth("", smtpConfig.Username, smtpConfig.Password, host)
+  // auth := smtp.PlainAuth("", smtpConfig.Username, smtpConfig.Password, host)
 
   /*err := smtp.SendMail(smtpConfig.Host, auth, smtpConfig.Sender.Email, []string{identity.Email}, []byte(message))
   if err != nil {
@@ -118,9 +118,9 @@ func SendEmail(smtpConfig SMTPConfig, name string, email string, subject string,
   err = c.StartTLS(tlsconfig)
 
   // Auth
-  if err := c.Auth(auth); err != nil {
-    return false, err
-  }
+  // if err := c.Auth(auth); err != nil {
+  //   return false, err
+  // }
 
   // To && From
   if err = c.Mail(from.Address); err != nil {
