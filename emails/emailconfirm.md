@@ -1,6 +1,6 @@
 Greetings {{ .Email }}
 
-The authentication process requires your to confirm your email using this code:
+The authentication process requires you to confirm your email using this code:
 
 {{.Code}}
 
