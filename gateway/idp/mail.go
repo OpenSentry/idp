@@ -5,7 +5,6 @@ import (
   "net"
   "net/mail"
   "net/smtp"
-  "strings"
   "crypto/tls"
   "fmt"
   "text/template"
@@ -25,12 +24,6 @@ type SMTPConfig struct {
   Password string
   Sender SMTPSender
   SkipTlsVerify int
-}
-
-func encodeRFC2047(String string) string {
-	// use mail's rfc2047 to encode any string
-	addr := mail.Address{String, ""}
-	return strings.Trim(addr.String(), " <>")
 }
 
 type unencryptedAuth struct {
@@ -68,7 +61,7 @@ func SendEmail(smtpConfig SMTPConfig, name string, email string, subject string,
   header["Return-Path"] = smtpConfig.Sender.ReturnPath
   header["From"] = from.String()
   header["To"] = to.String()
-  header["Subject"] = encodeRFC2047(subject)
+  header["Subject"] = subject
   header["MIME-Version"] = "1.0"
   header["Content-Type"] = "text/plain; charset=\"utf-8\""
   header["Content-Transfer-Encoding"] = "base64"
