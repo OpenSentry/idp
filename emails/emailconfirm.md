@@ -4,7 +4,7 @@ The authentication process requires you to confirm your email using this code:
 
 {{.Code}}
 
-Once confirmed your will gain access if your are granted the proper access rights.
+Once confirmed you will gain access if you are granted the proper access rights.
 
 Kind Regards,
 {{ .Sender }}
