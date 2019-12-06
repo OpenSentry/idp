@@ -125,7 +125,7 @@ type UpdateHumansRecoverVerifyRequest struct {
   NewPassword string `json:"new_password"           validate:"required,max=55"`
 }
 
-type CreateHumansEmailChangeResponse HumanVerification
+type CreateHumansEmailChangeResponse HumanRedirect
 type CreateHumansEmailChangeRequest struct {
   Id          string `json:"id"          validate:"required,uuid"`
   RedirectTo  string `json:"redirect_to" validate:"required,uri"`
