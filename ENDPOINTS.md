@@ -88,7 +88,7 @@ Content-Type: application/json
     "index": 0,
     "status": 200,
     "errors": null,
-    "ok": [{"message": "hello world"}]
+    "ok": {"message": "hello world"}
   }
 ]
 ```
