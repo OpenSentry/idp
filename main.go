@@ -322,8 +322,6 @@ func serve(env *app.Environment) {
   r.Use(app.RequestId())
   r.Use(app.RequestLogger(env.Constants.LogKey, env.Constants.RequestIdKey, log, appFields))
 
-  // r.Use(utils.ProcessOwnersHeaderAndInitializeContext())
-
   // ## QTNA - Questions that need answering before granting access to a protected resource
   // 1. Is the user or client authenticated? Answered by the process of obtaining an access token.
   // 2. Is the access token expired?
@@ -354,13 +352,6 @@ func serve(env *app.Environment) {
   r.GET(    "/humans", app.AuthorizationRequired(aconf, "idp:read:humans"), humans.GetHumans(env))
   r.POST(   "/humans", app.AuthorizationRequired(aconf, "idp:create:humans"), humans.PostHumans(env) )
   r.PUT(    "/humans", app.AuthorizationRequired(aconf, "idp:update:humans"), humans.PutHumans(env) )
-
-  /*r.PUT( "/humans",
-    app.RequireScopes(env, "idp:update:humans"),
-    app.RequireBearerToken(env),
-    app.Judge(env),
-    humans.PutHumans(env),
-  )*/
 
   r.DELETE( "/humans", app.AuthorizationRequired(aconf, "idp:delete:humans"), humans.DeleteHumans(env) )
 
