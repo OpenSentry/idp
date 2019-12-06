@@ -49,7 +49,8 @@ Table of Contents
 
     * [GET /challenges](#get-challenges)
     * [POST /challenges](#post-challenges)
-    * [POST /challenges/verify](post-challengesverify)  
+    * [POST /challenges/verify](#post-challengesverify)  
+
   * [Create an Identity](#create-an-identity)
   * [Change a Password](#change-a-password)    
   * [Authenticate an Identity](#authenticate-an-identity)
@@ -278,8 +279,60 @@ It is used as a security measure, when changing recovery method or when two-fact
 {
   "otp_challenge": {
     "type": "string",
-    "description": "A globally unique identifier",
-    "validate": "uuid",
+    "description": "The unique identifier for the challenge",
+    "validate": "required, uuid"
+  },
+  "confirmation_type": {
+    "type": "int",
+    "description": "Type of challenge. Used to decide what communication to prompt the Identity",
+    "validate": "numeric"
+  },
+  "sub": {
+    "type": "string",
+    "description": "The subject for which this challenge is requested. See OAuth2 for details",
+    "validate": "required, uuid"
+  },
+  "aud": {
+    "type": "string",    
+    "description": "Intended audience for the challenge. See OAuth2 for details",
+    "validate": "required"
+  },
+  "iat": {
+    "type": "int64",    
+    "description": "Time of creation for the challenge in unixtime",
+    "validate": "required"
+  },
+  "exp": {
+    "type": "int64",    
+    "description": "Time of expiration of the challenge in unixtime",
+    "validate": "required"
+  },
+  "ttl": {
+    "type": "int",    
+    "description": "Time to live in seconds for the challenge",
+    "validate": "required"
+  },
+  "redirect_to": {
+    "type": "string",
+    "description": "The redirect uri returned upon successful challenge verification",
+    "validate": "required, url"
+  },
+  "code_type": {
+    "type": "string",
+    "description": "An identifier for the type of code challenge"
+  },
+  "code": {
+    "type": "string",
+    "description": "The hashed challenge code. Please do not store plain text codes!",
+    "validate": "optional"
+  },
+  "data": {
+    "type": "string",
+    "description": "Registered data to the challenge. Can be used to define the data to be executed upon successful challenge"
+  },
+  "verified_at": {
+    "type": "int64",
+    "description": "Time of success verification of the challenge in unixtime"    
   }
 }
 ```
@@ -1230,7 +1283,6 @@ Claim an invite by answering a code challenge sent to the registered email. Requ
 ```
 
 
-
 ### GET /challenges
 
 Read a challenge. Requires scope `idp:read:challenges`.
@@ -1247,67 +1299,9 @@ Read a challenge. Requires scope `idp:read:challenges`.
 ```
 
 #### Output
-```json
-{
-  "otp_challenge": {
-    "type": "string",
-    "description": "The unique identifier for the challenge",
-    "validate": "required, uuid"
-  },
-  "confirmation_type": {
-    "type": "int",
-    "description": "Type of challenge. Used to decide what communication to prompt the Identity",
-    "validate": "numeric"
-  },
-  "sub": {
-    "type": "string",
-    "description": "The subject for which this challenge is requested. See OAuth2 for details",
-    "validate": "required, uuid"
-  },
-  "aud": {
-    "type": "string",    
-    "description": "Intended audience for the challenge. See OAuth2 for details",
-    "validate": "required"
-  },
-  "iat": {
-    "type": "int64",    
-    "description": "Time of creation for the challenge in unixtime",
-    "validate": "required"
-  },
-  "exp": {
-    "type": "int64",    
-    "description": "Time of expiration of the challenge in unixtime",
-    "validate": "required"
-  },
-  "ttl": {
-    "type": "int",    
-    "description": "Time to live in seconds for the challenge",
-    "validate": "required"
-  },
-  "redirect_to": {
-    "type": "string",
-    "description": "The redirect uri returned upon successful challenge verification",
-    "validate": "required, url"
-  },
-  "code_type": {
-    "type": "string",
-    "description": "An identifier for the type of code challenge"
-  },
-  "code": {
-    "type": "string",
-    "description": "The hashed challenge code. Please do not store plain text codes!",
-    "validate": "optional"
-  },
-  "data": {
-    "type": "string",
-    "description": "Registered data to the challenge. Can be used to define the data to be executed upon successful challenge"
-  },
-  "verified_at": {
-    "type": "int64",
-    "description": "Time of success verification of the challenge in unixtime"    
-  }
-}
-```
+
+Returns an array of challenges. See [Challenge](#challenge) definition.
+
 
 ### POST /challenges
 
@@ -1363,6 +1357,15 @@ Create a challenge. Requires scope `idp:create:challenges`.
 ```
 
 #### Output
+
+Returns an array of challenges. See [Challenge](#challenge) definition.
+
+
+### POST /challenges/verify
+
+Verify a challenge. Requires scope `idp:update:challenges:verify`.
+
+#### Input
 ```json
 {
   "otp_challenge": {
@@ -1370,79 +1373,10 @@ Create a challenge. Requires scope `idp:create:challenges`.
     "description": "The unique identifier for the challenge",
     "validate": "required, uuid"
   },
-  "confirmation_type": {
-    "type": "int",
-    "description": "Type of challenge. Used to decide what communication to prompt the Identity",
-    "validate": "numeric"
-  },
-  "sub": {
-    "type": "string",
-    "description": "The subject for which this challenge is requested. See OAuth2 for details",
-    "validate": "required, uuid"
-  },
-  "aud": {
-    "type": "string",    
-    "description": "Intended audience for the challenge. See OAuth2 for details",
-    "validate": "required"
-  },
-  "iat": {
-    "type": "int64",    
-    "description": "Time of creation for the challenge in unixtime",
-    "validate": "required"
-  },
-  "exp": {
-    "type": "int64",    
-    "description": "Time of expiration of the challenge in unixtime",
-    "validate": "required"
-  },
-  "ttl": {
-    "type": "int",    
-    "description": "Time to live in seconds for the challenge",
-    "validate": "required"
-  },
-  "redirect_to": {
-    "type": "string",
-    "description": "The redirect uri returned upon successful challenge verification",
-    "validate": "required, url"
-  },
-  "code_type": {
-    "type": "string",
-    "description": "An identifier for the type of code challenge"
-  },
-  "code": {
-    "type": "string",
-    "description": "The hashed challenge code. Please do not store plain text codes!",
-    "validate": "optional"
-  },
-  "data": {
-    "type": "string",
-    "description": "Registered data to the challenge. Can be used to define the data to be executed upon successful challenge"
-  },
-  "verified_at": {
-    "type": "int64",
-    "description": "Time of success verification of the challenge in unixtime"    
-  }
-}
-```
-
-### POST /challenges/verify
-
-Verify a challenge. Requires scope `idp:update:challenges:verify`.
-
-OtpChallenge string `json:"otp_challenge" validate:"required"`
-Verified     bool   `json:"verified"      `
-RedirectTo   string `json:"redirect_to"   validate:"required,url"`
-
-#### Input
-```json
-{
-  "otp_challenge": {
-    "type": "string",
-    "required": true
-  },
   "code"  : {
     "type": "string",
-    "required": true
+    "description": "The code entered to verify the challenge.",
+    "validate": "required"
   }
 }
 ```
@@ -1452,15 +1386,17 @@ RedirectTo   string `json:"redirect_to"   validate:"required,url"`
 {
   "otp_challenge": {
     "type": "string",
-    "required": true
+    "description": "The unique identifier for the challenge.",
+    "validate": "required, uuid"
   },
-  "verified"  : {
-    "type": "bool",
-    "required": true
+  "verified": {
+    "type": "string",
+    "description": "Flag indicating if the challenge was successfully verified."
   },
   "redirect_to": {
-    "type": "string",
-    "required": true
+    "type": "string",    
+    "description": "Redirect to after successful challenge verification.",
+    "validate": "required, url"
   }
 }
 ```
