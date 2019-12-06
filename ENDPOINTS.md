@@ -25,8 +25,10 @@ Table of Contents
     * [PUT /humans/totp](#put-humanstotp)      
     * [PUT /humans/email](#put-humansemail)
     * [POST /humans/emailchange](#post-humansemailchange)
-
-    * [POST /identities/logout](#post-identitieslogout)
+    * [PUT /humans/emailchange](#put-humansemailchange)
+    * [GET /humans/logout](#get-humanslogout)
+    * [POST /humans/logout](#post-humanslogout)
+    * [PUT /humans/logout](#put-humanslogout)
 
     * [GET /challenges](#get-challenges)
     * [POST /challenges](#post-challenges)
@@ -293,9 +295,6 @@ The challenge should be verified using this endpoint [PUT /humans/deleteverifica
 ```
 
 #### Output
-Id         string `json:"id"          validate:"required,uuid"`
-RedirectTo string `json:"redirect_to" validate:"required,uri"`
-
 ```json
 {
   "id": {
@@ -621,24 +620,121 @@ Change email of human. Requires scope `idp:create:humans:emailchange`.
 
 #### Output
 ```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the human in the system.",
+    "validate": "required, uuid"
+  },
+  "redirect_to": {
+    "type": "string",
+    "description": "Redirect to url to start the email change process.",
+    "validate": "required, uri"
+  }
+}
+```
+
+### PUT /humans/emailchange
+
+Update email upon challenge verification. Requires scope `idp:update:humans:emailchange`
+
+#### Input
+```json
 {  
+  "email_challenge": {
+    "type": "string",    
+    "description": "The email challenge identifier in the system.",
+    "validate": "required, uuid"
+  },
+  "email": {
+    "type": "string",
+    "description": "The email to update to if challenge is verified.",
+    "validate": "required, email"
+  }
+}
+```
+
+#### Output
+```json
+{  
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the human in the system.",
+    "validate": "required, uuid"
+  },
+  "redirect_to": {
+    "type": "string",
+    "description": "Redirect to url after email change succeeds.",
+    "validate": "required, uri"
+  },
+  "verified": {
+     "type": "bool",
+     "description": "Flag indication if the challenge was verified successfully or not."
+  }
 }
 ```
 
 
+### GET /humans/logout
 
-
-
-### POST /identities/logout
-
-Log an Identity out of the session. Requires scope `logout:identity`.
+Read data registered to a logout challenge. Requires scope `idp:read:humans:logout`.
 
 #### Input
 ```json
 {  
   "challenge": {
+    "type": "string",    
+    "description": "The identifier for the logout challenge in the system.",
+    "validate": "required"
+  }
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the human in the system.",
+    "validate": "required, uuid"
+  },
+  "sid": {
+    "type": "string",    
+    "description": "Session identifier in the system.",    
+  },
+  "rp_initiated": {
+    "type": "string",    
+    "description": "Flag indicating wether logout was initiated by a relaying party or not.",
+  },
+  "request_url": {
+    "type": "string",    
+    "description": "The url that requested the logout",
+    "validate": "required, uri"
+  }
+}
+```
+
+### POST /humans/logout
+
+Create a logout request. Requires scope `idp:create:humans:logout`.
+
+#### Input
+```json
+{
+  "id_token": {
+    "type": "string",    
+    "description": "Id-token to logout.",
+    "validate": "required"
+  },  
+  "state": {
+    "type": "string",    
+    "description": "State parameter to prevent redirect CSRF.",
+    "validate": "required"
+  },  
+  "redirect_to": {
     "type": "string",
-    "required": true
+    "description": "Redirect to url after logout succeeds.",
+    "validate": "required, uri"
   }
 }
 ```
@@ -648,10 +744,43 @@ Log an Identity out of the session. Requires scope `logout:identity`.
 {
   "redirect_to": {
     "type": "string",
-    "required": true
+    "description": "Redirect url to start the logout process.",
+    "validate": "required, uri"
   }
 }
 ```
+
+### PUT /humans/logout
+
+Accept a logout request. Requires scope `idp:update:humans:logout`.
+
+#### Input
+```json
+{
+  "challenge": {
+    "type": "string",    
+    "description": "The identifier for the logout challenge in the system.",
+    "validate": "required"
+  }
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the human in the system.",
+    "validate": "required, uuid"
+  },
+  "redirect_to": {
+    "type": "string",
+    "description": "Redirect url to finalize the logout process.",
+    "validate": "required, uri"
+  }
+}
+```
+
 
 ### GET /challenges
 
