@@ -4,8 +4,6 @@ import (
   "strings"
   "time"
   "net/http"
-  // "reflect"
-  // "encoding/json"
   "golang.org/x/oauth2"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
@@ -19,52 +17,6 @@ import (
   aap "github.com/charmixer/aap/client"
   bulky "github.com/charmixer/bulky/client"
 )
-
-func Judge(env *Environment) gin.HandlerFunc {
-  fn := func(c *gin.Context) {
-
-    token := AccessToken(env, c)
-    if token == nil {
-      panic("missing token")
-    }
-
-    // Introspect token, iff hydra said no then fail.
-
-    // Calcualte the list of granted potential owners for the scopes requested.
-
-    // Collect the set of owners that token.sub is granted on_behalf_of. This is all the grants that judge should care about
-    // Limit the set to only scopes defined by the endpoint (for performance reasons)
-/*
-
-    decoder := json.NewDecoder(c.Request.Body)
-    var iRequests interface{}
-    err := decoder.Decode(&iRequests)
-    if err != nil {
-      panic(err)
-    }
-
-    // Handle empty request
-
-    // Loop all requests
-    tmpRequests := reflect.ValueOf(iRequests)
-    for index := 0; index < tmpRequests.Len() || (tmpRequests.Len() == 0 && index == 0); index++ {
-
-
-
-      var request interface{}
-      if tmpRequests.Len() > 0 {
-        request = tmpRequests.Index(index).Interface()
-      }
-      requests = append(requests, &Request{
-        Index: index,
-        Input: request,
-        Output: nil, // someone needs to fill this
-      })
-    }*/
-
-  }
-  return gin.HandlerFunc(fn)
-}
 
 func AccessToken(env *Environment, c *gin.Context) (*oauth2.Token) {
   t, exists := c.Get(env.Constants.ContextAccessTokenKey)

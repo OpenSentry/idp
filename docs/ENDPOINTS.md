@@ -6,9 +6,13 @@ Table of Contents
 =================
 
   * [Usage](#usage)
+  * [Structure of Input and Output](#structure-of-input-and-output)
   * [Concepts](#concepts)
     * [Identity](#identity)
-    * [Human](#human)                   
+    * [Human](#human)
+    * [Client](#client)
+    * [Resource Server](#resource-server)
+    * [Invite](#invite)
     * [Challenge](#challenge)
   * [Endpoints](#endpoints)        
     * [GET /identities](#get-identities)
@@ -30,11 +34,23 @@ Table of Contents
     * [POST /humans/logout](#post-humanslogout)
     * [PUT /humans/logout](#put-humanslogout)
 
+    * [POST /clients](#post-clients)
+    * [GET /clients](#get-clients)
+    * [DELETE /clients](#delete-clients)
+
+    * [POST /resourceservers](#post-resourceservers)
+    * [GET /resourceservers](#get-resourceservers)
+    * [DELETE /resourceservers](#delete-resourceservers)
+
+    * [POST /invites](#post-invites)
+    * [GET /invites](#get-invites)
+    * [POST /invites/send](#post-invitessend)
+    * [POST /invites/claim](#post-invitesclaim)
+
     * [GET /challenges](#get-challenges)
     * [POST /challenges](#post-challenges)
-    * [POST /challenges/verify](post-challengesverify)
-  * [Scopes](#scopes)
-    * [A note on scopes](#a-note-on-scopes)   
+    * [POST /challenges/verify](#post-challengesverify)  
+
   * [Create an Identity](#create-an-identity)
   * [Change a Password](#change-a-password)    
   * [Authenticate an Identity](#authenticate-an-identity)
@@ -45,12 +61,45 @@ The functions in this REST API is using HTTP method POST to allow for a uniform 
 
 All endpoints can only be reached trough HTTPS with TLS. All endpoints are protected by OAuth2 scopes that are required by the client to call the endpoints.
 
+## Structure of Input and Output
+All endpoints are designed to be bulk first, meaning input and output are always Sets. Heavily inspired by functional programming. To simplify this structure the API uses [Bulky](https://github.com/charmixer/bulky) golang package.
+
+A consequence of the bulk first idea is that all HTTP responses has to be 200 even when a request fails. To see the actual status of the request parsing the OK response is needed. A status field is returned for each output entry aswell as an index, that matches the index of input (zero indexed).
+
+IDP comes with [github.com/charmixer/idp/client](https://github.com/CharMixer/idp/tree/master/client) golang package which is an implementation of all endpoints with unmarshalling of output into go structs. This can be imported into go projects to avoid having to parse output manually.
+
+#### Input
+```
+Post [endpoint] HTTP/1.1
+Host [hostname of service]
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer [access_token]
+[
+  { "message": "hello world" }
+]
+```
+
+#### Output
+```
+Status: 200 OK
+Content-Type: application/json
+[
+  {
+    "index": 0,
+    "status": 200,
+    "errors": null,
+    "ok": {"message": "hello world"}
+  }
+]
+```
+
 ## Concepts
 
 ### Identity
 `Endpoint: /identities`
 
-An identity is a representation of a person, an application or anything that needs to be uniquely identified within a system.
+An identity is a representation of a human, an application or anything that needs to be uniquely identified within a system.
 
 ```json
 {
@@ -71,43 +120,148 @@ An Identity is composed into a more specific type using labels such as `Human`, 
 {
   "id": {
     "type": "string",    
-    "description": "The identifier for the person in the system.",
+    "description": "The identifier for the human in the system.",
     "validate": "uuid, unique"
   },
   "password": {
     "type": "string",
-    "description": "Hash of the password used to authenticate the person.",
+    "description": "Hash of the password used to authenticate the human.",
     "validate": "bcrypt"    
   },    
   "email": {
     "type": "string",
-    "description": "Email claimed by the person. Considered an alias to id.",
+    "description": "Email claimed by the human. Considered an alias to id.",
     "validate": "email, unique"
   },    
   "username": {
     "type": "string",
-    "description": "Username chosen by the person. Considered an alias to id.",    
+    "description": "Username chosen by the human. Considered an alias to id.",    
     "validate": "unique"
   },
   "name": {
     "type": "string",
-    "description": "The name of the person."
+    "description": "The name of the human."
   },
   "totp_required": {
     "type": "bool",
-    "description": "Flag defining if a person must authenticate using Timed One Time Password algorithm."
+    "description": "Flag defining if a human must authenticate using Timed One Time Password algorithm."
   },
   "totp_secret": {
     "type": "string",
-    "description": "Encrypted secret used to authenticate the person using Timed One Time Password algorithm.",    
+    "description": "Encrypted secret used to authenticate the human using Timed One Time Password algorithm.",    
   },
   "allow_login": {
     "type": "bool",
-    "description": "Flag defining if the person is allowed to perform authentication at all.",    
+    "description": "Flag defining if the human is allowed to human authentication at all.",    
   },
   "email_confirmed_at": {
     "type": "int64",
     "description": "Time of email confirmation in unixtime."
+  }
+}
+```
+
+#### Client
+`Endpoint: /clients`
+
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the client in the system.",
+    "validate": "uuid, unique"
+  },
+  "name": {
+    "type": "string",
+    "description": "The name of the client."
+  },
+  "description": {
+    "type": "string",
+    "description": "Description of the client."
+  },
+  "secret": {
+    "type": "string",
+    "description": "Encrypted secret used to authenticate the client."    
+  },
+  "grant_types": {
+    "type": "array of string",
+    "description": "OAuth2 grant types: authorization_code, client_credentials, refresh_token, device_code, password and implicit."
+  },
+  "response_types": {
+    "type": "array of string",
+    "description": "OAuth2 response types: code, token"
+  },
+  "redirect_uris": {
+    "type": "array of string",
+    "description": "Allowed redirect uris for the client."
+  },
+  "token_endpoint_auth_method": {
+    "type": "string",
+    "description": "The allowed authentication method for the client. Supported are: none, client_secret_post, client_secret_basic, private_key_jwt"
+  },
+  "post_logout_redirect_uris": {
+    "type": "array of string",
+    "description": "The allowed urls to redirect to after logout process completes for the client."
+  }
+}
+```
+
+#### Resource Server
+`Endpoint: /resourceservers`
+
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the resource server in the system.",
+    "validate": "uuid, unique"
+  },
+  "name": {
+    "type": "string",
+    "description": "The name of the resource server."
+  },
+  "description": {
+    "type": "string",
+    "description": "Description of the resource server."
+  },
+  "aud": {
+    "type": "string",
+    "description": "The OAuth2 audience definition of the resource server."
+  },
+}
+```
+
+#### Invite
+`Endpoint: /invites`
+
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the invite in the system.",
+    "validate": "uuid, unique"
+  },
+  "iat": {
+    "type": "int64",
+    "description": "Time of creation for the invite in unixtime"
+  },
+  "exp": {
+    "type": "int64",
+    "description": "Time of expiration for the invite in unixtime."
+  },
+  "email": {
+    "type": "string",
+    "description": "The email where to sent the invite. Considered an alias to id.",
+    "validate": "required, email, unique"
+  },
+  "username": {
+    "type": "string",
+    "description": "The username of the invite. Considered an alias to id.",
+    "validate": "optional"
+  },
+  "sent_at": {
+    "type": "string",
+    "description": "Time when the invite was last sent to the registered email in unixtime."
   }
 }
 ```
@@ -125,8 +279,60 @@ It is used as a security measure, when changing recovery method or when two-fact
 {
   "otp_challenge": {
     "type": "string",
-    "description": "A globally unique identifier",
-    "validate": "uuid",
+    "description": "The unique identifier for the challenge",
+    "validate": "required, uuid"
+  },
+  "confirmation_type": {
+    "type": "int",
+    "description": "Type of challenge. Used to decide what communication to prompt the Identity",
+    "validate": "numeric"
+  },
+  "sub": {
+    "type": "string",
+    "description": "The subject for which this challenge is requested. See OAuth2 for details",
+    "validate": "required, uuid"
+  },
+  "aud": {
+    "type": "string",    
+    "description": "Intended audience for the challenge. See OAuth2 for details",
+    "validate": "required"
+  },
+  "iat": {
+    "type": "int64",    
+    "description": "Time of creation for the challenge in unixtime",
+    "validate": "required"
+  },
+  "exp": {
+    "type": "int64",    
+    "description": "Time of expiration of the challenge in unixtime",
+    "validate": "required"
+  },
+  "ttl": {
+    "type": "int",    
+    "description": "Time to live in seconds for the challenge",
+    "validate": "required"
+  },
+  "redirect_to": {
+    "type": "string",
+    "description": "The redirect uri returned upon successful challenge verification",
+    "validate": "required, url"
+  },
+  "code_type": {
+    "type": "string",
+    "description": "An identifier for the type of code challenge"
+  },
+  "code": {
+    "type": "string",
+    "description": "The hashed challenge code. Please do not store plain text codes!",
+    "validate": "optional"
+  },
+  "data": {
+    "type": "string",
+    "description": "Registered data to the challenge. Can be used to define the data to be executed upon successful challenge"
+  },
+  "verified_at": {
+    "type": "int64",
+    "description": "Time of success verification of the challenge in unixtime"    
   }
 }
 ```
@@ -203,7 +409,7 @@ Create a human. Requires scope `idp:create:humans`.
   },
   "allow_login": {
     "type": "bool",
-    "description": "Flag defining if the person is allowed to perform authentication at all."
+    "description": "Flag defining if the human is allowed to perform authentication at all."
   },
   "email_confirmed_at": {
     "type": "int64",
@@ -214,7 +420,7 @@ Create a human. Requires scope `idp:create:humans`.
 ```
 
 #### Output
-See [Human](#human) definition. This endpoint is the only endpoint that will return the password hash of the person.
+See [Human](#human) definition. This endpoint is the only endpoint that will return the password hash of the human.
 
 
 ### GET /humans
@@ -242,7 +448,7 @@ Read data of a human. Requires scope `idp:read:humans`.
 ```
 
 #### Output
-See [Human](#human) definition.
+Returns array of Humans. See [Human](#human) definition.
 
 
 ### PUT /humans
@@ -261,7 +467,7 @@ This endpoints has limitations on which part of the human model it is allowed to
   },  
   "name": {
     "type": "string",
-    "description": "The name of the person."
+    "description": "The name of the human."
   }
 }
 ```
@@ -417,7 +623,7 @@ This will validate credentials provided by the human and match them to the human
     "type": "bool",
     "description": "Flag indication that the human does not exist.",
     "validate": "required"
-  },
+  }
 }
 ```
 
@@ -782,6 +988,301 @@ Accept a logout request. Requires scope `idp:update:humans:logout`.
 ```
 
 
+### GET /clients
+
+Read a client. Requires scope: `idp:read:clients`.
+
+#### Input
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the client in the system.",
+    "validate": "required, uuid"
+  }
+}
+```
+
+#### Output
+
+Returns an array of Clients. See [Client](#client) definition.
+
+
+### POST /clients
+
+Create a client. Requires scope: `idp:create:clients`.
+
+#### Input
+```json
+{
+  "name": {
+    "type": "string",
+    "description": "The name of the client.",
+    "validate": "required"
+  },
+  "description": {
+    "type": "string",
+    "description": "Description of the client.",
+    "validate": "required"
+  },
+  "is_public": {
+    "type": "bool",
+    "description": "Flag indicating wether client is capable of protecting a secret or not. Mobile Apps should set this to true.",
+    "validate": "required"
+  },
+  "secret": {
+    "type": "string",
+    "description": "The client secret. The system will generate one for the client automatically per default.",
+    "validate": "optional, max=55"
+  },
+  "grant_types": {
+    "type": "array of string",
+    "description": "OAuth2 grant types: authorization_code, client_credentials, refresh_token, device_code, password and implicit.",
+    "validate": "optional"
+  },
+  "response_types": {
+    "type": "array of string",
+    "description": "OAuth2 response types: code, token",
+    "validate": "optional"
+  },
+  "redirect_uris": {
+    "type": "array of string",
+    "description": "Allowed redirect uris for the client.",
+    "validate": "optional"
+  },
+  "token_endpoint_auth_method": {
+    "type": "string",
+    "description": "The allowed authentication method for the client. Supported are: none, client_secret_post, client_secret_basic, private_key_jwt",
+    "validate": "optional"
+  },
+  "post_logout_redirect_uris": {
+    "type": "array of string",
+    "description": "The allowed urls to redirect to after logout process completes for the client.",
+    "validate": "optional"
+  }
+}
+```
+
+#### Output
+
+See [Client](#client) definition.
+
+
+### DELETE /clients
+
+Delete a client. Requires scope `idp:delete:clients`.
+
+#### Input
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the client in the system.",
+    "validate": "required, uuid"
+  }
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The deleted identifier for the client in the system.",
+    "validate": "required, uuid"
+  }
+}
+```
+
+
+### POST /resourceservers
+
+Create a resource server. Requires scope: `idp:create:resourceservers`.
+
+#### Input
+```json
+{
+  "name": {
+    "type": "string",
+    "description": "The name of the resource server.",
+    "validate": "required"
+  },
+  "description": {
+    "type": "string",
+    "description": "Description of the resource server.",
+    "validate": "required"
+  },
+  "aud": {
+    "type": "string",
+    "description": "The OAuth2 audience definition of the resource server."
+  }
+}
+```
+
+#### Output
+
+See [Resource Server](#resource-server) definition.
+
+
+### GET /resourceservers
+
+Read a resource server. Requires scope: `idp:read:resourceservers`.
+
+#### Input
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the resource server in the system.",
+    "validate": "required, uuid"
+  }
+}
+```
+
+#### Output
+
+Returns an array of Resource Servers. See [Resource Server](#resource-server) definition.
+
+
+### DELETE /resourceservers
+
+Delete a resource server. Requires scope: `idp:delete:resourceservers`
+
+#### Input
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the resource server in the system.",
+    "validate": "required, uuid"
+  }
+}
+```
+
+#### Output
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The deleted identifier for the resource server in the system.",
+    "validate": "required, uuid"
+  }
+}
+```
+
+
+### POST /invites
+
+Create an invite. Requires scope: `idp:create:invites`.
+
+#### Input
+```json
+{
+  "email": {
+    "type": "string",
+    "description": "The email where to sent the invite.",
+    "validate": "required, email"
+  },
+  "username": {
+    "type": "string",
+    "description": "The username of the identity created by the invite.",
+    "validate": "optional"
+  },
+  "exp": {
+    "type": "int64",
+    "description": "Time of expiration of the invite.",
+    "validate": "optional, numeric"
+  }  
+}
+```
+
+#### Output
+
+Returns an array of invite. See [Invite](#invite) definition.
+
+
+### GET /invites
+
+Read an invite. Requires scope: `idp:read:invites`.
+
+#### Input
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the invite in the system.",
+    "validate": "required_without=email, uuid"
+  },
+  "email": {
+    "type": "string",
+    "description": "The email acting as an alias for the invite in the system.",
+    "validate": "required_without=id, email"
+  }
+}
+```
+
+#### Output
+
+Returns an array of invite. See [Invite](#invite) definition.
+
+
+### POST /invites/send
+
+Send an invite to the registered email. Requires scope: `idp:create:invites:send`.
+
+#### Input
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the invite in the system.",
+    "validate": "required, uuid"
+  }
+}
+```
+
+#### Output
+
+Returns an array of invite. See [Invite](#invite) definition.
+
+
+### POST /invites/claim
+
+Claim an invite by answering a code challenge sent to the registered email. Requires scope: `idp:create:invites:claim`.
+
+#### Input
+```json
+{
+  "id": {
+    "type": "string",    
+    "description": "The identifier for the invite in the system.",
+    "validate": "required, uuid"
+  },
+  "redirect_to": {
+    "type": "string",    
+    "description": "Redirect to once claim process succeeds.",
+    "validate": "required, url"
+  },
+  "ttl": {
+    "type": "int64",
+    "description": "Time to live for the claim challenge.",
+    "validate": "numeric"
+  }
+}
+```
+
+#### Output
+```json
+{
+  "redirect_to": {
+    "type": "string",    
+    "description": "Redirect to start the claim process.",
+    "validate": "required, url"
+  }
+}
+```
+
+
 ### GET /challenges
 
 Read a challenge. Requires scope `idp:read:challenges`.
@@ -798,67 +1299,9 @@ Read a challenge. Requires scope `idp:read:challenges`.
 ```
 
 #### Output
-```json
-{
-  "otp_challenge": {
-    "type": "string",
-    "description": "The unique identifier for the challenge",
-    "validate": "required, uuid"
-  },
-  "confirmation_type": {
-    "type": "int",
-    "description": "Type of challenge. Used to decide what communication to prompt the Identity",
-    "validate": "numeric"
-  },
-  "sub": {
-    "type": "string",
-    "description": "The subject for which this challenge is requested. See OAuth2 for details",
-    "validate": "required, uuid"
-  },
-  "aud": {
-    "type": "string",    
-    "description": "Intended audience for the challenge. See OAuth2 for details",
-    "validate": "required"
-  },
-  "iat": {
-    "type": "int64",    
-    "description": "Time of creation for the challenge in unixtime",
-    "validate": "required"
-  },
-  "exp": {
-    "type": "int64",    
-    "description": "Time of expiration of the challenge in unixtime",
-    "validate": "required"
-  },
-  "ttl": {
-    "type": "int",    
-    "description": "Time to live in seconds for the challenge",
-    "validate": "required"
-  },
-  "redirect_to": {
-    "type": "string",
-    "description": "The redirect uri returned upon successful challenge verification",
-    "validate": "required, url"
-  },
-  "code_type": {
-    "type": "string",
-    "description": "An identifier for the type of code challenge"
-  },
-  "code": {
-    "type": "string",
-    "description": "The hashed challenge code. Please do not store plain text codes!",
-    "validate": "optional"
-  },
-  "data": {
-    "type": "string",
-    "description": "Registered data to the challenge. Can be used to define the data to be executed upon successful challenge"
-  },
-  "verified_at": {
-    "type": "int64",
-    "description": "Time of success verification of the challenge in unixtime"    
-  }
-}
-```
+
+Returns an array of challenges. See [Challenge](#challenge) definition.
+
 
 ### POST /challenges
 
@@ -914,6 +1357,15 @@ Create a challenge. Requires scope `idp:create:challenges`.
 ```
 
 #### Output
+
+Returns an array of challenges. See [Challenge](#challenge) definition.
+
+
+### POST /challenges/verify
+
+Verify a challenge. Requires scope `idp:update:challenges:verify`.
+
+#### Input
 ```json
 {
   "otp_challenge": {
@@ -921,79 +1373,10 @@ Create a challenge. Requires scope `idp:create:challenges`.
     "description": "The unique identifier for the challenge",
     "validate": "required, uuid"
   },
-  "confirmation_type": {
-    "type": "int",
-    "description": "Type of challenge. Used to decide what communication to prompt the Identity",
-    "validate": "numeric"
-  },
-  "sub": {
-    "type": "string",
-    "description": "The subject for which this challenge is requested. See OAuth2 for details",
-    "validate": "required, uuid"
-  },
-  "aud": {
-    "type": "string",    
-    "description": "Intended audience for the challenge. See OAuth2 for details",
-    "validate": "required"
-  },
-  "iat": {
-    "type": "int64",    
-    "description": "Time of creation for the challenge in unixtime",
-    "validate": "required"
-  },
-  "exp": {
-    "type": "int64",    
-    "description": "Time of expiration of the challenge in unixtime",
-    "validate": "required"
-  },
-  "ttl": {
-    "type": "int",    
-    "description": "Time to live in seconds for the challenge",
-    "validate": "required"
-  },
-  "redirect_to": {
-    "type": "string",
-    "description": "The redirect uri returned upon successful challenge verification",
-    "validate": "required, url"
-  },
-  "code_type": {
-    "type": "string",
-    "description": "An identifier for the type of code challenge"
-  },
-  "code": {
-    "type": "string",
-    "description": "The hashed challenge code. Please do not store plain text codes!",
-    "validate": "optional"
-  },
-  "data": {
-    "type": "string",
-    "description": "Registered data to the challenge. Can be used to define the data to be executed upon successful challenge"
-  },
-  "verified_at": {
-    "type": "int64",
-    "description": "Time of success verification of the challenge in unixtime"    
-  }
-}
-```
-
-### POST /challenges/verify
-
-Verify a challenge. Requires scope `idp:update:challenges:verify`.
-
-OtpChallenge string `json:"otp_challenge" validate:"required"`
-Verified     bool   `json:"verified"      `
-RedirectTo   string `json:"redirect_to"   validate:"required,url"`
-
-#### Input
-```json
-{
-  "otp_challenge": {
-    "type": "string",
-    "required": true
-  },
   "code"  : {
     "type": "string",
-    "required": true
+    "description": "The code entered to verify the challenge.",
+    "validate": "required"
   }
 }
 ```
@@ -1003,40 +1386,20 @@ RedirectTo   string `json:"redirect_to"   validate:"required,url"`
 {
   "otp_challenge": {
     "type": "string",
-    "required": true
+    "description": "The unique identifier for the challenge.",
+    "validate": "required, uuid"
   },
-  "verified"  : {
-    "type": "bool",
-    "required": true
+  "verified": {
+    "type": "string",
+    "description": "Flag indicating if the challenge was successfully verified."
   },
   "redirect_to": {
-    "type": "string",
-    "required": true
+    "type": "string",    
+    "description": "Redirect to after successful challenge verification.",
+    "validate": "required, url"
   }
 }
 ```
-
-## Scopes
-
-The following scopes are required for the endpoints.
-
-| Endpoint                                                                    | Scope                   |
-| --------------------------------------------------------------------------- | ----------------------- |
-| [POST /identities](#post-identities)                                        | `authenticate:identity` |
-| [GET /identities](#get-identities)                                          | `read:identity`         |
-| [PUT /identities](#put-identities)                                          | `update:identity`       |
-| [DELETE /identities](#delete-identities)                                    | `delete:identity`       |
-| [POST /identities/deleteverification](#post-identitiesdeleteverification)   | `delete:identity`       |
-| [POST /identities/authenticate](#post-identitiesauthenticate)               | `authenticate:identity` |
-| [POST /identities/password](#post-identitiespassword)                       | `authenticate:identity` |
-| [POST /identities/recover](#post-identitiesrecover)                         | `recover:identity`      |
-| [POST /identities/recoververification](#post-identitiesrecoververification) | `authenticate:identity` |
-| [POST /identities/totp](#post-identitiestotptotp)                            | `authenticate:identity` |
-| [POST /identities/logout](#post-identitieslogout)                           | `logout:identity`       |
-
-### A note on scopes
-
-The scope `authenticate:identity` is used whenever the password credentials of an Identity is involved. This also include verification codes that are a form of two-factor alias for passwords. This scope should be restricted to applications inside the trust zone only.
 
 ## Create an Identity
 To create a new identity a `POST` request must be made to the `/identities` endpoint. Specifying an `id` for the Identity, a name, email and an optional `password` in plain text. Hashing of the password will be done by the endpoint, before sending it to storage. The hashing algorithm is performed by the bcrypt library `golang.org/x/crypto/bcrypt` using the following function:
