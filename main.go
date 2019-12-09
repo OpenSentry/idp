@@ -175,14 +175,12 @@ func main() {
   // https://medium.com/neo4j/neo4j-go-driver-is-out-fbb4ba5b3a30
   // Each driver instance is thread-safe and holds a pool of connections that can be re-used over time. If you don’t have a good reason to do otherwise, a typical application should have a single driver instance throughout its lifetime.
   log.WithFields(appFields).Debug("Fixme Neo4j loggning should go trough logrus so it does not differ in output from rest of the app")
-  driver, err := neo4j.NewDriver(config.GetString("neo4j.uri"), neo4j.BasicAuth(config.GetString("neo4j.username"), config.GetString("neo4j.password"), ""), func(config *neo4j.Config) {
-    //config.Log = neo4j.ConsoleLogger(neo4j.DEBUG)
+  driver, err := neo4j.NewDriver(config.GetString("neo4j.uri"), neo4j.BasicAuth(config.GetString("neo4j.username"), config.GetString("neo4j.password"), ""), func(conf *neo4j.Config) {
+    debug := config.GetInt("neo4j.debug")
 
-    /*if logDebug == 1 {
-      config.Log = neo4j.ConsoleLogger(neo4j.DEBUG)
-    } else {
-      config.Log = neo4j.ConsoleLogger(neo4j.INFO)
-    }*/
+    if debug == 1 {
+      conf.Log = neo4j.ConsoleLogger(neo4j.DEBUG)
+    }
   });
   if err != nil {
     log.WithFields(appFields).Panic(err.Error())
