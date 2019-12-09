@@ -62,7 +62,6 @@ type CreateChallengesRequest struct {
   Code          string `json:"code"        validate:"required"`
 
   Email         string `json:"email,omitempty" validate:"omitempty,email"`
-  // Template      EmailTemplate `json:"tpl,omitempty" validate:"omitempty,numeric"`
 }
 
 type ReadChallengesResponse []Challenge
