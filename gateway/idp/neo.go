@@ -16,6 +16,10 @@ func BeginReadTx(driver neo4j.Driver, configurers ...func(*neo4j.TransactionConf
 
   tx, err := session.BeginTransaction(configurers...)
 
+  if err != nil {
+    session.Close()
+  }
+
   return session, tx, err
 }
 
@@ -27,6 +31,10 @@ func BeginWriteTx(driver neo4j.Driver, configurers ...func(*neo4j.TransactionCon
   }
 
   tx, err := session.BeginTransaction(configurers...)
+
+  if err != nil {
+    session.Close()
+  }
 
   return session, tx, err
 }
