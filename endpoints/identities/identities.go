@@ -6,9 +6,9 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
-  "github.com/charmixer/idp/app"
-  "github.com/charmixer/idp/gateway/idp"
-  "github.com/charmixer/idp/client"
+  "github.com/opensentry/idp/app"
+  "github.com/opensentry/idp/gateway/idp"
+  "github.com/opensentry/idp/client"
 
   bulky "github.com/charmixer/bulky/server"
 )

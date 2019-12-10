@@ -11,10 +11,10 @@ import (
   oidc "github.com/coreos/go-oidc"
   "golang.org/x/oauth2/clientcredentials"
 
-  "github.com/charmixer/idp/config"
-  "github.com/charmixer/idp/utils"
+  "github.com/opensentry/idp/config"
+  "github.com/opensentry/idp/utils"
 
-  aap "github.com/charmixer/aap/client"
+  aap "github.com/opensentry/aap/client"
   bulky "github.com/charmixer/bulky/client"
 )
 
