@@ -3,7 +3,7 @@ The purpose of this project is to make it possible for anyone to run a basic Ide
 
 It does *not* have anything to do with OAuth2 in any way, but is meant to be used as the Identity Provider for another service like ORY Hydra (https://github.com/ory/hydra).
 
-This project will only give you the required API endpoints for managing an Identity Provider - no GUI is included. However, it will be able to run hand-in-hand with https://github.com/charmixer/idpui as the graphical web interface.
+This project will only give you the required API endpoints for managing an Identity Provider - no GUI is included. However, it will be able to run hand-in-hand with https://github.com/opensentry/idpui as the graphical web interface.
 
 # Requirements
 There is a set of requirements to be met in order to run the Identity Provider.
@@ -24,7 +24,7 @@ First of all make sure docker is installed and ready to use.
 
 Next, run the following commands:
 ```
-$ git clone git@github.com:CharMixer/idp.git
+$ git clone git@github.com:OpenSentry/idp.git
 $ cd idp
 $ # This will build a docker image by getting all necessary requirements and compiling the go project.
 $ docker build -t idp .

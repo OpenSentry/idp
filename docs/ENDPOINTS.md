@@ -66,7 +66,7 @@ All endpoints are designed to be bulk first, meaning input and output are always
 
 A consequence of the bulk first idea is that all HTTP responses has to be 200 even when a request fails. To see the actual status of the request parsing the OK response is needed. A status field is returned for each output entry aswell as an index, that matches the index of input (zero indexed).
 
-IDP comes with [github.com/charmixer/idp/client](https://github.com/CharMixer/idp/tree/master/client) golang package which is an implementation of all endpoints with unmarshalling of output into go structs. This can be imported into go projects to avoid having to parse output manually.
+IDP comes with [github.com/opensentry/idp/client](https://github.com/OpenSentry/idp/tree/master/client) golang package which is an implementation of all endpoints with unmarshalling of output into go structs. This can be imported into go projects to avoid having to parse output manually.
 
 #### Input
 ```
