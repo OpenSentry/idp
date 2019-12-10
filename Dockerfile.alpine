@@ -1,4 +1,4 @@
-# Build with: DOCKER_BUILDKIT=1 docker build -t charmixer/idp:`cat ./VERSION` -f Dockerfile.alpine .
+# Build with: DOCKER_BUILDKIT=1 docker build -t opensentry/idp:`cat ./VERSION` -f Dockerfile.alpine .
 
 ARG GO_VERSION=1.12
 ARG ALPINE_VERSION=3.10.3
@@ -16,7 +16,7 @@ WORKDIR /seabolt/build
 
 RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
 
-WORKDIR $GOPATH/src/github.com/charmixer/${APP}
+WORKDIR $GOPATH/src/github.com/opensentry/${APP}
 
 COPY . .
 

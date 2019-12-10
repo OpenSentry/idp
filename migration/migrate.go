@@ -7,7 +7,7 @@ import (
   
   "github.com/neo4j/neo4j-go-driver/neo4j"
 
-  "github.com/charmixer/idp/config"
+  "github.com/opensentry/idp/config"
 )
 
 func loadMigrationsFromFile(path string) []string {

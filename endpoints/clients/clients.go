@@ -5,14 +5,14 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
-  "github.com/charmixer/idp/app"
-  "github.com/charmixer/idp/config"
-  "github.com/charmixer/idp/gateway/idp"
-  sec "github.com/charmixer/idp/secret"
-  "github.com/charmixer/idp/client"
-  _ "github.com/charmixer/idp/client/errors"
+  "github.com/opensentry/idp/app"
+  "github.com/opensentry/idp/config"
+  "github.com/opensentry/idp/gateway/idp"
+  sec "github.com/opensentry/idp/secret"
+  "github.com/opensentry/idp/client"
+  _ "github.com/opensentry/idp/client/errors"
 
-  aap "github.com/charmixer/aap/client"
+  aap "github.com/opensentry/aap/client"
   hydra "github.com/charmixer/hydra/client"
   bulky "github.com/charmixer/bulky/server"
 )

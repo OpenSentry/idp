@@ -5,11 +5,11 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
-  "github.com/charmixer/idp/app"
-  "github.com/charmixer/idp/config"
-  "github.com/charmixer/idp/gateway/idp"
-  "github.com/charmixer/idp/client"
-  E "github.com/charmixer/idp/client/errors"
+  "github.com/opensentry/idp/app"
+  "github.com/opensentry/idp/config"
+  "github.com/opensentry/idp/gateway/idp"
+  "github.com/opensentry/idp/client"
+  E "github.com/opensentry/idp/client/errors"
 
   bulky "github.com/charmixer/bulky/server"
 )

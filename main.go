@@ -19,19 +19,19 @@ import (
 
   nats "github.com/nats-io/nats.go"
 
-  "github.com/charmixer/idp/app"
-  "github.com/charmixer/idp/config"
-  "github.com/charmixer/idp/gateway/idp"
-  "github.com/charmixer/idp/migration"
-  "github.com/charmixer/idp/endpoints/identities"
-  "github.com/charmixer/idp/endpoints/humans"
-  "github.com/charmixer/idp/endpoints/clients"
-  "github.com/charmixer/idp/endpoints/challenges"
-  "github.com/charmixer/idp/endpoints/invites"
-  "github.com/charmixer/idp/endpoints/resourceservers"
-  "github.com/charmixer/idp/endpoints/roles"
+  "github.com/opensentry/idp/app"
+  "github.com/opensentry/idp/config"
+  "github.com/opensentry/idp/gateway/idp"
+  "github.com/opensentry/idp/migration"
+  "github.com/opensentry/idp/endpoints/identities"
+  "github.com/opensentry/idp/endpoints/humans"
+  "github.com/opensentry/idp/endpoints/clients"
+  "github.com/opensentry/idp/endpoints/challenges"
+  "github.com/opensentry/idp/endpoints/invites"
+  "github.com/opensentry/idp/endpoints/resourceservers"
+  "github.com/opensentry/idp/endpoints/roles"
 
-  E "github.com/charmixer/idp/client/errors"
+  E "github.com/opensentry/idp/client/errors"
 )
 
 const appName = "idp"

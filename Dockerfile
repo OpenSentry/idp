@@ -4,9 +4,9 @@
 FROM golang:1.12-alpine
 
 # Add Maintainer Info
-LABEL maintainer="Lasse Nielsen <65roed@gmail.com>"
+LABEL maintainer="The OpenSentry Team"
 
-RUN apk add --update --no-cache ca-certificates cmake make g++ openssl-dev git curl pkgconfig
+RUN apk add --update --no-cache ca-certificates cmake make g++ openssl-dev git curl pkgconfig openssh
 
 # RUN apt install -y libssl1.0.0
 RUN git clone -b v1.7.4 https://github.com/neo4j-drivers/seabolt.git /seabolt
@@ -19,7 +19,7 @@ WORKDIR /seabolt/build
 RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
 
 # Set the Current Working Directory inside the container
-WORKDIR $GOPATH/src/github.com/charmixer/idp
+WORKDIR $GOPATH/src/github.com/opensentry/idp
 
 # Copy everything from the current directory to the PWD(Present Working Directory) inside the container
 COPY . .
@@ -29,18 +29,15 @@ COPY . .
 RUN go get -d -v ./...
 
 # Development requires fresh
-#RUN go get -v github.com/pilu/fresh
-
-# Install the package
-RUN go install -v ./...
+RUN go get github.com/ivpusic/rerun
+# Cache for rerun
+RUN mkdir /.cache
+#RUN chown -R 1000 /.cache
 
 # This container exposes port 443 to the docker network
 EXPOSE 443
 
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
 #USER 1000
 
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["idp"]
+ENTRYPOINT ["rerun"]
+CMD ["-a--serve"]

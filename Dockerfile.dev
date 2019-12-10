@@ -7,7 +7,7 @@ WORKDIR /seabolt/build
 
 RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
 
-WORKDIR $GOPATH/src/github.com/charmixer/idp
+WORKDIR $GOPATH/src/github.com/opensentry/idp
 
 COPY . .
 

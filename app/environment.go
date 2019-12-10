@@ -8,7 +8,7 @@ import (
   "golang.org/x/oauth2/clientcredentials"
   oidc "github.com/coreos/go-oidc"
 
-  "github.com/charmixer/idp/gateway/idp"
+  "github.com/opensentry/idp/gateway/idp"
 )
 
 type EnvironmentConstants struct {
