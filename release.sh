@@ -2,7 +2,7 @@
 
 if [ -z "$1" ]
   then
-    echo "Show usage"
+    echo "$0 patch|minor|major"
     exit 1
 fi
 
@@ -30,7 +30,7 @@ fi
 read -p "Your Github username: " USERNAME
 read -p "Your Github Token: " TOKEN
 echo -en "\033[1A\033[2K"
-echo "Github Token: ******************"
+echo "Your Github Token: ******************"
 
 URL="https://api.github.com/repos/$OWNER/$REPO/collaborators/$USERNAME/permission"
 HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X GET -u $USERNAME:$TOKEN $URL)
