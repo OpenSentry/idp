@@ -2,7 +2,7 @@
 
 if [ -z "$1" ]
   then
-    echo "$0 patch|minor|major"
+    echo "$0 patch|minor|major [/path/to/credentials]"
     exit 1
 fi
 
@@ -31,13 +31,32 @@ if [ -z "$OWNER" ] || [ -z "$REPO" ]; then
   exit 1
 fi
 
-read -p "Your Github username: " USERNAME
-read -p "Your Github Token: " TOKEN
-echo -en "\033[1A\033[2K"
-echo "Your Github Token: ******************"
+if [ -z "$2" ]; then
+  CONFIG_FILE="/home/$USERNAME/.githubrepotoken"
+else
+  CONFIG_FILE=$2
+fi
 
-URL="https://api.github.com/repos/$OWNER/$REPO/collaborators/$USERNAME/permission"
-HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X GET -u $USERNAME:$TOKEN $URL)
+if [ -f $CONFIG_FILE ]; then
+  CREDIENTIALS=$(cat "$CONFIG_FILE")
+  GITHUB_USER=$(echo $CREDIENTIALS | cut -d/ -f 1)
+  GITHUB_TOKEN=$(echo $CREDIENTIALS | cut -d/ -f 2-)
+else
+  echo "No credientials file found at '$CONFIG_FILE', add 'github-user/github-token' to this file to skip questions."
+fi
+
+if [ -z "$GITHUB_USER" ]; then
+  read -p "Your Github username: " GITHUB_USER
+fi
+
+if [ -z "$GITHUB_TOKEN" ]; then
+  read -p "Your Github Token: " GITHUB_TOKEN
+  echo -en "\033[1A\033[2K"
+  echo "Your Github Token: ******************"
+fi
+
+URL="https://api.github.com/repos/$OWNER/$REPO/collaborators/$GITHUB_USER/permission"
+HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X GET -u $GITHUB_USER:$GITHUB_TOKEN $URL)
 HTTP_BODY=$(echo $HTTP_RESPONSE | sed -e 's/HTTPSTATUS\:.*//g')
 HTTP_STATUS=$(echo $HTTP_RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
@@ -46,8 +65,8 @@ if [ $HTTP_STATUS -eq 200  ]; then
   PERMISSION=$(echo $HTTP_BODY | python2 -c 'import json,sys;res=json.load(sys.stdin); print res["permission"]')
 fi
 
-if [ $PERMISSION != "admin" ] && [ $PERMISSION != "write" ]; then
-  echo "Missing write/admin permission to repo, Aborting."
+if [ "$PERMISSION" != "admin" ] && [ "$PERMISSION" != "write" ]; then
+  echo "Missing write/admin permission to repo for github user '$GITHUB_USER', Aborting."
   exit 1
 fi
 
