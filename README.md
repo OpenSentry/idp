@@ -1,4 +1,7 @@
 # Identity Provider backend written in Golang
+
+<a href="https://godoc.org/github.com/OpenSentry/idp"><img src="https://godoc.org/github.com/OpenSentry/idp?status.svg" alt="GoDoc"></a>
+
 The purpose of this project is to make it possible for anyone to run a basic Identity Provider.
 
 It does *not* have anything to do with OAuth2 in any way, but is meant to be used as the Identity Provider for another service like ORY Hydra (https://github.com/ory/hydra).
@@ -16,20 +19,13 @@ There is a set of requirements to be met in order to run the Identity Provider.
 ## Software
  * Docker (https://www.docker.com/) or a compatible containerization technology.
 
-## Ports Used
+## Ports used
 The Identity Provider can be configured to run on any port, using the configuration options.
 
 # Getting started
-First of all make sure docker is installed and ready to use.
+First of all make sure docker and docker-compose is installed and ready to use.
 
-Next, run the following commands:
-```
-$ git clone git@github.com:OpenSentry/idp.git
-$ cd idp
-$ # This will build a docker image by getting all necessary requirements and compiling the go project.
-$ docker build -t idp .
-$ # When the image has been build, use the following docker command to start it up:
-$ docker run -it -p 8080:8080 -v $(pwd):/go/src/idp idp
-```
+For production setup please see https://github.com/OpenSentry/opensentry and for development purpose use https://github.com/OpenSentry/opensentry-dev
 
-The endpoint documentation is found in the [https://github.com/OpenSentry/idp/wiki](wiki)
+
+The endpoint documentation is found in the [wiki](https://github.com/OpenSentry/idp/wiki)
