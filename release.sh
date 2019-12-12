@@ -13,12 +13,8 @@ if [[ "$BRANCH" != "master" ]]; then
 fi
 
 # only works for ssh url
-OWNER=$(git remote get-url origin | cut -d: -f 2 | cut -d/ -f 1)
-REPO=$(git remote get-url origin | cut -d: -f 2 | cut -d/ -f 2 | cut -f 1 -d '.')
-
-# lowercase
-OWNER=${OWNER,,}
-REPO=${REPO,,}
+OWNER=$(git remote get-url origin | cut -d: -f 2 | cut -d/ -f 1 | tr '[:upper:]' '[:lower:]')
+REPO=$(git remote get-url origin | cut -d: -f 2 | cut -d/ -f 2 | cut -f 1 -d '.' | tr '[:upper:]' '[:lower:]')
 
 read -p "Repository [$OWNER/$REPO]: " TMP
 if [ ! -z "$TMP" ]; then
