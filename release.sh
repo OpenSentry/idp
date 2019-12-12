@@ -67,7 +67,7 @@ if [ "$PERMISSION" != "admin" ] && [ "$PERMISSION" != "write" ]; then
 fi
 
 URL="https://api.github.com/repos/$OWNER/$REPO/releases/latest"
-HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X GET -u $USERNAME:$TOKEN $URL)
+HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -X GET -u $GITHUB_USER:$GITHUB_TOKEN $URL)
 HTTP_BODY=$(echo $HTTP_RESPONSE | sed -e 's/HTTPSTATUS\:.*//g')
 HTTP_STATUS=$(echo $HTTP_RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
@@ -103,7 +103,7 @@ fi
 
 URL="https://api.github.com/repos/$OWNER/$REPO/releases"
 DATA="{\"tag_name\":\"$NEW_RELEASE\",\"target_commitish\":\"$LAST_COMMIT\"}"
-HTTP_RESPONSE=$(curl -s -d "$DATA" -w "HTTPSTATUS:%{http_code}" -X POST -u $USERNAME:$TOKEN $URL)
+HTTP_RESPONSE=$(curl -s -d "$DATA" -w "HTTPSTATUS:%{http_code}" -X POST -u $GITHUB_USER:$GITHUB_TOKEN $URL)
 HTTP_BODY=$(echo $HTTP_RESPONSE | sed -e 's/HTTPSTATUS\:.*//g')
 HTTP_STATUS=$(echo $HTTP_RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
