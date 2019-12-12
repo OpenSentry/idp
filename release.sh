@@ -28,7 +28,7 @@ if [ -z "$OWNER" ] || [ -z "$REPO" ]; then
 fi
 
 if [ -z "$2" ]; then
-  CONFIG_FILE="/home/$USERNAME/.githubrepotoken"
+  CONFIG_FILE="$HOME/.githubrepotoken"
 else
   CONFIG_FILE=$2
 fi
