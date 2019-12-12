@@ -14,7 +14,11 @@ fi
 
 # only works for ssh url
 OWNER=$(git remote get-url origin | cut -d: -f 2 | cut -d/ -f 1)
-REPO=$(git remote get-url origin | cut -d: -f 2 | cut -d/ -f 2)
+REPO=$(git remote get-url origin | cut -d: -f 2 | cut -d/ -f 2 | cut -f 1 -d '.')
+
+# lowercase
+OWNER=${OWNER,,}
+REPO=${REPO,,}
 
 read -p "Repository [$OWNER/$REPO]: " TMP
 if [ ! -z "$TMP" ]; then
@@ -55,7 +59,7 @@ HTTP_STATUS=$(echo $HTTP_RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 if [ $HTTP_STATUS -eq 200  ]; then
   CURRENT_RELEASE=$(echo $HTTP_BODY | python2 -c 'import json,sys;res=json.load(sys.stdin); print res["tag_name"]')
 
-  TARGET_COMITISH=$(echo $HTTP_BODY | python2 -c 'import json,sys;res=json.load(sys.stdin); print res["target_commitish"]')
+  TARGET_COMMITISH=$(echo $HTTP_BODY | python2 -c 'import json,sys;res=json.load(sys.stdin); print res["target_commitish"]')
 fi
 
 NEW_RELEASE="0.0.0"
@@ -68,8 +72,8 @@ elif [ $1 == "patch" ]; then
 fi
 
 LAST_COMMIT=$(git rev-parse HEAD)
-if [ ! -z $TARGET_COMITISH ] && [ $TARGET_COMITISH == $LAST_COMMIT ]; then
-  echo "Latest commit in master is the same as the latest release, '$TARGET_COMITISH', Aborting."
+if [ ! -z $TARGET_COMMITISH ] && [ $TARGET_COMMITISH == $LAST_COMMIT ]; then
+  echo "Latest commit in master is the same as the latest release, '$TARGET_COMMITISH', Aborting."
   exit 1
 fi
 
