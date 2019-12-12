@@ -31,3 +31,5 @@ $ docker build -t idp .
 $ # When the image has been build, use the following docker command to start it up:
 $ docker run -it -p 8080:8080 -v $(pwd):/go/src/idp idp
 ```
+
+The endpoint documentation is found in the [https://github.com/OpenSentry/idp/wiki](wiki)
