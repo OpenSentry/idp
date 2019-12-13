@@ -6,6 +6,7 @@
 
 **Merged pull requests:**
 
+- Dont push if no changes to changelog was made [\#28](https://github.com/OpenSentry/idp/pull/28) ([CharMixer](https://github.com/CharMixer))
 - Update README.md [\#25](https://github.com/OpenSentry/idp/pull/25) ([wraix](https://github.com/wraix))
 - Updated documentation [\#24](https://github.com/OpenSentry/idp/pull/24) ([wraix](https://github.com/wraix))
 
