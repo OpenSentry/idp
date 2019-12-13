@@ -22,7 +22,7 @@ jobs:
           git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' || echo ::set-env name=push::1
       
       - name: Push changes
-        if: push == 1
+        if: env.push == 1
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_REPO_TOKEN }}
