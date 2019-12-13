@@ -1,3 +1,4 @@
+name: Changelog
 on: [push]
 
 jobs:
@@ -14,4 +15,5 @@ jobs:
           branch: 'master'
       - name: Get the output time
         run: |
+          cat CHANGELOG.md
           echo "${{ steps.changelog.outputs.changelog }}"
