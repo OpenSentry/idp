@@ -18,7 +18,6 @@ jobs:
       - name: Commit files
         run: |
           git config --local user.email "team@opensentry.net"
-          git config --local user.name "Open Sentry"
           git add CHANGELOG.md
           git commit -m "Updated CHANGELOG.md"
       
