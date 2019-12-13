@@ -13,4 +13,5 @@ jobs:
           repository: 'idp'
           branch: 'master'
       - name: Get the output time
-        run: echo "${{ steps.changelog.outputs.changelog }}"
+        run: |
+          echo "${{ steps.changelog.outputs.changelog }}"
