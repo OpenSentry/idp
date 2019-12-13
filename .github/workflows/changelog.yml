@@ -2,12 +2,11 @@ name: Changelog
 on: [push]
 
 jobs:
-  build_changelog:
+  generate_changelog:
     runs-on: ubuntu-latest
     name: Generate changelog for master branch
     steps:
       - name: Generate changelog
-        id: changelog
         uses: charmixer/auto-changelog-action@master
         with:
           owner: 'opensentry'
@@ -16,4 +15,5 @@ jobs:
       - name: Get the output time
         run: |
           cat CHANGELOG.md
-          echo "${{ steps.changelog.outputs.changelog }}"
+          git status
+          git diff
