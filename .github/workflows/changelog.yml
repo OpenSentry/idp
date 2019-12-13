@@ -25,12 +25,18 @@ jobs:
           branch: 'master'
 
       - name: Commit files
+        env:
+          OPENSENTRY_CI_USER: ${{ secrets.OPENSENTRY_CI_USER }}
+          OPENSENTRY_CI_EMAIL: ${{ secrets.OPENSENTRY_CI_EMAIL }}
         run: |
-          git config --local user.email "${{ secrets.OPENSENTRY_CI_EMAIL }}"
-          git config --local user.name "${{ secrets.OPENSENTRY_CI_USER }}"
+          git config --local user.email "$OPENSENTRY_CI_EMAIL"
+          git config --local user.name "$OPENSENTRY_CI_USER"
           git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' && echo ::set-env name=push::1 || echo "No changes to CHANGELOG.md"
 
       - name: Push changes
         if: env.push == 1
+        env:
+          OPENSENTRY_CI_USER: ${{ secrets.OPENSENTRY_CI_USER }}
+          OPENSENTRY_CI_TOKEN: ${{ secrets.OPENSENTRY_CI_TOKEN }}
         run: |
-          git push --force https://${{ secrets.OPENSENTRY_CI_USER }}:${{ secrets.OPENSENTRY_CI_TOKEN }}@github.com/${{ GITHUB_REPOSITORY }}.git HEAD:master
+          git push "https://$OPENSENTRY_CI_USER:$OPENSENTRY_CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" HEAD:master
