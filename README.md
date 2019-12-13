@@ -16,7 +16,7 @@ There is a set of requirements to be met in order to run the Identity Provider.
 ## Software
  * Docker (https://www.docker.com/) or a compatible containerization technology.
 
-## Ports Used
+## Ports used
 The Identity Provider can be configured to run on any port, using the configuration options.
 
 # Getting started
