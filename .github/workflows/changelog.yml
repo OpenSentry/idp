@@ -19,7 +19,7 @@ jobs:
         run: |
           git config --local user.email "team@opensentry.net"
           git config --local user.name "opensentry-ci"
-          git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' || echo ::set-env name=push::1
+          git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' && echo ::set-env name=push::1 || echo "No changes to CHANGELOG.md"
       
       - name: Push changes
         if: env.push == 1
