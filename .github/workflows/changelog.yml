@@ -1,0 +1,16 @@
+on: [push]
+
+jobs:
+  build_changelog:
+    runs-on: ubuntu-latest
+    name: Generate changelog for master branch
+    steps:
+      - name: Generate changelog
+        id: changelog
+        uses: charmixer/auto-changelog-action@v1
+        with:
+          owner: 'opensentry'
+          repository: 'idp'
+          branch: 'master'
+      - name: Get the output time
+        run: echo "${{ steps.changelog.outputs.changelog }}"
