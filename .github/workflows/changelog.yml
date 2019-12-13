@@ -3,7 +3,7 @@ name: Changelog
 on:
   pull_request:
     types: [closed]
-  
+
   release:
     types: [published]
 
@@ -16,22 +16,21 @@ jobs:
     name: Generate changelog for master branch
     steps:
       - uses: actions/checkout@v1
-      
+
       - name: Generate changelog
         uses: charmixer/auto-changelog-action@master
         with:
           owner: 'opensentry'
           repository: 'idp'
           branch: 'master'
-      
+
       - name: Commit files
         run: |
-          git config --local user.email "team@opensentry.net"
-          git config --local user.name "opensentry-ci"
+          git config --local user.email "${{ secrets.OPENSENTRY_CI_EMAIL }}"
+          git config --local user.name "${{ secrets.OPENSENTRY_CI_USER }}"
           git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' && echo ::set-env name=push::1 || echo "No changes to CHANGELOG.md"
-      
+
       - name: Push changes
         if: env.push == 1
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_REPO_TOKEN }}
+        run: |
+          git push --force https://${{ secrets.OPENSENTRY_CI_USER }}:${{ secrets.OPENSENTRY_CI_TOKEN }}@github.com/${{ GITHUB_REPOSITORY }}.git HEAD:master
