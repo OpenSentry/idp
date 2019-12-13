@@ -6,12 +6,15 @@ jobs:
     runs-on: ubuntu-latest
     name: Generate changelog for master branch
     steps:
+      - uses: actions/checkout@v1
+      
       - name: Generate changelog
         uses: charmixer/auto-changelog-action@master
         with:
           owner: 'opensentry'
           repository: 'idp'
           branch: 'master'
+      
       - name: Get the output time
         run: |
           cat CHANGELOG.md
