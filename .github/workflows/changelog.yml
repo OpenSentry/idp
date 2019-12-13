@@ -15,8 +15,13 @@ jobs:
           repository: 'idp'
           branch: 'master'
       
-      - name: Get the output time
+      - name: Commit files
         run: |
-          cat CHANGELOG.md
-          git status
-          git diff
+          git config --local user.email "team@opensentry.net"
+          git config --local user.name "Open Sentry"
+          git commit -m "Add changes" -a
+      
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_REPO_TOKEN }}
