@@ -19,7 +19,7 @@ jobs:
         run: |
           git config --local user.email "team@opensentry.net"
           git config --local user.name "opensentry-ci"
-          git diff --quiet CHANGELOG.md && git diff --staged --quiet CHANGELOG.md || git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md'
+          git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' || echo "No changes to commit"
       
       - name: Push changes
         uses: ad-m/github-push-action@master
