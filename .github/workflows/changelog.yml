@@ -7,7 +7,7 @@ jobs:
     steps:
       - name: Generate changelog
         id: changelog
-        uses: charmixer/auto-changelog-action@v1
+        uses: charmixer/auto-changelog-action@master
         with:
           owner: 'opensentry'
           repository: 'idp'
