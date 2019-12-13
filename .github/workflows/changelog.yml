@@ -10,6 +10,8 @@ on:
   issues:
     types: [closed, edited]
 
+  push:
+
 jobs:
   generate_changelog:
     runs-on: ubuntu-latest
