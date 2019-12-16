@@ -1,12 +1,8 @@
 # Changelog
 
-## [0.0.1](https://github.com/opensentry/idp/tree/0.0.1) (2019-12-11)
+## [Unreleased](https://github.com/opensentry/idp/tree/HEAD)
 
-[Full Changelog](https://github.com/opensentry/idp/compare/0.0.0...0.0.1)
-
-## [0.0.0](https://github.com/opensentry/idp/tree/0.0.0) (2019-12-11)
-
-[Full Changelog](https://github.com/opensentry/idp/compare/29adf8a8d1f7a77617f984a25af01f1820140281...0.0.0)
+[Full Changelog](https://github.com/opensentry/idp/compare/29adf8a8d1f7a77617f984a25af01f1820140281...HEAD)
 
 **Closed issues:**
 
