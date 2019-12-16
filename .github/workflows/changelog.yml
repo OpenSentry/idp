@@ -20,8 +20,8 @@ jobs:
       - name: Generate changelog
         uses: charmixer/auto-changelog-action@master
         with:
-          owner: 'opensentry'
-          repository: 'idp'
+          user: 'opensentry'
+          project: 'idp'
           branch: 'master'
 
       - name: Commit files
