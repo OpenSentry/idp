@@ -1,26 +1,16 @@
 # Changelog
 
-## [Unreleased](https://github.com/opensentry/idp/tree/HEAD)
+## [0.0.1](https://github.com/opensentry/idp/tree/0.0.1) (2019-12-11)
 
-[Full Changelog](https://github.com/opensentry/idp/compare/0.0.0...HEAD)
+[Full Changelog](https://github.com/opensentry/idp/compare/0.0.0...0.0.1)
 
-**Merged pull requests:**
+## [0.0.0](https://github.com/opensentry/idp/tree/0.0.0) (2019-12-11)
 
-- Dont push if no changes to changelog was made [\#28](https://github.com/OpenSentry/idp/pull/28) ([CharMixer](https://github.com/CharMixer))
-- Update README.md [\#25](https://github.com/OpenSentry/idp/pull/25) ([wraix](https://github.com/wraix))
-- Updated documentation [\#24](https://github.com/OpenSentry/idp/pull/24) ([wraix](https://github.com/wraix))
-
-## [0.0.0](https://github.com/opensentry/idp/tree/0.0.0) (2019-12-12)
-
-[Full Changelog](https://github.com/opensentry/idp/compare/d604297182d5a5a8dd231b8560c517679eda38fa...0.0.0)
+[Full Changelog](https://github.com/opensentry/idp/compare/29adf8a8d1f7a77617f984a25af01f1820140281...0.0.0)
 
 **Closed issues:**
 
 - Interface spec /manages GET [\#2](https://github.com/OpenSentry/idp/issues/2)
-
-**Merged pull requests:**
-
-- Create LICENSE [\#10](https://github.com/OpenSentry/idp/pull/10) ([wraix](https://github.com/wraix))
 
 
 
