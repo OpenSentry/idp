@@ -19,10 +19,6 @@ jobs:
 
       - name: Generate changelog
         uses: charmixer/auto-changelog-action@master
-        with:
-          user: 'opensentry'
-          project: 'idp'
-          branch: 'master'
 
       - name: Commit files
         env:
