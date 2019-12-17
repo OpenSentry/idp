@@ -19,6 +19,8 @@ jobs:
 
       - name: Generate changelog
         uses: charmixer/auto-changelog-action@master
+        with:
+          token: ${{ secrets.OPENSENTRY_CI_TOKEN }}
 
       - name: Commit files
         env:
