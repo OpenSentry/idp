@@ -20,21 +20,21 @@ jobs:
       - name: Generate changelog
         uses: charmixer/auto-changelog-action@master
         with:
-          token: ${{ secrets.OPENSENTRY_CI_TOKEN }}
+          token: ${{ secrets.CI_TOKEN }}
 
       - name: Commit files
         env:
-          OPENSENTRY_CI_USER: ${{ secrets.OPENSENTRY_CI_USER }}
-          OPENSENTRY_CI_EMAIL: ${{ secrets.OPENSENTRY_CI_EMAIL }}
+          OPENSENTRY_CI_USER: ${{ secrets.CI_USER }}
+          OPENSENTRY_CI_EMAIL: ${{ secrets.CI_EMAIL }}
         run: |
-          git config --local user.email "$OPENSENTRY_CI_EMAIL"
-          git config --local user.name "$OPENSENTRY_CI_USER"
+          git config --local user.email "$CI_EMAIL"
+          git config --local user.name "$CI_USER"
           git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' && echo ::set-env name=push::1 || echo "No changes to CHANGELOG.md"
 
       - name: Push changes
         if: env.push == 1
         env:
-          OPENSENTRY_CI_USER: ${{ secrets.OPENSENTRY_CI_USER }}
-          OPENSENTRY_CI_TOKEN: ${{ secrets.OPENSENTRY_CI_TOKEN }}
+          OPENSENTRY_CI_USER: ${{ secrets.CI_USER }}
+          OPENSENTRY_CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
-          git push "https://$OPENSENTRY_CI_USER:$OPENSENTRY_CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" HEAD:master
+          git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" HEAD:master
