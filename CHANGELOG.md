@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.1](https://github.com/OpenSentry/idp/tree/0.0.1) (2019-12-18)
+
+[Full Changelog](https://github.com/OpenSentry/idp/compare/0.0.0...0.0.1)
+
 ## [0.0.0](https://github.com/OpenSentry/idp/tree/0.0.0) (2019-12-16)
 
 [Full Changelog](https://github.com/OpenSentry/idp/compare/29adf8a8d1f7a77617f984a25af01f1820140281...0.0.0)
