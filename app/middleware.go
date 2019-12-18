@@ -209,7 +209,7 @@ func AuthenticationRequired(logKey string, accessTokenKey string) gin.HandlerFun
     var token *oauth2.Token
     auth := c.Request.Header.Get("Authorization")
     split := strings.SplitN(auth, " ", 2)
-    if len(split) == 2 || strings.EqualFold(split[0], "bearer") {
+    if len(split) == 2 && strings.EqualFold(split[0], "bearer") {
 
       token = &oauth2.Token{
         AccessToken: split[1],
