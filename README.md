@@ -23,16 +23,9 @@ There is a set of requirements to be met in order to run the Identity Provider.
 The Identity Provider can be configured to run on any port, using the configuration options.
 
 # Getting started
-First of all make sure docker is installed and ready to use.
+First of all make sure docker and docker-compose is installed and ready to use.
 
-Next, run the following commands:
-```
-$ git clone git@github.com:OpenSentry/idp.git
-$ cd idp
-$ # This will build a docker image by getting all necessary requirements and compiling the go project.
-$ docker build -t idp .
-$ # When the image has been build, use the following docker command to start it up:
-$ docker run -it -p 8080:8080 -v $(pwd):/go/src/idp idp
-```
+For production setup please see https://github.com/OpenSentry/opensentry and for development purpose use https://github.com/OpenSentry/opensentry-dev
+
 
 The endpoint documentation is found in the [wiki](https://github.com/OpenSentry/idp/wiki)
