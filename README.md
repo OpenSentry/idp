@@ -1,4 +1,7 @@
 # Identity Provider backend written in Golang
+
+<a href="https://godoc.org/github.com/OpenSentry/idp"><img src="https://godoc.org/github.com/OpenSentry/idp?status.svg" alt="GoDoc"></a>
+
 The purpose of this project is to make it possible for anyone to run a basic Identity Provider.
 
 It does *not* have anything to do with OAuth2 in any way, but is meant to be used as the Identity Provider for another service like ORY Hydra (https://github.com/ory/hydra).
