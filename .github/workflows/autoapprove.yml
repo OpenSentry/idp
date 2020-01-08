@@ -3,7 +3,7 @@ name: CI Pull Request Handler
 on:
   pull_request:
     branches: [master]
-    types: [opened, labeled]
+    types: [opened]
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
     - name: Auto merge
       uses: "pascalgn/automerge-action@2c8e667a3386187418587517e5bfe33470d19b5b"
       env:
-        GITHUB_TOKEN: "${{ secrets.CI_TOKEN }}"
+        GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         MERGE_LABELS: "automerge"
         MERGE_RETRIES: "6"
         MERGE_RETRY_SLEEP: "10000"
