@@ -29,7 +29,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Updated CHANGELOG.md
           committer: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
-          author: github-actions[bot]
+          author: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
           title: 'Update CHANGELOG'
           body: |
             Update CHANGELOG.md
