@@ -26,10 +26,10 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v2
         with:
-          token: ${{ secrets.CI_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Updated CHANGELOG.md
           committer: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
-          author: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
+          author: github-actions[bot]
           title: 'Update CHANGELOG'
           body: |
             Update CHANGELOG.md
