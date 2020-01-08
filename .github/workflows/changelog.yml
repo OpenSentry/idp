@@ -17,38 +17,61 @@ jobs:
     steps:
       - uses: actions/checkout@v1
 
+      #- name: Setup git
+        #env:
+          #CI_USER: ${{ secrets.CI_USER }}
+          #CI_EMAIL: ${{ secrets.CI_EMAIL }}
+        #run: |
+          #git config --local user.email "$CI_EMAIL"
+          #git config --local user.name "$CI_USER"
+          #git checkout changelog || git checkout -b changelog
+
       - name: Generate changelog
         uses: charmixer/auto-changelog-action@v1
         with:
           token: ${{ secrets.CI_TOKEN }}
 
-      - name: Commit files
-        env:
-          CI_USER: ${{ secrets.CI_USER }}
-          CI_EMAIL: ${{ secrets.CI_EMAIL }}
-        run: |
-          git config --local user.email "$CI_EMAIL"
-          git config --local user.name "$CI_USER"
-          git checkout changelog || git checkout -b changelog
-          git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' && echo ::set-env name=push::1 || echo "No changes to CHANGELOG.md"
+      #- name: Commit files
+        #run: |
+          #git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' && echo ::set-env name=push::1 || echo "No changes to CHANGELOG.md"
 
-      - name: Push changes
-        if: env.push == 1
-        env:
-          CI_USER: ${{ secrets.CI_USER }}
-          CI_TOKEN: ${{ secrets.CI_TOKEN }}
-        run: |
-          git checkout changelog
-          git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" changelog:changelog
+      #- name: Push changes to changelog branch
+        #if: env.push == 1
+        #env:
+          #CI_USER: ${{ secrets.CI_USER }}
+          #CI_TOKEN: ${{ secrets.CI_TOKEN }}
+        #run: |
+          #git checkout changelog
+          #git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" changelog:changelog
 
-      - name: pull-request
-        if: env.push == 1
-        uses: repo-sync/pull-request@v2
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v2
         with:
-          source_branch: "changelog"            # If blank, default: triggered branch
-          destination_branch: "master"          # If blank, default: master
-          pr_title: "Pulling ${{ github.ref }} into master"
-          pr_body: "Updates to the CHANGELOG"   # Full markdown support, requires pr_title to be set
-          pr_reviewer: "github[bot]"            # Comma-separated list (no spaces)
-          pr_label: "automerge"                 # Comma-separated list (no spaces)
-          github_token: ${{ secrets.CI_TOKEN }}
+          token: ${{ secrets.CI_TOKEN }}
+          commit-message: Updated CHANGELOG.md
+          committer: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
+          author: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
+          title: 'Update CHANGELOG'
+          body: |
+            Update CHANGELOG.md
+          labels: automerge
+          assignees: ${{ secrets.CI_USER }}
+          reviewers: ${{ secrets.CI_USER }}
+          branch: changelog
+      - name: Check outputs
+        run: |
+          echo "Pull Request Number - ${{ env.PULL_REQUEST_NUMBER }}"
+          echo "Pull Request Number - ${{ steps.cpr.outputs.pr_number }}"
+
+      #- name: Create pull request for merging changelog branch
+        #if: env.push == 1
+        #uses: repo-sync/pull-request@v2
+        #with:
+          #source_branch: "changelog"            # If blank, default: triggered branch
+          #destination_branch: "master"          # If blank, default: master
+          #pr_title: "Updates to the CHANGELOG"
+          #pr_body: "Pulling ${{ github.ref }} into master"   # Full markdown support, requires pr_title to be set
+          #pr_reviewer: "github[bot]"            # Comma-separated list (no spaces)
+          #pr_label: "automerge"                 # Comma-separated list (no spaces)
+          #github_token: ${{ secrets.CI_TOKEN }}
