@@ -5,16 +5,13 @@ on:
     types: [labeled, unlabeled, opened]
 
 jobs:
-  merge:
+  automerge:
     runs-on: ubuntu-latest
-    name: Merge
     steps:
-    - name: Automatic merge
-      uses: squalrus/merge-bot@v0.2.0
-      with:
-        GITHUB_TOKEN: ${{ secrets.CI_TOKEN }}
-        test: true
-        reviewers: true
-        labels: automerge
-        blocking-labels: do not merge
-        method: merge
+      - name: automerge
+        uses: "pascalgn/automerge-action@2c8e667a3386187418587517e5bfe33470d19b5b"
+        env:
+          GITHUB_TOKEN: "${{ secrets.CI_TOKEN }}"
+          MERGE_LABELS: "automerge"
+          MERGE_RETRIES: "6"
+          MERGE_RETRY_SLEEP: "10000"
