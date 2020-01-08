@@ -6,6 +6,7 @@
 
 **Merged pull requests:**
 
+- Update CHANGELOG [\#41](https://github.com/OpenSentry/idp/pull/41) ([opensentry-ci](https://github.com/opensentry-ci))
 - Update CHANGELOG [\#40](https://github.com/OpenSentry/idp/pull/40) ([opensentry-ci](https://github.com/opensentry-ci))
 - Update CHANGELOG [\#34](https://github.com/OpenSentry/idp/pull/34) ([opensentry-ci](https://github.com/opensentry-ci))
 - Update CHANGELOG [\#33](https://github.com/OpenSentry/idp/pull/33) ([opensentry-ci](https://github.com/opensentry-ci))
