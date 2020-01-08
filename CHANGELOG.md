@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased](https://github.com/OpenSentry/idp/tree/HEAD)
+
+[Full Changelog](https://github.com/OpenSentry/idp/compare/0.0.1...HEAD)
+
+**Merged pull requests:**
+
+- Update CHANGELOG [\#32](https://github.com/OpenSentry/idp/pull/32) ([opensentry-ci](https://github.com/opensentry-ci))
+
 ## [0.0.1](https://github.com/OpenSentry/idp/tree/0.0.1) (2019-12-18)
 
 [Full Changelog](https://github.com/OpenSentry/idp/compare/0.0.0...0.0.1)
