@@ -8,7 +8,7 @@ on:
     types: [published]
 
   issues:
-    types: [closed]
+    types: [closed, edited]
 
 jobs:
   generate_changelog:
