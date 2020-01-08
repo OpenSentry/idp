@@ -21,7 +21,7 @@ jobs:
         uses: charmixer/auto-changelog-action@v1
         with:
           token: ${{ secrets.CI_TOKEN }}
-          exclude_tags: ci
+          exclude_labels: ci
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v2
