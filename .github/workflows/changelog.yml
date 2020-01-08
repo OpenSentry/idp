@@ -29,6 +29,7 @@ jobs:
         run: |
           git config --local user.email "$CI_EMAIL"
           git config --local user.name "$CI_USER"
+          git checkout -b changelog
           git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' && echo ::set-env name=push::1 || echo "No changes to CHANGELOG.md"
 
       - name: Push changes
@@ -37,4 +38,17 @@ jobs:
           CI_USER: ${{ secrets.CI_USER }}
           CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
-          git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" HEAD:master
+          git checkout -b changelog
+          git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" -u origin changelog
+
+      - name: pull-request
+        if: env.push == 1
+        uses: repo-sync/pull-request@v2
+        with:
+          source_branch: "changelog"            # If blank, default: triggered branch
+          destination_branch: "master"          # If blank, default: master
+          pr_title: "Pulling ${{ github.ref }} into master"
+          pr_body: "Updates to the CHANGELOG"   # Full markdown support, requires pr_title to be set
+          pr_reviewer: "github[bot]"            # Comma-separated list (no spaces)
+          pr_label: "automerge"                 # Comma-separated list (no spaces)
+          github_token: ${{ secrets.CI_TOKEN }}

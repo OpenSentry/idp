@@ -1,0 +1,21 @@
+name: Automatic Merge
+
+on:
+  pull_request:
+    types: [labeled, unlabeled, review_request_removed]
+  pull_request_review:
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    name: Merge
+    steps:
+    - name: Automatic merge
+      uses: squalrus/merge-bot@v0.2.0
+      with:
+        GITHUB_TOKEN: ${{ secrets.CI_TOKEN }}
+        test: true
+        reviewers: true
+        labels: automerge
+        blocking-labels: do not merge
+        method: merge
