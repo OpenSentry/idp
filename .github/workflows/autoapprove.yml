@@ -2,7 +2,7 @@ name: Auto approve
 
 on:
   pull_request:
-    types: [ready_for_review]
+    types: [review_requested]
 
 jobs:
   build:
