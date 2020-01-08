@@ -35,5 +35,5 @@ jobs:
             Update CHANGELOG.md
           labels: automerge,ci
           assignees: ${{ secrets.CI_USER }}
-          #reviewers: github-actions[bot]
+          reviewers: ${{ secrets.CI_USER }}
           branch: changelog
