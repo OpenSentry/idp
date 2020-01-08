@@ -3,9 +3,7 @@ name: CI Pull Request Handler
 on:
   pull_request:
     branches: [master]
-    types: [opened]
-
-  pull_request_review:
+    types: [opened, synchronize]
 
 jobs:
   build:
