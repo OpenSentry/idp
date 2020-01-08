@@ -39,7 +39,7 @@ jobs:
           CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
           git checkout changelog
-          git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" -u origin changelog
+          git push -u origin changelog "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git"
 
       - name: pull-request
         if: env.push == 1
