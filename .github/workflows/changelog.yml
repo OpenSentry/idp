@@ -26,7 +26,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.CI_TOKEN }}
           commit-message: Updated CHANGELOG.md
           committer: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
           author: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
@@ -35,5 +35,4 @@ jobs:
             Update CHANGELOG.md
           labels: automerge,ci
           assignees: ${{ secrets.CI_USER }}
-          reviewers: ${{ secrets.CI_USER }}
           branch: changelog
