@@ -2,7 +2,7 @@ name: Automatic Merge
 
 on:
   pull_request:
-    types: [labeled, unlabeled, opened]
+    types: [labeled, unlabeled, opened, edited]
 
 jobs:
   automerge:
