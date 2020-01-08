@@ -1,9 +1,6 @@
 name: Changelog
 
 on:
-  pull_request:
-    types: [closed]
-
   release:
     types: [published]
 
