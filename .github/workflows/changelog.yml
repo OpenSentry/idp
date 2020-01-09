@@ -37,7 +37,6 @@ jobs:
           CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
           git checkout changelog
-          git pull
           git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" changelog:changelog
 
       - name: pull-request
