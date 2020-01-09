@@ -32,6 +32,7 @@ jobs:
           CI_EMAIL: ${{ secrets.CI_EMAIL }}
         run: |
           git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' && echo ::set-env name=push::1 || echo "No changes to CHANGELOG.md"
+          git checkout master
 
       - name: Push changes
         if: env.push == 1
@@ -40,7 +41,6 @@ jobs:
           CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
           git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" changelog:changelog
-          git checkout master
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v2
