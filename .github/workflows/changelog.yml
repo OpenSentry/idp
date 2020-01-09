@@ -38,15 +38,27 @@ jobs:
         run: |
           git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" changelog:changelog
 
-      - name: Create Pull Request
-        if: env.push == 1
-        uses: peter-evans/create-pull-request@v2
+      - name: pull-request
+        uses: repo-sync/pull-request@v2
         with:
-          token: ${{ secrets.CI_TOKEN }}
-          author: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
-          title: 'Update CHANGELOG'
-          body: |
-            Updated CHANGELOG.md
-          labels: automerge,ci
-          assignees: ${{ secrets.CI_USER }}
-          branch: changelog
+          source_branch: "changelog"            # If blank, default: triggered branch
+          destination_branch: "master"          # If blank, default: master
+          pr_title: "Update CHANGELOG.md"
+          pr_body: ":crown: *An automated PR*"  # Full markdown support, requires pr_title to be set
+          pr_reviewer: "github-actions[bot]"             # Comma-separated list (no spaces)
+          pr_assignee: "opensentry-ci"             # Comma-separated list (no spaces)
+          pr_label: "automerge,ci"                   # Comma-separated list (no spaces)
+          github_token: ${{ secrets.CI_TOKEN }}
+
+      #- name: Create Pull Request
+        #if: env.push == 1
+        #uses: peter-evans/create-pull-request@v2
+        #with:
+          #token: ${{ secrets.CI_TOKEN }}
+          #author: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
+          #title: 'Update CHANGELOG'
+          #body: |
+            #Updated CHANGELOG.md
+          #labels: automerge,ci
+          #assignees: ${{ secrets.CI_USER }}
+          #branch: changelog
