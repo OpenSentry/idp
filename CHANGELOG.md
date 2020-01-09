@@ -1,18 +1,5 @@
 # Changelog
 
-## [Unreleased](https://github.com/OpenSentry/idp/tree/HEAD)
-
-[Full Changelog](https://github.com/OpenSentry/idp/compare/0.0.1...HEAD)
-
-**Merged pull requests:**
-
-- Update CHANGELOG [\#42](https://github.com/OpenSentry/idp/pull/42) ([opensentry-ci](https://github.com/opensentry-ci))
-- Update CHANGELOG [\#41](https://github.com/OpenSentry/idp/pull/41) ([opensentry-ci](https://github.com/opensentry-ci))
-- Update CHANGELOG [\#40](https://github.com/OpenSentry/idp/pull/40) ([opensentry-ci](https://github.com/opensentry-ci))
-- Update CHANGELOG [\#34](https://github.com/OpenSentry/idp/pull/34) ([opensentry-ci](https://github.com/opensentry-ci))
-- Update CHANGELOG [\#33](https://github.com/OpenSentry/idp/pull/33) ([opensentry-ci](https://github.com/opensentry-ci))
-- Update CHANGELOG [\#32](https://github.com/OpenSentry/idp/pull/32) ([opensentry-ci](https://github.com/opensentry-ci))
-
 ## [0.0.1](https://github.com/OpenSentry/idp/tree/0.0.1) (2019-12-18)
 
 [Full Changelog](https://github.com/OpenSentry/idp/compare/0.0.0...0.0.1)
