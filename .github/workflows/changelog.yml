@@ -20,16 +20,31 @@ jobs:
           token: ${{ secrets.CI_TOKEN }}
           exclude_labels: ci
 
+      - name: Commit files
+        env:
+          CI_USER: ${{ secrets.CI_USER }}
+          CI_EMAIL: ${{ secrets.CI_EMAIL }}
+        run: |
+          git config --local user.email "$CI_EMAIL"
+          git config --local user.name "$CI_USER"
+          git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' && echo ::set-env name=push::1 || echo "No changes to CHANGELOG.md"
+
+      - name: Push changes
+        if: env.push == 1
+        env:
+          CI_USER: ${{ secrets.CI_USER }}
+          CI_TOKEN: ${{ secrets.CI_TOKEN }}
+        run: |
+          git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" changelog:changelog
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v2
         with:
           token: ${{ secrets.CI_TOKEN }}
-          commit-message: Updated CHANGELOG.md
-          committer: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
-          author: github-actions[bot] # ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
+          author: ${{ secrets.CI_USER }} <${{ secrets.CI_EMAIL }}>
           title: 'Update CHANGELOG'
           body: |
-            Update CHANGELOG.md
+            Updated CHANGELOG.md
           labels: automerge,ci
           assignees: ${{ secrets.CI_USER }}
           branch: changelog
