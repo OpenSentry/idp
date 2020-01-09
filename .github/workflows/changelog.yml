@@ -20,8 +20,14 @@ jobs:
           token: ${{ secrets.CI_TOKEN }}
           exclude_labels: ci
 
+      - name: Check for changes
+        run: |
+          if [[ `git status --porcelain` ]]; then
+            echo ::set-env name=changes::1
+          fi
+
       - name: Create Pull Request
-        if: env.push == 1
+        if: env.changes == 1
         uses: peter-evans/create-pull-request@v2
         with:
           token: ${{ secrets.CI_TOKEN }}
