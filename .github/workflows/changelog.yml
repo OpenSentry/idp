@@ -32,13 +32,13 @@ jobs:
           git add CHANGELOG.md && git commit -m 'Updated CHANGELOG.md' && echo ::set-env name=push::1 || echo "No changes to CHANGELOG.md"
           git checkout master
 
-      - name: Push changes
-        if: env.push == 1
-        env:
-          CI_USER: ${{ secrets.CI_USER }}
-          CI_TOKEN: ${{ secrets.CI_TOKEN }}
-        run: |
-          git push --force "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" changelog:changelog
+      #- name: Push changes
+        #if: env.push == 1
+        #env:
+          #CI_USER: ${{ secrets.CI_USER }}
+          #CI_TOKEN: ${{ secrets.CI_TOKEN }}
+        #run: |
+          #git push --force "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" changelog:changelog
 
       - name: Create Pull Request
         if: env.push == 1
