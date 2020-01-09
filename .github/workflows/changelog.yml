@@ -40,9 +40,10 @@ jobs:
           CI_USER: ${{ secrets.CI_USER }}
           CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
-          git push "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" changelog:changelog
+          git push --force "https://$CI_USER:$CI_TOKEN@github.com/$GITHUB_REPOSITORY.git" changelog:changelog
 
       - name: Create Pull Request
+        if: env.push == 1
         uses: peter-evans/create-pull-request@v2
         with:
           token: ${{ secrets.CI_TOKEN }}
