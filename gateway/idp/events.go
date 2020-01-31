@@ -30,6 +30,11 @@ func EmitEventClientCreated(natsConnection *nats.Conn, client Client) {
   natsConnection.Publish("idp.client.created", []byte(e))
 }
 
+func EmitEventClientUpdated(natsConnection *nats.Conn, client Client) {
+  e := fmt.Sprintf("{\"id\":\"%s\"}", client.Id)
+  natsConnection.Publish("idp.client.updated", []byte(e))
+}
+
 func EmitEventResourceServerCreated(natsConnection *nats.Conn, resourceServer ResourceServer) {
   e := fmt.Sprintf("{\"id\":\"%s\"}", resourceServer.Id)
   natsConnection.Publish("idp.resourceserver.created", []byte(e))

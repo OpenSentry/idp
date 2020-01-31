@@ -6,7 +6,7 @@ FROM golang:1.12-alpine
 # Add Maintainer Info
 LABEL maintainer="The OpenSentry Team"
 
-RUN apk add --update --no-cache ca-certificates cmake make g++ openssl-dev git curl pkgconfig openssh
+RUN apk add --update --no-cache ca-certificates cmake make g++ openssl-dev git curl pkgconfig openssh libressl-dev
 
 # RUN apt install -y libssl1.0.0
 RUN git clone -b v1.7.4 https://github.com/neo4j-drivers/seabolt.git /seabolt

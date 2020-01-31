@@ -190,7 +190,7 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
 
         // Lookup client
         if clientId != "" {
-          clients, err := idp.FetchClients(tx, nil, []idp.Client{ {Identity: idp.Identity{Id:clientId}} })
+          clients, err := idp.FetchClients(tx, []idp.Client{ {Identity: idp.Identity{Id:clientId}} })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -638,4 +638,3 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
   }
   return gin.HandlerFunc(fn)
 }
-

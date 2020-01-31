@@ -7,7 +7,7 @@ import (
   "github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (client Client, err error) {
+func CreateClient(tx neo4j.Transaction, newClient Client) (client Client, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
@@ -61,12 +61,6 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
     cypClientSecret = `secret:$client_secret,`
   }
 
-  cypManages := ""
-  if managedBy != nil {
-    params["managed_by"] = managedBy.Id
-    cypManages = `MATCH (i:Identity {id:$managed_by}) MERGE (i)-[:MANAGES]->(c)`
-  }
-
   cypher = fmt.Sprintf(`
     CREATE (c:Client:Identity {
       id:randomUUID(),
@@ -84,12 +78,8 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
       audiences:$audiences
     })
 
-    WITH c
-
-    %s
-
     RETURN c
-  `, cypClientSecret, cypManages)
+  `, cypClientSecret)
 
   logCypher(cypher, params)
 
@@ -117,16 +107,104 @@ func CreateClient(tx neo4j.Transaction, managedBy *Identity, newClient Client) (
   return client, nil
 }
 
-func FetchClients(tx neo4j.Transaction, managedBy *Identity, iClients []Client) (clients []Client, err error) {
+func UpdateClient(tx neo4j.Transaction, iUpdateClient Client) (rClient Client, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
 
-  var cypManages string
-  if managedBy != nil {
-    cypManages = `(i:Identity {id:$managed_by})-[:MANAGES]->`
-    params["managed_by"] = managedBy.Id
+  if iUpdateClient.Id == "" {
+    return Client{}, errors.New("Missing Client.Id")
   }
+  params["id"] = iUpdateClient.Id
+
+  params["exp"] = iUpdateClient.ExpiresAt
+
+  if iUpdateClient.Name == "" {
+    return Client{}, errors.New("Missing Client.Name")
+  }
+  params["name"] = iUpdateClient.Name
+
+  if iUpdateClient.Description == "" {
+    return Client{}, errors.New("Missing Client.Description")
+  }
+  params["description"] = iUpdateClient.Description
+
+  params["grantTypes"] = []string{}
+  params["responseTypes"] = []string{}
+  params["redirectUris"] = []string{}
+  params["postLogoutRedirectUris"] = []string{}
+  params["audiences"] = []string{}
+  params["tokenEndpointAuthMethod"] = ""
+
+  if len(iUpdateClient.GrantTypes) > 0 {
+    params["grantTypes"] = iUpdateClient.GrantTypes
+  }
+  if len(iUpdateClient.ResponseTypes) > 0 {
+    params["responseTypes"] = iUpdateClient.ResponseTypes
+  }
+  if len(iUpdateClient.RedirectUris) > 0 {
+    params["redirectUris"] = iUpdateClient.RedirectUris
+  }
+  if len(iUpdateClient.PostLogoutRedirectUris) > 0 {
+    params["postLogoutRedirectUris"] = iUpdateClient.PostLogoutRedirectUris
+  }
+  if len(iUpdateClient.Audiences) > 0 {
+    params["audiences"] = iUpdateClient.Audiences
+  }
+  if iUpdateClient.TokenEndpointAuthMethod != "" {
+    params["tokenEndpointAuthMethod"] = iUpdateClient.TokenEndpointAuthMethod
+  }
+
+  //cypClientSecret := ""
+  //if iUpdateClient.Secret != "" {
+    //params["client_secret"] = iUpdateClient.Secret
+    //cypClientSecret = `secret:$client_secret,`
+  //}
+
+  cypher = fmt.Sprintf(`
+    MERGE (c:Client:Identity {id: $id})
+       ON MATCH SET
+          c.name = $name,
+          c.description = $description,
+          c.grant_types = $grantTypes,
+          c.response_types = $responseTypes,
+          c.redirect_uris = $redirectUris,
+          c.post_logout_redirect_uris = $postLogoutRedirectUris,
+          c.token_endpoint_auth_method = $tokenEndpointAuthMethod,
+          c.audiences = $audiences
+
+    RETURN c
+  `)
+
+  logCypher(cypher, params)
+
+  if result, err = tx.Run(cypher, params); err != nil {
+    return Client{}, err
+  }
+
+  if result.Next() {
+    record        := result.Record()
+    clientNode    := record.GetByIndex(0)
+
+    if clientNode != nil {
+      rClient = marshalNodeToClient(clientNode.(neo4j.Node))
+    }
+  } else {
+    return Client{}, errors.New("Unable to update Client")
+  }
+
+  // Check if we encountered any error during record streaming
+  if err = result.Err(); err != nil {
+    return Client{}, err
+  }
+
+  return rClient, nil
+}
+
+func FetchClients(tx neo4j.Transaction, iClients []Client) (clients []Client, err error) {
+  var result neo4j.Result
+  var cypher string
+  var params = make(map[string]interface{})
 
   cypFilterClients := ""
   if len(iClients) > 0 {
@@ -139,9 +217,11 @@ func FetchClients(tx neo4j.Transaction, managedBy *Identity, iClients []Client) 
   }
 
   cypher = fmt.Sprintf(`
-    MATCH %s(c:Client:Identity) WHERE 1=1 %s
+    MATCH (c:Client:Identity) WHERE 1=1 %s
     RETURN c
-  `, cypManages, cypFilterClients)
+  `, cypFilterClients)
+
+  logCypher(cypher, params)
 
   if result, err = tx.Run(cypher, params); err != nil {
     return nil, err
@@ -157,8 +237,6 @@ func FetchClients(tx neo4j.Transaction, managedBy *Identity, iClients []Client) 
     }
   }
 
-  logCypher(cypher, params)
-
   // Check if we encountered any error during record streaming
   if err = result.Err(); err != nil {
     return nil, err
@@ -167,7 +245,7 @@ func FetchClients(tx neo4j.Transaction, managedBy *Identity, iClients []Client) 
   return clients, nil
 }
 
-func DeleteClient(tx neo4j.Transaction, managedBy *Identity, clientToDelete Client) (client Client, err error) {
+func DeleteClient(tx neo4j.Transaction, clientToDelete Client) (client Client, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
@@ -177,27 +255,19 @@ func DeleteClient(tx neo4j.Transaction, managedBy *Identity, clientToDelete Clie
   }
   params["id"] = clientToDelete.Id
 
-  var cypManages string
-  if managedBy != nil {
-    cypManages = `(i:Identity {id:$managed_by})-[:MANAGES]->`
-    params["managed_by"] = managedBy.Id
-  }
-
-  params["id"] = clientToDelete.Id
-
   // Warning: Do not accidentally delete i!
   cypher = fmt.Sprintf(`
-    MATCH %s(c:Client:Identity {id:$id})
+    MATCH (c:Client:Identity {id:$id})
     DETACH DELETE c
-  `, cypManages)
+  `)
+
+  logCypher(cypher, params)
 
   if result, err = tx.Run(cypher, params); err != nil {
     return Client{}, err
   }
 
   result.Next()
-
-  logCypher(cypher, params)
 
   // Check if we encountered any error during record streaming
   if err = result.Err(); err != nil {

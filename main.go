@@ -373,6 +373,7 @@ func serve(env *app.Environment) {
 
   r.GET ( "/clients", app.AuthorizationRequired(aconf, "idp:read:clients"), clients.GetClients(env))
   r.POST( "/clients", app.AuthorizationRequired(aconf, "idp:create:clients"), clients.PostClients(env) )
+  r.PUT( "/clients", app.AuthorizationRequired(aconf, "idp:update:clients"), clients.PutClients(env) )
   r.DELETE( "/clients", app.AuthorizationRequired(aconf, "idp:delete:clients"), clients.DeleteClients(env) )
 
   r.GET ( "/resourceservers", app.AuthorizationRequired(aconf, "idp:read:resourceservers"), resourceservers.GetResourceServers(env))

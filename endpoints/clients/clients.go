@@ -50,20 +50,6 @@ func GetClients(env *app.Environment) gin.HandlerFunc {
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
 
-      requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-      if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
-      }
-
       for _, request := range iRequests {
 
         var dbClients []idp.Client
@@ -71,10 +57,10 @@ func GetClients(env *app.Environment) gin.HandlerFunc {
         var ok client.ReadClientsResponse
 
         if request.Input == nil {
-          dbClients, err = idp.FetchClients(tx, requestedBy, nil)
+          dbClients, err = idp.FetchClients(tx, nil)
         } else {
           r := request.Input.(client.ReadClientsRequest)
-          dbClients, err = idp.FetchClients(tx, requestedBy, []idp.Client{ {Identity:idp.Identity{Id: r.Id}} })
+          dbClients, err = idp.FetchClients(tx, []idp.Client{ {Identity:idp.Identity{Id: r.Id}} })
         }
         if err != nil {
           e := tx.Rollback()
@@ -207,7 +193,7 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
         if r.IsPublic == false {
 
           if r.Secret == "" {
-            
+
             // BCrypt used by hydra to store passwords securely limits password to 55 chars not counting the terminating zero
             secret, err = sec.CreateClientSecret(sec.RECOMMENDED_CLIENT_SECRET_ENTROPY_IN_BYTES)
             if err != nil {
@@ -241,7 +227,7 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
           newClient.Secret = encryptedClientSecret
         }
 
-        objClient, err := idp.CreateClient(tx, requestedBy, newClient)
+        objClient, err := idp.CreateClient(tx, newClient)
         if err != nil {
           log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to create client")
 
@@ -401,6 +387,191 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
   return gin.HandlerFunc(fn)
 }
 
+func PutClients(env *app.Environment) gin.HandlerFunc {
+  fn := func(c *gin.Context) {
+
+    log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
+    log = log.WithFields(logrus.Fields{
+      "func": "PutClients",
+    })
+
+    var requests []client.UpdateClientsRequest
+    err := c.BindJSON(&requests)
+    if err != nil {
+      c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+      return
+    }
+
+    keys := config.GetStringSlice("crypto.keys.clients")
+    if len(keys) <= 0 {
+      log.WithFields(logrus.Fields{"key":"crypto.keys.clients"}).Debug("Missing config")
+      c.AbortWithStatus(http.StatusInternalServerError)
+      return
+    }
+    cryptoKey := keys[0]
+
+    var handleRequests = func(iRequests []*bulky.Request) {
+
+      session, tx, err := idp.BeginWriteTx(env.Driver)
+      if err != nil {
+        bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
+        log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to begin transaction")
+        return
+      }
+      defer tx.Close() // rolls back if not already committed/rolled back
+      defer session.Close()
+
+      var updatedClients []idp.Client
+
+      for _, request := range iRequests {
+        r := request.Input.(client.UpdateClientsRequest)
+
+        updateClient := idp.Client{
+          Identity: idp.Identity{
+            Id: r.Id,
+          },
+          Name: r.Name,
+          Description: r.Description,
+          GrantTypes: r.GrantTypes,
+          ResponseTypes: r.ResponseTypes,
+          RedirectUris: r.RedirectUris,
+          TokenEndpointAuthMethod: r.TokenEndpointAuthMethod,
+          PostLogoutRedirectUris: r.PostLogoutRedirectUris,
+        }
+
+        var secret string
+        if r.IsPublic == false {
+
+          if r.Secret == "" {
+            // BCrypt used by hydra to store passwords securely limits password to 55 chars not counting the terminating zero
+            secret, err = sec.CreateClientSecret(sec.RECOMMENDED_CLIENT_SECRET_ENTROPY_IN_BYTES)
+            if err != nil {
+              log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to generate random secret")
+
+              e := tx.Rollback()
+              if e != nil {
+                log.WithFields(logrus.Fields{ "error": e.Error() }).Debug("Failed to rollback transaction")
+              }
+              bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+              request.Output = bulky.NewInternalErrorResponse(request.Index)
+              return
+            }
+          } else {
+            secret = r.Secret
+          }
+
+          encryptedClientSecret, err := idp.Encrypt(secret, cryptoKey) // Encrypt the secret before storage
+          if err != nil {
+            log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to encrypt secret")
+
+            e := tx.Rollback()
+            if e != nil {
+              log.WithFields(logrus.Fields{ "error": e.Error() }).Debug("Failed to rollback transaction")
+            }
+            bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+            request.Output = bulky.NewInternalErrorResponse(request.Index)
+            return
+          }
+
+          updateClient.Secret = encryptedClientSecret
+        }
+
+        objClient, err := idp.UpdateClient(tx, updateClient)
+        if err != nil {
+          log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to create client")
+
+          e := tx.Rollback()
+          if e != nil {
+            log.WithFields(logrus.Fields{ "error": e.Error() }).Debug("Failed to rollback transaction")
+          }
+
+          bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+          request.Output = bulky.NewInternalErrorResponse(request.Index)
+          return
+        }
+
+        if objClient.Id != "" {
+
+          // The client in the db is encrypted, we need the clean password to return to user and use in hydra.
+          objClient.Secret = secret
+
+          updatedClients = append(updatedClients, objClient)
+
+          ok := client.CreateClientsResponse{
+            Id: objClient.Id,
+            Secret: objClient.Secret,
+            Name: objClient.Name,
+            Description: objClient.Description,
+            GrantTypes: objClient.GrantTypes,
+            ResponseTypes: objClient.ResponseTypes,
+            RedirectUris: objClient.RedirectUris,
+            TokenEndpointAuthMethod: objClient.TokenEndpointAuthMethod,
+            PostLogoutRedirectUris: objClient.PostLogoutRedirectUris,
+          }
+          request.Output = bulky.NewOkResponse(request.Index, ok)
+          idp.EmitEventClientUpdated(env.Nats, objClient)
+          continue
+        }
+
+        // Deny by default
+        e := tx.Rollback()
+        if e != nil {
+          log.WithFields(logrus.Fields{ "error": e.Error() }).Debug("Failed to rollback transaction")
+        }
+        bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
+        request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
+        // @SecurityRisk: Please _NEVER_ log the hashed client_secret
+        log.WithFields(logrus.Fields{ "name": updateClient.Name, /* "client_secret": newClient.ClientSecret, */ }).Debug(err.Error())
+        return
+      }
+
+      err = bulky.OutputValidateRequests(iRequests)
+      if err == nil {
+        tx.Commit()
+
+        // proxy to hydra
+        var hydraClients []hydra.UpdateClientRequest
+
+        for _,c := range updatedClients {
+          hydraClients = append(hydraClients, hydra.UpdateClientRequest{
+            Id:                      c.Id,
+            Name:                    c.Name,
+            Secret:                  c.Secret,
+            Scope:                   "", // nothing yet, subscribe does this
+            GrantTypes:              c.GrantTypes,
+            Audience:                c.Audiences,
+            ResponseTypes:           c.ResponseTypes,
+            RedirectUris:            c.RedirectUris,
+            PostLogoutRedirectUris:  c.PostLogoutRedirectUris,
+            TokenEndpointAuthMethod: c.TokenEndpointAuthMethod,
+          })
+        }
+
+        url := config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.clients")
+        for _, h := range hydraClients {
+          _, err := hydra.UpdateClient(url, h.Id, h)
+          if err != nil {
+            log.Debug(err.Error())
+          }
+        }
+
+        if err != nil {
+          log.WithFields(logrus.Fields{ "error": err.Error(), "updatedClients": updatedClients }).Debug("Failed to initialize entity in AAP model")
+        }
+
+        return
+      }
+
+      // Deny by default
+      tx.Rollback()
+    }
+
+    responses := bulky.HandleRequest(requests, handleRequests, bulky.HandleRequestParams{MaxRequests: 1})
+    c.JSON(http.StatusOK, responses)
+  }
+  return gin.HandlerFunc(fn)
+}
+
 func DeleteClients(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
@@ -427,20 +598,6 @@ func DeleteClients(env *app.Environment) gin.HandlerFunc {
       defer tx.Close() // rolls back if not already committed/rolled back
       defer session.Close()
 
-      requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-        if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
-      }
-
       var deleteHydraClients []string
 
       for _, request := range iRequests {
@@ -448,7 +605,7 @@ func DeleteClients(env *app.Environment) gin.HandlerFunc {
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
-        dbClients, err := idp.FetchClients(tx, requestedBy, []idp.Client{ {Identity:idp.Identity{Id:r.Id}} })
+        dbClients, err := idp.FetchClients(tx, []idp.Client{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -471,7 +628,7 @@ func DeleteClients(env *app.Environment) gin.HandlerFunc {
 
           deleteHydraClients = append(deleteHydraClients, clientToDelete.Id)
 
-          deletedClient, err := idp.DeleteClient(tx, requestedBy, clientToDelete)
+          deletedClient, err := idp.DeleteClient(tx, clientToDelete)
           if err != nil {
             e := tx.Rollback()
             if e != nil {

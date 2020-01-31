@@ -1,6 +1,6 @@
 FROM golang:1.12-alpine
 
-RUN apk add --update --no-cache ca-certificates cmake make g++ openssl-dev git curl pkgconfig
+RUN apk add --update --no-cache ca-certificates cmake make g++ openssl-dev git curl pkgconfig libressl-dev
 RUN git clone -b v1.7.4 https://github.com/neo4j-drivers/seabolt.git /seabolt
 
 WORKDIR /seabolt/build

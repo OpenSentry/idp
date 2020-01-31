@@ -328,6 +328,7 @@ func PostHumans(env *app.Environment) gin.HandlerFunc {
             "idp:create:clients",
             "idp:read:clients",
             "idp:delete:clients",
+            "idp:update:clients",
             "idp:read:identities",
 
             // not sure this is ideal
