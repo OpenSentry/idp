@@ -3,7 +3,8 @@ package app
 import (
   "crypto/rsa"
   "github.com/sirupsen/logrus"
-  "github.com/neo4j/neo4j-go-driver/neo4j"
+  "database/sql"
+	//"github.com/neo4j/neo4j-go-driver/neo4j"
   nats "github.com/nats-io/nats.go"
   "golang.org/x/oauth2/clientcredentials"
   oidc "github.com/coreos/go-oidc"
@@ -37,7 +38,7 @@ type Environment struct {
   HydraConfig *clientcredentials.Config
   AapConfig *clientcredentials.Config
 
-  Driver   neo4j.Driver
+  Driver   *sql.DB
   BannedUsernames map[string]bool
   IssuerSignKey *rsa.PrivateKey
   IssuerVerifyKey *rsa.PublicKey

@@ -48,14 +48,12 @@ func PostInvites(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(c, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
 
       requestor := c.MustGet("sub").(string)
       var requestedBy *idp.Identity
@@ -300,14 +298,12 @@ func GetInvites(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginReadTx(env.Driver)
+      tx, err := env.Driver.BeginTx(c, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
 
       requestor := c.MustGet("sub").(string)
       var requestedBy *idp.Identity

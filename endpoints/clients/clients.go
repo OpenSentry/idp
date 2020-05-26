@@ -41,14 +41,12 @@ func GetClients(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginReadTx(env.Driver)
+      tx, err := env.Driver.BeginTx(c, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
 
       requestor := c.MustGet("sub").(string)
       var requestedBy *idp.Identity
@@ -161,14 +159,12 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(c, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to begin transaction")
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
 
       requestor := c.MustGet("sub").(string)
       var requestedBy *idp.Identity
@@ -207,7 +203,7 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
         if r.IsPublic == false {
 
           if r.Secret == "" {
-            
+
             // BCrypt used by hydra to store passwords securely limits password to 55 chars not counting the terminating zero
             secret, err = sec.CreateClientSecret(sec.RECOMMENDED_CLIENT_SECRET_ENTROPY_IN_BYTES)
             if err != nil {
@@ -418,14 +414,12 @@ func DeleteClients(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(c, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
 
       requestor := c.MustGet("sub").(string)
       var requestedBy *idp.Identity

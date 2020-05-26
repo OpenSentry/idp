@@ -31,28 +31,12 @@ func GetIdentities(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginReadTx(env.Driver)
+      tx, err := env.Driver.BeginTx(c, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
-
-      // requestor := c.MustGet("sub").(string)
-      // var requestedBy *idp.Identity
-      // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-      //  if err != nil {
-      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-      //    log.Debug(err.Error())
-      //    return
-      //  }
-      //  if len(identities) > 0 {
-      //    requestedBy = &identities[0]
-      //  }
-      // }
 
       for _, request := range iRequests {
 

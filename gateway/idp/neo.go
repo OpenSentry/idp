@@ -4,10 +4,9 @@ import (
   "strings"
   "fmt"
   "strconv"
-  "github.com/neo4j/neo4j-go-driver/neo4j"
 )
-
-func BeginReadTx(driver neo4j.Driver, configurers ...func(*neo4j.TransactionConfig)) (neo4j.Session, neo4j.Transaction, error) {
+/*
+func BeginReadTx(driver sql.DB, configurers ...func(*neo4j.TransactionConfig)) (neo4j.Session, neo4j.Transaction, error) {
   session, err := driver.Session(neo4j.AccessModeRead)
 
   if err != nil {
@@ -23,7 +22,7 @@ func BeginReadTx(driver neo4j.Driver, configurers ...func(*neo4j.TransactionConf
   return session, tx, err
 }
 
-func BeginWriteTx(driver neo4j.Driver, configurers ...func(*neo4j.TransactionConfig)) (neo4j.Session, neo4j.Transaction, error) {
+func BeginWriteTx(driver sql.DB, configurers ...func(*neo4j.TransactionConfig)) (neo4j.Session, neo4j.Transaction, error) {
   session, err := driver.Session(neo4j.AccessModeWrite)
 
   if err != nil {
@@ -38,7 +37,7 @@ func BeginWriteTx(driver neo4j.Driver, configurers ...func(*neo4j.TransactionCon
 
   return session, tx, err
 }
-
+*/
 func logCypher(query string, params map[string]interface{}) {
   for i,e := range params {
 

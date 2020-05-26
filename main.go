@@ -12,7 +12,10 @@ import (
   "github.com/sirupsen/logrus"
   oidc "github.com/coreos/go-oidc"
   "github.com/gin-gonic/gin"
-  "github.com/neo4j/neo4j-go-driver/neo4j"
+
+	_ "github.com/lib/pq"
+	"database/sql"
+
   "github.com/pborman/getopt"
   "github.com/dgrijalva/jwt-go"
   "fmt"
@@ -156,7 +159,7 @@ func createBanList(file string) (map[string]bool, error) {
   return banList, nil
 }
 
-func migrate(driver neo4j.Driver) {
+func migrate(driver *sql.DB) {
   migration.Migrate(driver)
 }
 
@@ -172,21 +175,15 @@ func main() {
     os.Exit(0)
   }
 
-  // https://medium.com/neo4j/neo4j-go-driver-is-out-fbb4ba5b3a30
-  // Each driver instance is thread-safe and holds a pool of connections that can be re-used over time. If you don’t have a good reason to do otherwise, a typical application should have a single driver instance throughout its lifetime.
-  log.WithFields(appFields).Debug("Fixme Neo4j loggning should go trough logrus so it does not differ in output from rest of the app")
-  driver, err := neo4j.NewDriver(config.GetString("neo4j.uri"), neo4j.BasicAuth(config.GetString("neo4j.username"), config.GetString("neo4j.password"), ""), func(conf *neo4j.Config) {
-    debug := config.GetInt("neo4j.debug")
-
-    if debug == 1 {
-      conf.Log = neo4j.ConsoleLogger(neo4j.DEBUG)
-    }
-  });
-  if err != nil {
-    log.WithFields(appFields).Panic(err.Error())
-    return
-  }
-  defer driver.Close()
+	// Create DB pool
+	driver, err := sql.Open("postgres", config.GetString("db.dsn")
+	if err != nil {
+		panic("Failed to open a DB connection: ", err)
+	}
+	if debug == 1 {
+		// TODO postgres logging settings
+	}
+	defer driver.Close()
 
   // migrate then exit application
   if *optMigrate {
