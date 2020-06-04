@@ -4,19 +4,20 @@ import (
   "errors"
   "strings"
   "fmt"
+  "context"
   "github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-func CreateChallengeUsingTotp(tx neo4j.Transaction, challengeType ChallengeType, newChallenge Challenge) (challenge Challenge, err error) {
+func CreateChallengeUsingTotp(ctx context.Context, tx neo4j.Transaction, challengeType ChallengeType, newChallenge Challenge) (challenge Challenge, err error) {
   newChallenge.Code = "" // Do not set this on TOTP requests
-  challenge, err = createChallenge(tx, newChallenge, ChallengeAuthenticate)
+  challenge, err = createChallenge(ctx, tx, newChallenge, ChallengeAuthenticate)
   if err != nil {
     return Challenge{}, err
   }
   return challenge, nil
 }
 
-func CreateChallengeUsingOtp(tx neo4j.Transaction, challengeType ChallengeType, newChallenge Challenge) (challenge Challenge, otpCode ChallengeCode, err error) {
+func CreateChallengeUsingOtp(ctx context.Context, tx neo4j.Transaction, challengeType ChallengeType, newChallenge Challenge) (challenge Challenge, otpCode ChallengeCode, err error) {
   otpCode, err = CreateChallengeCode()
   if err != nil {
     return Challenge{}, ChallengeCode{}, err
@@ -28,14 +29,14 @@ func CreateChallengeUsingOtp(tx neo4j.Transaction, challengeType ChallengeType, 
   }
   newChallenge.Code = hashedCode
 
-  challenge, err = createChallenge(tx, newChallenge, challengeType)
+  challenge, err = createChallenge(ctx, tx, newChallenge, challengeType)
   if err != nil {
     return Challenge{}, ChallengeCode{}, err
   }
   return challenge, otpCode, nil
 }
 
-func createChallenge(tx neo4j.Transaction, newChallenge Challenge, challengeType ChallengeType) (challenge Challenge, err error) {
+func createChallenge(ctx context.Context, tx neo4j.Transaction, newChallenge Challenge, challengeType ChallengeType) (challenge Challenge, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
@@ -125,7 +126,7 @@ func createChallenge(tx neo4j.Transaction, newChallenge Challenge, challengeType
   return challenge, nil
 }
 
-func FetchChallenges(tx neo4j.Transaction, iChallenges []Challenge) (challenges []Challenge, err error) {
+func FetchChallenges(ctx context.Context, tx neo4j.Transaction, iChallenges []Challenge) (challenges []Challenge, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})
@@ -170,7 +171,7 @@ func FetchChallenges(tx neo4j.Transaction, iChallenges []Challenge) (challenges 
   return challenges, nil
 }
 
-func VerifyChallenge(tx neo4j.Transaction, challengeToUpdate Challenge) (updatedChallenge Challenge, err error) {
+func VerifyChallenge(ctx context.Context, tx neo4j.Transaction, challengeToUpdate Challenge) (updatedChallenge Challenge, err error) {
   var result neo4j.Result
   var cypher string
   var params = make(map[string]interface{})

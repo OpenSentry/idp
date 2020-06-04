@@ -4,11 +4,12 @@ import (
   "errors"
   "fmt"
   "strings"
-  "github.com/neo4j/neo4j-go-driver/neo4j"
+	"context"
+	"database/sql"
+	"github.com/google/uuid"
 )
 
-func UpdateInviteSentAt(tx neo4j.Transaction, updatedBy *Identity, inviteToUpdate Invite) (invite Invite, err error) {
-  var result neo4j.Result
+func UpdateInviteSentAt(ctx context.Context, tx *sql.Tx, inviteToUpdate Invite) (invite Invite, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -28,33 +29,20 @@ func UpdateInviteSentAt(tx neo4j.Transaction, updatedBy *Identity, inviteToUpdat
     RETURN inv
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	_, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Invite{}, err
   }
 
-  if result.Next() {
-    record        := result.Record()
-    inviteNode    := record.GetByIndex(0)
+	invites, err := FetchInvites(ctx, tx, []Invite{ inviteToUpdate })
+	if err != nil {
+		return Invite{}, nil
+	}
 
-    if inviteNode != nil {
-      invite = marshalNodeToInvite(inviteNode.(neo4j.Node))
-    }
-  } else {
-    return Invite{}, errors.New("Unable to update Invite")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return Invite{}, err
-  }
-
-  return invite, nil
+  return invites[0], nil
 }
 
-func CreateInvite(tx neo4j.Transaction, invitedBy *Identity, newInvite Invite) (invite Invite, err error) {
-  var result neo4j.Result
+func CreateInvite(ctx context.Context, tx *sql.Tx, invitedBy *Identity, newInvite Invite) (invite Invite, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -76,61 +64,38 @@ func CreateInvite(tx neo4j.Transaction, invitedBy *Identity, newInvite Invite) (
 
   params["exp"] = newInvite.ExpiresAt
 
-  cypInvites := ""
-  if invitedBy != nil {
-    params["invited_by"] = invitedBy.Id
-    cypInvites = `MATCH (i:Identity {id:$invited_by}) MERGE (i)-[:INVITES]->(inv)`
-  }
+	uuid, err := uuid.NewRandom()
+	if err != nil {
+		return Invite{}, err
+	}
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     CREATE (inv:Invite:Identity {id:randomUUID(), email:$email, iat:datetime().epochSeconds, iss:$iss, exp:$exp, sent_at:0, email_confirmed_at:0 %s})
-
-    WITH inv
-
-    %s
 
     WITH inv
 
     OPTIONAL MATCH (d:Invite:Identity) WHERE id(inv) <> id(d) AND d.exp < datetime().epochSeconds DETACH DELETE d
 
     RETURN inv
-  `, cypUsername, cypInvites)
+  `, cypUsername)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+  if _, err = tx.ExecContext(ctx, cypher, params); err != nil {
     return Invite{}, err
   }
 
-  if result.Next() {
-    record        := result.Record()
-    inviteNode    := record.GetByIndex(0)
+	invites, err := FetchInvites(ctx, tx, []Invite{ {Identity: Identity{Id: uuid.String()}} })
+	if err != nil {
+		return Invite{}, nil
+	}
 
-    if inviteNode != nil {
-      invite = marshalNodeToInvite(inviteNode.(neo4j.Node))
-    }
-  } else {
-    return Invite{}, errors.New("Unable to create Invite")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return Invite{}, err
-  }
-
-  return invite, nil
+  return invites[0], nil
 }
 
-func FetchInvites(tx neo4j.Transaction, invitedBy *Identity, iInvites []Invite) (invites []Invite, err error) {
-  var result neo4j.Result
+func FetchInvites(ctx context.Context, tx *sql.Tx, iInvites []Invite) (invites []Invite, err error) {
+  var rows *sql.Rows
   var cypher string
   var params = make(map[string]interface{})
-
-  var cypInvites string
-  if invitedBy != nil {
-    cypInvites = `(i:Identity {id:$invited_by})-[:INVITES]->`
-    params["invited_by"] = invitedBy.Id
-  }
 
   cypfilterInvites := ""
   if len(iInvites) > 0 {
@@ -142,45 +107,28 @@ func FetchInvites(tx neo4j.Transaction, invitedBy *Identity, iInvites []Invite) 
     params["ids"] = strings.Join(ids, ",")
   }
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
-    MATCH %s(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds %s
+    MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds %s
     RETURN inv
-  `, cypInvites, cypfilterInvites)
+  `, cypfilterInvites)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+  if rows, err = tx.QueryContext(ctx, cypher, params); err != nil {
     return nil, err
   }
 
-  for result.Next() {
-    record        := result.Record()
-    inviteNode    := record.GetByIndex(0)
-
-    if inviteNode != nil {
-      i := marshalNodeToInvite(inviteNode.(neo4j.Node))
-      invites = append(invites, i)
-    }
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return nil, err
+  for rows.Next() {
+		i := marshalRowToInvite(rows)
+		invites = append(invites, i)
   }
 
   return invites, nil
 }
 
-func FetchInvitesByEmail(tx neo4j.Transaction, invitedBy *Identity, iInvites []Invite) (invites []Invite, err error) {
-  var result neo4j.Result
+func FetchInvitesByEmail(ctx context.Context, tx *sql.Tx, iInvites []Invite) (invites []Invite, err error) {
+  var rows *sql.Rows
   var cypher string
   var params = make(map[string]interface{})
-
-  var cypInvites string
-  if invitedBy != nil {
-    cypInvites = `(i:Identity {id:$invited_by})-[:INVITES]->`
-    params["invited_by"] = invitedBy.Id
-  }
 
   cypfilterInvites := ""
   if len(iInvites) > 0 {
@@ -193,44 +141,26 @@ func FetchInvitesByEmail(tx neo4j.Transaction, invitedBy *Identity, iInvites []I
   }
 
   cypher = fmt.Sprintf(`
-    MATCH %s(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds %s
+    MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds %s
     RETURN inv
-  `, cypInvites, cypfilterInvites)
+  `, cypfilterInvites)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+  if rows, err = tx.QueryContext(ctx, cypher, params); err != nil {
     return nil, err
   }
 
-  for result.Next() {
-    record        := result.Record()
-    inviteNode    := record.GetByIndex(0)
-
-    if inviteNode != nil {
-      i := marshalNodeToInvite(inviteNode.(neo4j.Node))
-      invites = append(invites, i)
-    }
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return nil, err
+  for rows.Next() {
+		i := marshalRowToInvite(rows)
+		invites = append(invites, i)
   }
 
   return invites, nil
 }
 
-func FetchInvitesByUsername(tx neo4j.Transaction, invitedBy *Identity, iInvites []Invite) (invites []Invite, err error) {
-  var result neo4j.Result
+func FetchInvitesByUsername(ctx context.Context, tx *sql.Tx, iInvites []Invite) (invites []Invite, err error) {
+  var rows *sql.Rows
   var cypher string
   var params = make(map[string]interface{})
-
-  var cypInvites string
-  if invitedBy != nil {
-    cypInvites = `(i:Identity {id:$invited_by})-[:INVITES]->`
-    params["invited_by"] = invitedBy.Id
-  }
 
   cypfilterInvites := ""
   if len(iInvites) > 0 {
@@ -243,29 +173,17 @@ func FetchInvitesByUsername(tx neo4j.Transaction, invitedBy *Identity, iInvites 
   }
 
   cypher = fmt.Sprintf(`
-    MATCH %s(inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds %s
+    MATCH (inv:Invite:Identity) WHERE inv.exp > datetime().epochSeconds %s
     RETURN inv
-  `, cypInvites, cypfilterInvites)
+  `, cypfilterInvites)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+  if rows, err = tx.QueryContext(ctx, cypher, params); err != nil {
     return nil, err
   }
 
-  for result.Next() {
-    record        := result.Record()
-    inviteNode    := record.GetByIndex(0)
-
-    if inviteNode != nil {
-      i := marshalNodeToInvite(inviteNode.(neo4j.Node))
-      invites = append(invites, i)
-    }
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return nil, err
+  for rows.Next() {
+		i := marshalRowToInvite(rows)
+		invites = append(invites, i)
   }
 
   return invites, nil

@@ -2,6 +2,7 @@ package resourceservers
 
 import (
   "net/http"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -18,6 +19,9 @@ import (
 
 func GetResourceServers(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "GetResourceServers",
@@ -39,20 +43,6 @@ func GetResourceServers(env *app.Environment) gin.HandlerFunc {
         return
       }
 
-      requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-      if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
-      }
-
       for _, request := range iRequests {
 
         var dbResourceServers []idp.ResourceServer
@@ -60,10 +50,10 @@ func GetResourceServers(env *app.Environment) gin.HandlerFunc {
         var ok client.ReadResourceServersResponse
 
         if request.Input == nil {
-          dbResourceServers, err = idp.FetchResourceServers(tx, requestedBy, nil)
+          dbResourceServers, err = idp.FetchResourceServers(ctx, tx, nil)
         } else {
           r := request.Input.(client.ReadResourceServersRequest)
-          dbResourceServers, err = idp.FetchResourceServers(tx, requestedBy, []idp.ResourceServer{ {Identity:idp.Identity{Id: r.Id}} })
+          dbResourceServers, err = idp.FetchResourceServers(ctx, tx, []idp.ResourceServer{ {Identity:idp.Identity{Id: r.Id}} })
         }
         if err != nil {
           e := tx.Rollback()
@@ -113,6 +103,8 @@ func GetResourceServers(env *app.Environment) gin.HandlerFunc {
 func PostResourceServers(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PostResourceServers",
@@ -137,7 +129,7 @@ func PostResourceServers(env *app.Environment) gin.HandlerFunc {
       requestor := c.MustGet("sub").(string)
       var requestedBy *idp.Identity
       if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        identities, err := idp.FetchIdentities(ctx, tx, []idp.Identity{ {Id:requestor} })
         if err != nil {
           bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
           log.Debug(err.Error())
@@ -162,7 +154,7 @@ func PostResourceServers(env *app.Environment) gin.HandlerFunc {
           Audience: r.Audience,
         }
 
-        resourceServer, err := idp.CreateResourceServer(tx, requestedBy, newResourceServer)
+        resourceServer, err := idp.CreateResourceServer(ctx, tx, newResourceServer)
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -287,6 +279,8 @@ func PostResourceServers(env *app.Environment) gin.HandlerFunc {
 func DeleteResourceServers(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "DeleteResourceServers",
@@ -308,26 +302,12 @@ func DeleteResourceServers(env *app.Environment) gin.HandlerFunc {
         return
       }
 
-      requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-        if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
-      }
-
-      for _, request := range iRequests {
+			for _, request := range iRequests {
         r := request.Input.(client.DeleteResourceServersRequest)
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
-        dbResourceServers, err := idp.FetchResourceServers(tx, requestedBy, []idp.ResourceServer{ {Identity:idp.Identity{Id:r.Id}} })
+        dbResourceServers, err := idp.FetchResourceServers(ctx, tx, []idp.ResourceServer{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -349,7 +329,7 @@ func DeleteResourceServers(env *app.Environment) gin.HandlerFunc {
 
         if resourceServerToDelete != (idp.ResourceServer{}) {
 
-          deletedResourceServer, err := idp.DeleteResourceServer(tx, requestedBy, resourceServerToDelete)
+          deletedResourceServer, err := idp.DeleteResourceServer(ctx, tx, resourceServerToDelete)
           if err != nil {
             e := tx.Rollback()
             if e != nil {

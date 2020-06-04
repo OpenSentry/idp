@@ -2,6 +2,7 @@ package clients
 
 import (
   "net/http"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -19,6 +20,9 @@ import (
 
 func GetClients(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO() // FIXME
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "GetClients",
@@ -41,25 +45,11 @@ func GetClients(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      tx, err := env.Driver.BeginTx(c, nil)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
-      }
-
-      requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-      if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
       }
 
       for _, request := range iRequests {
@@ -69,10 +59,10 @@ func GetClients(env *app.Environment) gin.HandlerFunc {
         var ok client.ReadClientsResponse
 
         if request.Input == nil {
-          dbClients, err = idp.FetchClients(tx, requestedBy, nil)
+          dbClients, err = idp.FetchClients(ctx, tx, nil)
         } else {
           r := request.Input.(client.ReadClientsRequest)
-          dbClients, err = idp.FetchClients(tx, requestedBy, []idp.Client{ {Identity:idp.Identity{Id: r.Id}} })
+          dbClients, err = idp.FetchClients(ctx, tx, []idp.Client{ {Identity:idp.Identity{Id: r.Id}} })
         }
         if err != nil {
           e := tx.Rollback()
@@ -137,6 +127,8 @@ func GetClients(env *app.Environment) gin.HandlerFunc {
 func PostClients(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO() // FIXME
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PostClients",
@@ -159,7 +151,7 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      tx, err := env.Driver.BeginTx(c, nil)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to begin transaction")
@@ -169,7 +161,7 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
       requestor := c.MustGet("sub").(string)
       var requestedBy *idp.Identity
       if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        identities, err := idp.FetchIdentities(ctx, tx, []idp.Identity{ {Id:requestor} })
         if err != nil {
           bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
           log.WithFields(logrus.Fields{ "error": err.Error(), "id": requestor }).Debug("Failed to fetch identity")
@@ -237,7 +229,7 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
           newClient.Secret = encryptedClientSecret
         }
 
-        objClient, err := idp.CreateClient(tx, requestedBy, newClient)
+        objClient, err := idp.CreateClient(ctx, tx, newClient)
         if err != nil {
           log.WithFields(logrus.Fields{ "error": err.Error() }).Debug("Failed to create client")
 
@@ -400,6 +392,8 @@ func PostClients(env *app.Environment) gin.HandlerFunc {
 func DeleteClients(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO() // FIXME
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "DeleteClients",
@@ -414,7 +408,7 @@ func DeleteClients(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      tx, err := env.Driver.BeginTx(c, nil)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
@@ -424,7 +418,7 @@ func DeleteClients(env *app.Environment) gin.HandlerFunc {
       requestor := c.MustGet("sub").(string)
       var requestedBy *idp.Identity
         if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        identities, err := idp.FetchIdentities(ctx, tx, []idp.Identity{ {Id:requestor} })
         if err != nil {
           bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
           log.Debug(err.Error())
@@ -442,7 +436,7 @@ func DeleteClients(env *app.Environment) gin.HandlerFunc {
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
-        dbClients, err := idp.FetchClients(tx, requestedBy, []idp.Client{ {Identity:idp.Identity{Id:r.Id}} })
+        dbClients, err := idp.FetchClients(ctx, tx, []idp.Client{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -465,7 +459,7 @@ func DeleteClients(env *app.Environment) gin.HandlerFunc {
 
           deleteHydraClients = append(deleteHydraClients, clientToDelete.Id)
 
-          deletedClient, err := idp.DeleteClient(tx, requestedBy, clientToDelete)
+          deletedClient, err := idp.DeleteClient(ctx, tx, clientToDelete)
           if err != nil {
             e := tx.Rollback()
             if e != nil {

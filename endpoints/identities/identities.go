@@ -3,6 +3,7 @@ package identities
 import (
   "net/http"
   "strings"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -15,6 +16,8 @@ import (
 
 func GetIdentities(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO() // FIXME
 
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
@@ -31,7 +34,7 @@ func GetIdentities(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      tx, err := env.Driver.BeginTx(c, nil)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
@@ -45,13 +48,13 @@ func GetIdentities(env *app.Environment) gin.HandlerFunc {
         var ok client.ReadIdentitiesResponse
 
         if request.Input == nil {
-          dbIdentities, err = idp.FetchIdentities(tx, nil)
+          dbIdentities, err = idp.FetchIdentities(ctx, tx, nil)
         } else {
           r := request.Input.(client.ReadIdentitiesRequest)
           if r.Id != "" {
-            dbIdentities, err = idp.FetchIdentities(tx, []idp.Identity{ {Id: r.Id} })
+            dbIdentities, err = idp.FetchIdentities(ctx, tx, []idp.Identity{ {Id: r.Id} })
           } else {
-            dbIdentities, err = idp.SearchIdentities(tx, r.Search)
+            dbIdentities, err = idp.SearchIdentities(ctx, tx, r.Search)
           }
         }
         if err != nil {

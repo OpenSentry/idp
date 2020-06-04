@@ -3,6 +3,7 @@ package challenges
 import (
   "errors"
   "time"
+  "context"
   "net/http"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
@@ -31,6 +32,9 @@ type ConfirmTemplateData struct {
 
 func GetChallenges(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO() // FIXME
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "GetChallenges",
@@ -45,7 +49,7 @@ func GetChallenges(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      tx, err := env.Driver.BeginTx(c, nil)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
@@ -55,7 +59,7 @@ func GetChallenges(env *app.Environment) gin.HandlerFunc {
       // requestor := c.MustGet("sub").(string)
       // var requestedBy *idp.Identity
       // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  identities, err := idp.FetchIdentities(ctx, tx, []idp.Identity{ {Id:requestor} })
       //  if err != nil {
       //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
       //    log.Debug(err.Error())
@@ -73,11 +77,11 @@ func GetChallenges(env *app.Environment) gin.HandlerFunc {
         var ok client.ReadChallengesResponse
 
         if request.Input == nil {
-          dbChallenges, err = idp.FetchChallenges(tx, nil)
+          dbChallenges, err = idp.FetchChallenges(ctx, tx, nil)
         } else {
           r := request.Input.(client.ReadChallengesRequest)
           log = log.WithFields(logrus.Fields{"otp_challenge": r.OtpChallenge})
-          dbChallenges, err = idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.OtpChallenge} })
+          dbChallenges, err = idp.FetchChallenges(ctx, tx, []idp.Challenge{ {Id: r.OtpChallenge} })
         }
         if err != nil {
           e := tx.Rollback()
@@ -131,6 +135,9 @@ func GetChallenges(env *app.Environment) gin.HandlerFunc {
 
 func PostChallenges(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO() // FIXME
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PostChallenges",
@@ -153,7 +160,7 @@ func PostChallenges(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      tx, err := env.Driver.BeginTx(c, nil)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
@@ -163,7 +170,7 @@ func PostChallenges(env *app.Environment) gin.HandlerFunc {
       // requestor := c.MustGet("sub").(string)
       // var requestedBy *idp.Identity
       // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+      //  identities, err := idp.FetchIdentities(ctx, tx, []idp.Identity{ {Id:requestor} })
       //  if err != nil {
       //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
       //    log.Debug(err.Error())
@@ -233,9 +240,9 @@ func PostChallenges(env *app.Environment) gin.HandlerFunc {
         var otpCode idp.ChallengeCode
         var challenge idp.Challenge
         if client.OTPType(newChallenge.CodeType) == client.TOTP {
-          challenge, err = idp.CreateChallengeUsingTotp(tx, ct, newChallenge)
+          challenge, err = idp.CreateChallengeUsingTotp(ctx, tx, ct, newChallenge)
         } else {
-          challenge, otpCode, err = idp.CreateChallengeUsingOtp(tx, ct, newChallenge)
+          challenge, otpCode, err = idp.CreateChallengeUsingOtp(ctx, tx, ct, newChallenge)
         }
         if err == nil && challenge.Id != "" {
 

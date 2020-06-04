@@ -2,6 +2,7 @@ package roles
 
 import (
   "net/http"
+	"context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -18,6 +19,9 @@ import (
 
 func GetRoles(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "GetRoles",
@@ -39,18 +43,16 @@ func GetRoles(env *app.Environment) gin.HandlerFunc {
         return
       }
 
-      requestor := c.MustGet("sub").(string)
-
       for _, request := range iRequests {
         var dbRoles []idp.Role
         var err error
         var ok client.ReadRolesResponse
 
         if request.Input == nil {
-          dbRoles, err = idp.FetchRoles(tx, nil, idp.Identity{Id:requestor})
+          dbRoles, err = idp.FetchRoles(ctx, tx, nil)
         } else {
           r := request.Input.(client.ReadRolesRequest)
-          dbRoles, err = idp.FetchRoles(tx, []idp.Role{ {Identity: idp.Identity{Id: r.Id}} }, idp.Identity{Id:requestor})
+          dbRoles, err = idp.FetchRoles(ctx, tx, []idp.Role{ {Identity: idp.Identity{Id: r.Id}} })
         }
         if err != nil {
           e := tx.Rollback()
@@ -99,6 +101,8 @@ func GetRoles(env *app.Environment) gin.HandlerFunc {
 func PostRoles(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PostRoles",
@@ -135,7 +139,7 @@ func PostRoles(env *app.Environment) gin.HandlerFunc {
           Description: r.Description,
         }
 
-        dbRole, err := idp.CreateRole(tx, newRole, idp.Identity{Id:requestor})
+        dbRole, err := idp.CreateRole(ctx, tx, newRole)
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -259,6 +263,8 @@ func PostRoles(env *app.Environment) gin.HandlerFunc {
 func DeleteRoles(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "DeleteRoles",
@@ -287,7 +293,7 @@ func DeleteRoles(env *app.Environment) gin.HandlerFunc {
 
         log = log.WithFields(logrus.Fields{"id": requestor})
 
-        dbRoles, err := idp.FetchRoles(tx, []idp.Role{ {Identity: idp.Identity{Id:r.Id}} }, idp.Identity{Id:requestor})
+        dbRoles, err := idp.FetchRoles(ctx, tx, []idp.Role{ {Identity: idp.Identity{Id:r.Id}} })
         if err != nil {
           request.Output = bulky.NewInternalErrorResponse(request.Index)
           log.Debug(err.Error())
@@ -304,7 +310,7 @@ func DeleteRoles(env *app.Environment) gin.HandlerFunc {
 
         if roleToDelete != (idp.Role{}) {
 
-          dbDeletedRole, err := idp.DeleteRole(tx, roleToDelete, idp.Identity{Id:requestor})
+          dbDeletedRole, err := idp.DeleteRole(ctx, tx, roleToDelete)
           if err != nil {
             e := tx.Rollback()
             if e != nil {

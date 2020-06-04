@@ -4,11 +4,12 @@ import (
   "errors"
   "strings"
   "fmt"
-  "github.com/neo4j/neo4j-go-driver/neo4j"
+	"context"
+	"database/sql"
+	"github.com/google/uuid"
 )
 
-func CreateResourceServer(tx neo4j.Transaction, managedBy *Identity, newResourceServer ResourceServer) (resourceServer ResourceServer, err error) {
-  var result neo4j.Result
+func CreateResourceServer(ctx context.Context, tx *sql.Tx, newResourceServer ResourceServer) (resourceServer ResourceServer, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -34,12 +35,12 @@ func CreateResourceServer(tx neo4j.Transaction, managedBy *Identity, newResource
   }
   params["aud"] = newResourceServer.Audience
 
-  cypManages := ""
-  if managedBy != nil {
-    params["managed_by"] = managedBy.Id
-    cypManages = `MATCH (i:Identity {id:$managed_by}) MERGE (i)-[:MANAGES]->(rs)`
-  }
+	uuid, err := uuid.NewRandom()
+	if err != nil {
+		return ResourceServer{}, err
+	}
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     CREATE (rs:ResourceServer:Identity {
       id:randomUUID(),
@@ -56,43 +57,25 @@ func CreateResourceServer(tx neo4j.Transaction, managedBy *Identity, newResource
     %s
 
     RETURN rs
-  `, cypManages)
+  `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+  _, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return ResourceServer{}, err
   }
 
-  if result.Next() {
-    record        := result.Record()
-    resourceServerNode    := record.GetByIndex(0)
-
-    if resourceServerNode != nil {
-      resourceServer = marshalNodeToResourceServer(resourceServerNode.(neo4j.Node))
-    }
-  } else {
-    return ResourceServer{}, errors.New("Unable to create ResourceServer")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+	resourceServers, err := FetchResourceServers(ctx, tx, []ResourceServer{ {Identity: Identity{Id: uuid.String()}} })
+  if err != nil {
     return ResourceServer{}, err
   }
 
-  return resourceServer, nil
+  return resourceServers[0], nil
 }
 
-func FetchResourceServers(tx neo4j.Transaction, managedBy *Identity, iResourceServers []ResourceServer) (resourceServers []ResourceServer, err error) {
-  var result neo4j.Result
+func FetchResourceServers(ctx context.Context, tx *sql.Tx, iResourceServers []ResourceServer) (resourceServers []ResourceServer, err error) {
+  var rows *sql.Rows
   var cypher string
   var params = make(map[string]interface{})
-
-  var cypManages string
-  if managedBy != nil {
-    cypManages = `(i:Identity {id:$managed_by})-[:MANAGES]->`
-    params["managed_by"] = managedBy.Id
-  }
 
   cypFilterResourceServers := ""
   if len(iResourceServers) > 0 {
@@ -104,37 +87,26 @@ func FetchResourceServers(tx neo4j.Transaction, managedBy *Identity, iResourceSe
     params["ids"] = strings.Join(ids, ",")
   }
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
-    MATCH %s(rs:ResourceServer:Identity) WHERE 1=1 %s
+    MATCH (rs:ResourceServer:Identity) WHERE 1=1 %s
     RETURN rs
-  `, cypManages, cypFilterResourceServers)
+  `, cypFilterResourceServers)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	rows, err = tx.QueryContext(ctx, cypher, params)
+  if err != nil {
     return nil, err
   }
 
-  for result.Next() {
-    record        := result.Record()
-    resourceServerNode    := record.GetByIndex(0)
-
-    if resourceServerNode != nil {
-      rs := marshalNodeToResourceServer(resourceServerNode.(neo4j.Node))
-      resourceServers = append(resourceServers, rs)
-    }
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return nil, err
+  for rows.Next() {
+		rs := marshalRowToResourceServer(rows)
+		resourceServers = append(resourceServers, rs)
   }
 
   return resourceServers, nil
 }
 
-func DeleteResourceServer(tx neo4j.Transaction, managedBy *Identity, resourceServerToDelete ResourceServer) (resourceServer ResourceServer, err error) {
-  var result neo4j.Result
+func DeleteResourceServer(ctx context.Context, tx *sql.Tx, resourceServerToDelete ResourceServer) (resourceServer ResourceServer, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -143,30 +115,14 @@ func DeleteResourceServer(tx neo4j.Transaction, managedBy *Identity, resourceSer
   }
   params["id"] = resourceServerToDelete.Id
 
-  var cypManages string
-  if managedBy != nil {
-    cypManages = `(i:Identity {id:$managed_by})-[:MANAGES]->`
-    params["managed_by"] = managedBy.Id
-  }
-
-  params["id"] = resourceServerToDelete.Id
-
   // Warning: Do not accidentally delete i!
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH %s(c:ResourceServer:Identity {id:$id})
     DETACH DELETE c
-  `, cypManages)
+  `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
-    return ResourceServer{}, err
-  }
-
-  result.Next()
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+  if _, err = tx.ExecContext(ctx, cypher, params); err != nil {
     return ResourceServer{}, err
   }
 

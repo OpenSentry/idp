@@ -2,13 +2,14 @@ package idp
 
 import (
   "errors"
+  "context"
   "strings"
   "fmt"
-  "github.com/neo4j/neo4j-go-driver/neo4j"
+	"database/sql"
+	"github.com/google/uuid"
 )
 
-func CreateHumanFromInvite(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
+func CreateHumanFromInvite(ctx context.Context, tx *sql.Tx, newHuman Human) (human Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -39,6 +40,7 @@ func CreateHumanFromInvite(tx neo4j.Transaction, newHuman Human) (human Human, e
   params["password"] = newHuman.Password
   params["email_confirmed_at"] = newHuman.EmailConfirmedAt
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (i:Invite:Identity {id:$id})
       SET i.email_confirmed_at=$email_confirmed_at,
@@ -58,33 +60,20 @@ func CreateHumanFromInvite(tx neo4j.Transaction, newHuman Human) (human Human, e
     RETURN i
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+  _, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Human{}, err
   }
 
-  if result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human = marshalNodeToHuman(humanNode.(neo4j.Node))
-    }
-  } else {
-    return Human{}, errors.New("Unable to create Human")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+	humans, err := FetchHumans(ctx, tx, []Human{ newHuman } )
+  if err != nil {
     return Human{}, err
   }
 
-  return human, nil
+  return humans[0], nil
 }
 
-func CreateHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
+func CreateHuman(ctx context.Context, tx *sql.Tx, newHuman Human) (human Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -108,6 +97,11 @@ func CreateHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) 
     return Human{}, errors.New("Missing Human.Password")
   }
 
+	uuid, err := uuid.NewRandom()
+	if err != nil {
+		return Human{}, err
+	}
+
   params["iss"] = newHuman.Issuer
   params["exp"] = newHuman.ExpiresAt
   params["email"] = newHuman.Email
@@ -116,6 +110,7 @@ func CreateHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) 
   params["allow_login"] = newHuman.AllowLogin
   params["password"] = newHuman.Password
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     CREATE (i:Human:Identity {
       id: randomUUID(),
@@ -140,32 +135,20 @@ func CreateHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) 
     RETURN i
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	_, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Human{}, err
   }
 
-  if result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human = marshalNodeToHuman(humanNode.(neo4j.Node))
-    }
-  } else {
-    return Human{}, errors.New("Unable to create Human")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+	humans, err := FetchHumans(ctx, tx, []Human{{ Identity: Identity{Id:uuid.String()} }} )
+  if err != nil {
     return Human{}, err
   }
 
-  return human, nil
+  return humans[0], nil
 }
 
-func FetchHumans(tx neo4j.Transaction, iHumans []Human) (humans []Human, err error) {
+func FetchHumans(ctx context.Context, tx *sql.Tx, iHumans []Human) (humans []Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -179,16 +162,17 @@ func FetchHumans(tx neo4j.Transaction, iHumans []Human) (humans []Human, err err
     params["ids"] = strings.Join(ids, ",")
   }
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (h:Human:Identity) %s
     RETURN h
   `, cypfilterIds)
 
-  humans, err = fetchHumansByQuery(tx, cypher, params)
+  humans, err = fetchHumansByQuery(ctx, tx, cypher, params)
   return humans, err
 }
 
-func FetchHumansByEmail(tx neo4j.Transaction, iHumans []Human) (humans []Human, err error) {
+func FetchHumansByEmail(ctx context.Context, tx *sql.Tx, iHumans []Human) (humans []Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -202,16 +186,17 @@ func FetchHumansByEmail(tx neo4j.Transaction, iHumans []Human) (humans []Human, 
     params["emails"] = strings.Join(emails, ",")
   }
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (h:Human:Identity) %s
     RETURN h
   `, cypfilterEmails)
 
-  humans, err = fetchHumansByQuery(tx, cypher, params)
+  humans, err = fetchHumansByQuery(ctx, tx, cypher, params)
   return humans, err
 }
 
-func FetchHumansByUsername(tx neo4j.Transaction, iHumans []Human) (humans []Human, err error) {
+func FetchHumansByUsername(ctx context.Context, tx *sql.Tx, iHumans []Human) (humans []Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -225,37 +210,27 @@ func FetchHumansByUsername(tx neo4j.Transaction, iHumans []Human) (humans []Huma
     params["usernames"] = strings.Join(usernames, ",")
   }
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (h:Human:Identity) %s
     RETURN h
   `, cypfilterUsernames)
 
-  humans, err = fetchHumansByQuery(tx, cypher, params)
+  humans, err = fetchHumansByQuery(ctx, tx, cypher, params)
   return humans, err
 }
 
-func fetchHumansByQuery(tx neo4j.Transaction, cypher string, params map[string]interface{}) (humans []Human, err error) {
-  var result neo4j.Result
+func fetchHumansByQuery(ctx context.Context, tx *sql.Tx, cypher string, params map[string]interface{}) (humans []Human, err error) {
+  var rows *sql.Rows
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	rows, err = tx.QueryContext(ctx, cypher, params)
+  if err != nil {
     return nil, err
   }
 
-  for result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human := marshalNodeToHuman(humanNode.(neo4j.Node))
-      humans = append(humans, human)
-    }
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return nil, err
+  for rows.Next() {
+		human := marshalRowToHuman(rows)
+		humans = append(humans, human)
   }
 
   return humans, nil
@@ -263,8 +238,8 @@ func fetchHumansByQuery(tx neo4j.Transaction, cypher string, params map[string]i
 
 // NOTE: This can update everything that is _NOT_ sensitive to the authentication process like Identity.Password
 //       To change the password see recover for that or iff identified UpdatePassword
-func UpdateHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
+func UpdateHuman(ctx context.Context, tx sql.Tx, newHuman Human) (human Human, err error) {
+  var rows *sql.Rows
   var cypher string
   var params = make(map[string]interface{})
 
@@ -279,39 +254,28 @@ func UpdateHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) 
   params["id"] = newHuman.Id
   params["name"] = newHuman.Name
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (i:Human:Identity {id:$id})
     SET i.name=$name
     RETURN i
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	rows, err = tx.QueryContext(ctx, cypher, params)
+  if err != nil {
     return Human{}, err
   }
 
-  if result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human = marshalNodeToHuman(humanNode.(neo4j.Node))
-    }
+  if rows.Next() {
+		human = marshalRowToHuman(rows)
   } else {
     return Human{}, errors.New("Unable to update Human")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return Human{}, err
   }
 
   return human, nil
 }
 
-func ConfirmEmail(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
+func ConfirmEmail(ctx context.Context, tx *sql.Tx, newHuman Human) (human Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -321,39 +285,27 @@ func ConfirmEmail(tx neo4j.Transaction, newHuman Human) (human Human, err error)
 
   params["id"] = newHuman.Id
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (i:Human:Identity {id:$id, email_confirmed_at:0})
     SET i.email_confirmed_at=datetime().epochSeconds
     RETURN i
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	_, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Human{}, err
   }
 
-  if result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human = marshalNodeToHuman(humanNode.(neo4j.Node))
-    }
-  } else {
-    return Human{}, errors.New("Unable to confirm email for human")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+	humans, err := FetchHumans(ctx, tx, []Human{ newHuman })
+  if err != nil {
     return Human{}, err
   }
 
-  return human, nil
+  return humans[0], nil
 }
 
-func UpdatePassword(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
+func UpdatePassword(ctx context.Context, tx *sql.Tx, newHuman Human) (human Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -368,39 +320,27 @@ func UpdatePassword(tx neo4j.Transaction, newHuman Human) (human Human, err erro
   params["id"] = newHuman.Id
   params["password"] = newHuman.Password
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (i:Human:Identity {id:$id})
     SET i.password=$password
     RETURN i
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	_, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Human{}, err
   }
 
-  if result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human = marshalNodeToHuman(humanNode.(neo4j.Node))
-    }
-  } else {
-    return Human{}, errors.New("Unable to update password for human")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+	humans, err := FetchHumans(ctx, tx, []Human{ newHuman })
+  if err != nil {
     return Human{}, err
   }
 
-  return human, nil
+  return humans[0], nil
 }
 
-func UpdateEmail(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
+func UpdateEmail(ctx context.Context, tx *sql.Tx, newHuman Human) (human Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -415,39 +355,27 @@ func UpdateEmail(tx neo4j.Transaction, newHuman Human) (human Human, err error) 
   params["id"] = newHuman.Id
   params["email"] = newHuman.Email
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (i:Human:Identity {id:$id})
     SET i.email=$email
     RETURN i
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	_, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Human{}, err
   }
 
-  if result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human = marshalNodeToHuman(humanNode.(neo4j.Node))
-    }
-  } else {
-    return Human{}, errors.New("Unable to update email for human")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+	humans, err := FetchHumans(ctx, tx, []Human{ newHuman })
+  if err != nil {
     return Human{}, err
   }
 
-  return human, nil
+  return humans[0], nil
 }
 
-func UpdateAllowLogin(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
+func UpdateAllowLogin(ctx context.Context, tx *sql.Tx, newHuman Human) (human Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -458,39 +386,27 @@ func UpdateAllowLogin(tx neo4j.Transaction, newHuman Human) (human Human, err er
   params["id"] = newHuman.Id
   params["allow_login"] = newHuman.AllowLogin
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (i:Human:Identity {id:$id})
     SET i.allow_login=$allow_login
     RETURN i
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	_, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
+	  return Human{}, err
+  }
+
+	humans, err := FetchHumans(ctx, tx, []Human{ newHuman })
+  if err != nil {
     return Human{}, err
   }
 
-  if result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human = marshalNodeToHuman(humanNode.(neo4j.Node))
-    }
-  } else {
-    return Human{}, errors.New("Unable to update allow login for human")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return Human{}, err
-  }
-
-  return human, nil
+  return humans[0], nil
 }
 
-func UpdateTotp(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
+func UpdateTotp(ctx context.Context, tx *sql.Tx, newHuman Human) (human Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -506,6 +422,7 @@ func UpdateTotp(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
   params["totp_required"] = newHuman.TotpRequired
   params["totp_secret"] = newHuman.TotpSecret
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (i:Human:Identity {id:$id})
     SET i.totp_required=$totp_required,
@@ -513,33 +430,20 @@ func UpdateTotp(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
     RETURN i
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	_, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Human{}, err
   }
 
-  if result.Next() {
-    record          := result.Record()
-    humanNode       := record.GetByIndex(0)
-
-    if humanNode != nil {
-      human = marshalNodeToHuman(humanNode.(neo4j.Node))
-    }
-  } else {
-    return Human{}, errors.New("Unable to update TOTP for human")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+	humans, err := FetchHumans(ctx, tx, []Human{ newHuman })
+  if err != nil {
     return Human{}, err
   }
 
-  return human, nil
+  return humans[0], nil
 }
 
-func DeleteHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) {
-  var result neo4j.Result
+func DeleteHuman(ctx context.Context, tx *sql.Tx, newHuman Human) (human Human, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -549,21 +453,14 @@ func DeleteHuman(tx neo4j.Transaction, newHuman Human) (human Human, err error) 
 
   params["id"] = newHuman.Id
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (i:Human:Identity {id:$id})
     DETACH DELETE i
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
-    return Human{}, err
-  }
-
-  result.Next()
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+	_, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Human{}, err
   }
 

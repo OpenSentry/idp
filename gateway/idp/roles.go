@@ -4,11 +4,12 @@ import (
   "strings"
   "errors"
   "fmt"
-  "github.com/neo4j/neo4j-go-driver/neo4j"
+  "context"
+	"database/sql"
+	"github.com/google/uuid"
 )
 
-func CreateRole(tx neo4j.Transaction, iRole Role, requestor Identity) (rRole Role, err error) {
-  var result neo4j.Result
+func CreateRole(ctx context.Context, tx *sql.Tx, iRole Role) (rRole Role, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -27,6 +28,12 @@ func CreateRole(tx neo4j.Transaction, iRole Role, requestor Identity) (rRole Rol
   }
   params["description"] = iRole.Description
 
+	uuid, err := uuid.NewRandom()
+	if err != nil {
+		return Role{}, err
+	}
+
+	// TODO SQL
   cypher = fmt.Sprintf(`
     // Create Role
 
@@ -42,32 +49,22 @@ func CreateRole(tx neo4j.Transaction, iRole Role, requestor Identity) (rRole Rol
     RETURN role
   `)
 
-  logCypher(cypher, params)
-  if result, err = tx.Run(cypher, params); err != nil {
+	_, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Role{}, err
   }
 
-  if result.Next() {
-    record      := result.Record()
-    roleNode    := record.GetByIndex(0)
+	rRoles, err := FetchRoles(ctx, tx, []Role{ {Identity: Identity{Id: uuid.String()}} })
 
-    if roleNode != nil {
-      rRole = marshalNodeToRole(roleNode.(neo4j.Node))
-    }
-  } else {
-    return Role{}, errors.New("Unable to create Role")
-  }
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+  if err != nil {
     return Role{}, err
   }
 
-  return rRole, nil
+  return rRoles[0], nil
 }
 
-func FetchRoles(tx neo4j.Transaction, iFilterRoles []Role, iRequest Identity) (rRoles []Role, err error) {
-  var result neo4j.Result
+func FetchRoles(ctx context.Context, tx *sql.Tx, iFilterRoles []Role) (rRoles []Role, err error) {
+  var rows *sql.Rows
   var cypher string
   var params = make(map[string]interface{})
 
@@ -82,6 +79,7 @@ func FetchRoles(tx neo4j.Transaction, iFilterRoles []Role, iRequest Identity) (r
     params["filterRoles"] = strings.Join(filterRoles, ",")
   }
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     // Fetch roles
 
@@ -91,29 +89,21 @@ func FetchRoles(tx neo4j.Transaction, iFilterRoles []Role, iRequest Identity) (r
   `, where1)
 
   logCypher(cypher, params)
-  if result, err = tx.Run(cypher, params); err != nil {
+	rows, err = tx.QueryContext(ctx, cypher, params)
+  if err != nil {
     return nil, err
   }
+	defer rows.Close()
 
-  for result.Next() {
-    record      := result.Record()
-    roleNode    := record.GetByIndex(0)
-
-    if roleNode != nil {
-      role := marshalNodeToRole(roleNode.(neo4j.Node))
-      rRoles = append(rRoles, role)
-    }
-  }
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return nil, err
+  for rows.Next() {
+		role := marshalRowToRole(rows)
+		rRoles = append(rRoles, role)
   }
 
   return rRoles, nil
 }
 
-func DeleteRole(tx neo4j.Transaction, iRole Role, requestor Identity) (rRole Role, err error) {
+func DeleteRole(ctx context.Context, tx *sql.Tx, iRole Role) (rRole Role, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -123,6 +113,7 @@ func DeleteRole(tx neo4j.Transaction, iRole Role, requestor Identity) (rRole Rol
   params["id"] = iRole.Id
 
   // Warning: Do not accidentally delete i!
+	// TODO SQL
   cypher = fmt.Sprintf(`
     // Delete role
 
@@ -131,7 +122,7 @@ func DeleteRole(tx neo4j.Transaction, iRole Role, requestor Identity) (rRole Rol
   `)
 
   logCypher(cypher, params)
-  if _, err = tx.Run(cypher, params); err != nil {
+  if _, err = tx.ExecContext(ctx, cypher, params); err != nil {
     return Role{}, err
   }
 

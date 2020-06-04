@@ -3,14 +3,15 @@ package idp
 import (
   "fmt"
   "strings"
-  "github.com/neo4j/neo4j-go-driver/neo4j"
+  "context"
+	"database/sql"
 )
 
 // You should never make these, please specialize with another label, see client.go or human.go
 // func CreateIdentities(driver neo4j.Driver, identities []Identity) ([]Identity, error)
 
-func FetchIdentities(tx neo4j.Transaction, iIdentities []Identity) (identities []Identity, err error) {
-  var result neo4j.Result
+func FetchIdentities(ctx context.Context, tx *sql.Tx, iIdentities []Identity) (identities []Identity, err error) {
+  var rows *sql.Rows
   var cypher string
   var params = make(map[string]interface{})
 
@@ -28,32 +29,20 @@ func FetchIdentities(tx neo4j.Transaction, iIdentities []Identity) (identities [
     MATCH (i:Identity) WHERE 1=1 %s RETURN i
   `, cypFilterIdentities)
 
-  logCypher(cypher, params)
-  if result, err = tx.Run(cypher, params); err != nil {
+  if rows, err = tx.QueryContext(ctx, cypher, params); err != nil {
     return nil, err
   }
 
-  for result.Next() {
-    record          := result.Record()
-    identityNode    := record.GetByIndex(0)
-
-    if identityNode != nil {
-      i := marshalNodeToIdentity(identityNode.(neo4j.Node))
-
-      identities = append(identities, i)
-    }
-  }
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return nil, err
+  for rows.Next() {
+		i := marshalRowToIdentity(rows)
+		identities = append(identities, i)
   }
 
   return identities, nil
 }
 
-func SearchIdentities(tx neo4j.Transaction, iSearch string) (identities []Identity, err error) {
-  var result neo4j.Result
+func SearchIdentities(ctx context.Context, tx *sql.Tx, iSearch string) (identities []Identity, err error) {
+  var rows *sql.Rows
   var cypher string
   var params = make(map[string]interface{})
 
@@ -67,25 +56,13 @@ func SearchIdentities(tx neo4j.Transaction, iSearch string) (identities []Identi
     MATCH (i:Identity) WHERE 1=1 %s RETURN i
   `, cypFilterIdentities)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+  if rows, err = tx.QueryContext(ctx, cypher, params); err != nil {
     return nil, err
   }
 
-  logCypher(cypher, params)
-  for result.Next() {
-    record          := result.Record()
-    identityNode    := record.GetByIndex(0)
-
-    if identityNode != nil {
-      i := marshalNodeToIdentity(identityNode.(neo4j.Node))
-
-      identities = append(identities, i)
-    }
-  }
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return nil, err
+  for rows.Next() {
+		i := marshalRowToIdentity(rows)
+		identities = append(identities, i)
   }
 
   return identities, nil

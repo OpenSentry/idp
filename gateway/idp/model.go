@@ -1,8 +1,8 @@
 package idp
 
 import (
-  "strings"
   "github.com/neo4j/neo4j-go-driver/neo4j"
+	"database/sql"
 )
 
 type JwtRegisteredClaims struct {
@@ -59,15 +59,22 @@ type Identity struct {
 
   CreatedBy *Identity
 }
-func marshalNodeToIdentity(node neo4j.Node) (Identity) {
-  p := node.Props()
+func marshalRowToIdentity(row *sql.Rows) (Identity) {
+	var (
+		id string
+		labels string
+		issuer string
+		expiresAt int64
+		issuedAt int64
+	)
+
 
   return Identity{
-    Id:        p["id"].(string),
-    Labels:    strings.Join(node.Labels(), ":"),
-    Issuer:    p["iss"].(string),
-    ExpiresAt: p["exp"].(int64),
-    IssuedAt:  p["iat"].(int64),
+    Id:        id,
+    Labels:    labels,
+    Issuer:    issuer,
+    ExpiresAt: expiresAt,
+    IssuedAt:  issuedAt,
   }
 }
 
@@ -167,21 +174,18 @@ type Invite struct {
 
   SentAt int64
 }
-func marshalNodeToInvite(node neo4j.Node) (Invite) {
-  p := node.Props()
-
-  var username string
-  usr := p["username"]
-  if usr != nil {
-    username = p["username"].(string)
-  }
-
+func marshalRowToInvite(row *sql.Rows) (Invite) {
+	var (
+		id string
+		email string
+		username string
+		sentAt int64
+	)
   return Invite{
-    Identity: marshalNodeToIdentity(node),
-
-    Email: p["email"].(string),
+		Identity: Identity{Id: id},
+    Email: email,
     Username: username,
-    SentAt: p["sent_at"].(int64),
+    SentAt: sentAt,
   }
 }
 
@@ -191,14 +195,21 @@ type ResourceServer struct {
   Description  string
   Audience     string
 }
-func marshalNodeToResourceServer(node neo4j.Node) (ResourceServer) {
-  p := node.Props()
+func marshalRowToResourceServer(row *sql.Rows) (ResourceServer) {
+	var (
+		id string
+		name string
+		description string
+		audience string
+	)
+
+	row.Scan(&id, &name, &description, &audience)
 
   return ResourceServer{
-    Identity: marshalNodeToIdentity(node),
-    Name:         p["name"].(string),
-    Description:  p["description"].(string),
-    Audience:     p["aud"].(string),
+		Identity: Identity{Id: id},
+    Name:         name,
+    Description:  description,
+    Audience:     audience,
   }
 }
 
@@ -207,13 +218,19 @@ type Role struct {
   Name         string
   Description  string
 }
-func marshalNodeToRole(node neo4j.Node) (Role) {
-  p := node.Props()
+func marshalRowToRole(row *sql.Rows) (Role) {
+	var (
+		id string
+		name string
+		description string
+	)
+
+	row.Scan(&id, &name, &description)
 
   return Role{
-    Identity: marshalNodeToIdentity(node),
-    Name:         p["name"].(string),
-    Description:  p["description"].(string),
+		Identity: Identity{Id: id},
+    Name:         name,
+    Description:  description,
   }
 }
 
@@ -278,7 +295,7 @@ func marshalNodeToClient(node neo4j.Node) (Client) {
   }
 
   return Client{
-    Identity:                marshalNodeToIdentity(node), // This is client_id
+    // Identity:                marshalRowToIdentity(node), // This is client_id // TODO
     Secret:                  secret,
     Name:                    p["name"].(string),
     Description:             p["description"].(string),
@@ -308,24 +325,29 @@ type Human struct {
   TotpRequired         bool
   TotpSecret           string
 }
-func marshalNodeToHuman(node neo4j.Node) (Human) {
-  p := node.Props()
+func marshalRowToHuman(row *sql.Rows) (Human) {
+	var (
+    email string
+    email_confirmed_at int64
+    username string
+    name string
+    allow_login bool
+    password string
+    totp_required bool
+    totp_secret string
+	)
+
+	row.Scan(&email, &email_confirmed_at, &username, &allow_login, &password, &totp_required, &totp_secret)
 
   return Human{
-    Identity: marshalNodeToIdentity(node),
-
-    Email:                p["email"].(string),
-    EmailConfirmedAt:     p["email_confirmed_at"].(int64),
-    Username:             p["username"].(string),
-
-    Name:                 p["name"].(string),
-
-    AllowLogin:           p["allow_login"].(bool),
-
-    Password:             p["password"].(string),
-
-    TotpRequired:         p["totp_required"].(bool),
-    TotpSecret:           p["totp_secret"].(string),
-
+    // Identity: marshalNodeToIdentity(node), TODO
+    Email:                email,
+    EmailConfirmedAt:     email_confirmed_at,
+    Username:             username,
+    Name:                 name,
+    AllowLogin:           allow_login,
+    Password:             password,
+    TotpRequired:         totp_required,
+    TotpSecret:           totp_secret,
   }
 }
