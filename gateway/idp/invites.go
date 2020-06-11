@@ -42,7 +42,7 @@ func UpdateInviteSentAt(ctx context.Context, tx *sql.Tx, inviteToUpdate Invite) 
   return invites[0], nil
 }
 
-func CreateInvite(ctx context.Context, tx *sql.Tx, invitedBy *Identity, newInvite Invite) (invite Invite, err error) {
+func CreateInvite(ctx context.Context, tx *sql.Tx, newInvite Invite) (invite Invite, err error) {
   var cypher string
   var params = make(map[string]interface{})
 

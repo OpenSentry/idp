@@ -3,9 +3,9 @@ package migration
 import (
   "io/ioutil"
   "strings"
+  "context"
   "fmt"
-  
-  "github.com/neo4j/neo4j-go-driver/neo4j"
+  "database/sql"
 
   "github.com/opensentry/idp/config"
 )
@@ -21,43 +21,39 @@ func loadMigrationsFromFile(path string) []string {
   return strings.Split(string(dat), ";")
 }
 
-func applyMigrations(migrations []string, session neo4j.Session) (error) {
-  _, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+func applyMigrations(ctx context.Context, migrations []string, tx *sql.Tx) (error) {
 
-    for _, query := range migrations {
-      if len(strings.TrimSpace(query)) == 0 {
-        // nothing to run, caused by split on last ;
-        continue
-      }
+	for _, query := range migrations {
+		if len(strings.TrimSpace(query)) == 0 {
+			// nothing to run, caused by split on last ;
+			continue
+		}
 
-      fmt.Println("Applying query: " + query)
+		fmt.Println("Applying query: " + query)
 
-      if _, err := tx.Run(query, nil); err != nil {
-        fmt.Println(err)
-        return nil, err
-      }
-    }
+		if _, err := tx.ExecContext(ctx, query, nil); err != nil {
+			fmt.Println(err)
+			return err
+		}
+	}
 
-    return nil, nil
-  })
-
-  return err
+  return nil
 }
 
-func Migrate(driver neo4j.Driver) {
+func Migrate(driver *sql.DB) {
   var err error
-  var session neo4j.Session
 
-  session, err = driver.Session(neo4j.AccessModeWrite);
+	ctx := context.TODO()
+
+	tx, err := driver.BeginTx(ctx, nil);
   if err != nil {
     fmt.Println(err)
-    panic("Unable to obtain neo4j write session")
+    panic("Unable to obtain transaction")
   }
-  defer session.Close()
 
   schemaMigrations := loadMigrationsFromFile(config.GetString("migration.schema.path"))
 
-  err = applyMigrations(schemaMigrations, session)
+  err = applyMigrations(ctx, schemaMigrations, tx)
   if err != nil {
     fmt.Println(err)
     panic("Errors occured while applying schema migrations")
@@ -67,7 +63,7 @@ func Migrate(driver neo4j.Driver) {
 
   dataMigrations := loadMigrationsFromFile(config.GetString("migration.data.path"))
 
-  err = applyMigrations(dataMigrations, session)
+  err = applyMigrations(ctx, dataMigrations, tx)
   if err != nil {
     fmt.Println(err)
     panic("Errors occured while applying data migrations")

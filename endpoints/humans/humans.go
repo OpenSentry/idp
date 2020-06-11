@@ -4,6 +4,7 @@ import (
   "time"
   "net/http"
   "net/url"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -27,6 +28,8 @@ type DeleteTemplateData struct {
 func GetHumans(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "GetHumans",
@@ -44,28 +47,12 @@ func GetHumans(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginReadTx(env.Driver)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
-
-      // requestor := c.MustGet("sub").(string)
-      // var requestedBy *idp.Identity
-      // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-      //  if err != nil {
-      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-      //    log.Debug(err.Error())
-      //    return
-      //  }
-      //  if len(identities) > 0 {
-      //    requestedBy = &identities[0]
-      //  }
-      // }
 
       for _, request := range iRequests {
 
@@ -74,17 +61,17 @@ func GetHumans(env *app.Environment) gin.HandlerFunc {
         var ok client.ReadHumansResponse
 
         if request.Input == nil {
-          dbHumans, err = idp.FetchHumans(tx, nil)
+          dbHumans, err = idp.FetchHumans(ctx, tx, nil)
         } else {
 
           r := request.Input.(client.ReadHumansRequest)
           if r.Id != "" {
             log = log.WithFields(logrus.Fields{"id": r.Id})
-            dbHumans, err = idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
+            dbHumans, err = idp.FetchHumans(ctx, tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
           } else if r.Email != "" {
-            dbHumans, err = idp.FetchHumansByEmail(tx, []idp.Human{ {Email:r.Email} })
+            dbHumans, err = idp.FetchHumansByEmail(ctx, tx, []idp.Human{ {Email:r.Email} })
           } else if r.Username != "" {
-            dbHumans, err = idp.FetchHumansByUsername(tx, []idp.Human{ {Username:r.Username} })
+            dbHumans, err = idp.FetchHumansByUsername(ctx, tx, []idp.Human{ {Username:r.Username} })
           }
 
         }
@@ -140,6 +127,8 @@ func GetHumans(env *app.Environment) gin.HandlerFunc {
 func PostHumans(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PostHumans",
@@ -154,28 +143,12 @@ func PostHumans(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
-
-      // requestor := c.MustGet("sub").(string)
-      // var requestedBy *idp.Identity
-      // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-      //  if err != nil {
-      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-      //    log.Debug(err.Error())
-      //    return
-      //  }
-      //  if len(identities) > 0 {
-      //    requestedBy = &identities[0]
-      //  }
-      // }
 
       var ids []string
 
@@ -194,7 +167,7 @@ func PostHumans(env *app.Environment) gin.HandlerFunc {
 
         // Sanity check. Username must be unique
         if r.Username != "" {
-          humansFoundByUsername, err := idp.FetchHumansByUsername(tx, []idp.Human{ {Username:r.Username} })
+          humansFoundByUsername, err := idp.FetchHumansByUsername(ctx, tx, []idp.Human{ {Username:r.Username} })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -236,7 +209,7 @@ func PostHumans(env *app.Environment) gin.HandlerFunc {
           AllowLogin: true,
           EmailConfirmedAt: r.EmailConfirmedAt,
         }
-        human, err := idp.CreateHumanFromInvite(tx, newHuman)
+        human, err := idp.CreateHumanFromInvite(ctx, tx, newHuman)
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -374,6 +347,8 @@ func PostHumans(env *app.Environment) gin.HandlerFunc {
 func PutHumans(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PutHumans",
@@ -388,28 +363,12 @@ func PutHumans(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
-
-      // requestor := c.MustGet("sub").(string)
-      // var requestedBy *idp.Identity
-      // if requestor != "" {
-      //  identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-      //  if err != nil {
-      //    bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-      //    log.Debug(err.Error())
-      //    return
-      //  }
-      //  if len(identities) > 0 {
-      //    requestedBy = &identities[0]
-      //  }
-      // }
 
       for _, request := range iRequests {
         r := request.Input.(client.UpdateHumansRequest)
@@ -422,7 +381,7 @@ func PutHumans(env *app.Environment) gin.HandlerFunc {
           },
           Name: r.Name,
         }
-        human, err := idp.UpdateHuman(tx, updateHuman)
+        human, err := idp.UpdateHuman(ctx, tx, updateHuman)
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -482,6 +441,8 @@ func PutHumans(env *app.Environment) gin.HandlerFunc {
 func DeleteHumans(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "DeleteHumans",
@@ -516,19 +477,17 @@ func DeleteHumans(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
 
       requestor := c.MustGet("sub").(string)
       var requestedBy *idp.Identity
       if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        identities, err := idp.FetchIdentities(ctx, tx, []idp.Identity{ {Id:requestor} })
         if err != nil {
           bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
           log.Debug(err.Error())
@@ -555,7 +514,7 @@ func DeleteHumans(env *app.Environment) gin.HandlerFunc {
           return
         }
 
-        dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
+        dbHumans, err := idp.FetchHumans(ctx, tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -592,7 +551,7 @@ func DeleteHumans(env *app.Environment) gin.HandlerFunc {
             RedirectTo: r.RedirectTo, // Requested success url redirect.
             CodeType: int64(client.OTP),
           }
-          challenge, otpCode, err := idp.CreateChallengeUsingOtp(tx, idp.ChallengeEmailConfirm, newChallenge)
+          challenge, otpCode, err := idp.CreateChallengeUsingOtp(ctx, tx, idp.ChallengeEmailConfirm, newChallenge)
           if err != nil {
             e := tx.Rollback()
             if e != nil {

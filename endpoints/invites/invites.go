@@ -3,6 +3,7 @@ package invites
 import (
   "time"
   "net/http"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -19,6 +20,8 @@ import (
 
 func PostInvites(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
 
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
@@ -55,20 +58,6 @@ func PostInvites(env *app.Environment) gin.HandlerFunc {
         return
       }
 
-      requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-      if requestor != "" {
-       identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-       if err != nil {
-         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-         log.Debug(err.Error())
-         return
-       }
-       if len(identities) > 0 {
-         requestedBy = &identities[0]
-       }
-      }
-
       var ids []string
 
       for _, request := range iRequests {
@@ -87,7 +76,7 @@ func PostInvites(env *app.Environment) gin.HandlerFunc {
 
         // Sanity check. Username must be unique
         if r.Username != "" {
-          humansFoundByUsername, err := idp.FetchHumansByUsername(tx, []idp.Human{ {Username:r.Username} })
+          humansFoundByUsername, err := idp.FetchHumansByUsername(ctx, tx, []idp.Human{ {Username:r.Username} })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -111,7 +100,7 @@ func PostInvites(env *app.Environment) gin.HandlerFunc {
         }
 
         // Sanity check. Email must be unique
-        dbHumans, err := idp.FetchHumansByEmail(tx, []idp.Human{ {Email: r.Email} })
+        dbHumans, err := idp.FetchHumansByEmail(ctx, tx, []idp.Human{ {Email: r.Email} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -158,7 +147,7 @@ func PostInvites(env *app.Environment) gin.HandlerFunc {
           Username: r.Username,
         }
         log.Debug(newInvite)
-        invite, err := idp.CreateInvite(tx, requestedBy, newInvite)
+        invite, err := idp.CreateInvite(ctx, tx, newInvite)
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -284,6 +273,8 @@ func PostInvites(env *app.Environment) gin.HandlerFunc {
 func GetInvites(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "GetInvites",
@@ -305,20 +296,6 @@ func GetInvites(env *app.Environment) gin.HandlerFunc {
         return
       }
 
-      requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-      if requestor != "" {
-       identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-       if err != nil {
-         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-         log.Debug(err.Error())
-         return
-       }
-       if len(identities) > 0 {
-         requestedBy = &identities[0]
-       }
-      }
-
       for _, request := range iRequests {
 
         var dbInvites []idp.Invite
@@ -326,13 +303,13 @@ func GetInvites(env *app.Environment) gin.HandlerFunc {
         var ok client.ReadInvitesResponse
 
         if request.Input == nil {
-          dbInvites, err = idp.FetchInvites(tx, requestedBy, nil)
+          dbInvites, err = idp.FetchInvites(ctx, tx, nil)
         } else {
           r := request.Input.(client.ReadInvitesRequest)
           if r.Id != "" {
-            dbInvites, err = idp.FetchInvites(tx, requestedBy, []idp.Invite{ {Identity:idp.Identity{Id:r.Id}} })
+            dbInvites, err = idp.FetchInvites(ctx, tx, []idp.Invite{ {Identity:idp.Identity{Id:r.Id}} })
           } else if r.Email != "" {
-            dbInvites, err = idp.FetchInvitesByEmail(tx, requestedBy, []idp.Invite{ {Email:r.Email} })
+            dbInvites, err = idp.FetchInvitesByEmail(ctx, tx, []idp.Invite{ {Email:r.Email} })
           }
           //else if r.Username != "" {
           //  dbInvites, err = idp.FetchInvitesByUsername(env.Driver, []string{r.Username})

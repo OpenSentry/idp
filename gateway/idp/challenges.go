@@ -5,10 +5,11 @@ import (
   "strings"
   "fmt"
   "context"
-  "github.com/neo4j/neo4j-go-driver/neo4j"
+  "database/sql"
+	"github.com/google/uuid"
 )
 
-func CreateChallengeUsingTotp(ctx context.Context, tx neo4j.Transaction, challengeType ChallengeType, newChallenge Challenge) (challenge Challenge, err error) {
+func CreateChallengeUsingTotp(ctx context.Context, tx *sql.Tx, challengeType ChallengeType, newChallenge Challenge) (challenge Challenge, err error) {
   newChallenge.Code = "" // Do not set this on TOTP requests
   challenge, err = createChallenge(ctx, tx, newChallenge, ChallengeAuthenticate)
   if err != nil {
@@ -17,7 +18,7 @@ func CreateChallengeUsingTotp(ctx context.Context, tx neo4j.Transaction, challen
   return challenge, nil
 }
 
-func CreateChallengeUsingOtp(ctx context.Context, tx neo4j.Transaction, challengeType ChallengeType, newChallenge Challenge) (challenge Challenge, otpCode ChallengeCode, err error) {
+func CreateChallengeUsingOtp(ctx context.Context, tx *sql.Tx, challengeType ChallengeType, newChallenge Challenge) (challenge Challenge, otpCode ChallengeCode, err error) {
   otpCode, err = CreateChallengeCode()
   if err != nil {
     return Challenge{}, ChallengeCode{}, err
@@ -36,8 +37,7 @@ func CreateChallengeUsingOtp(ctx context.Context, tx neo4j.Transaction, challeng
   return challenge, otpCode, nil
 }
 
-func createChallenge(ctx context.Context, tx neo4j.Transaction, newChallenge Challenge, challengeType ChallengeType) (challenge Challenge, err error) {
-  var result neo4j.Result
+func createChallenge(ctx context.Context, tx *sql.Tx, newChallenge Challenge, challengeType ChallengeType) (challenge Challenge, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -68,6 +68,11 @@ func createChallenge(ctx context.Context, tx neo4j.Transaction, newChallenge Cha
     params["data"] = newChallenge.Data
   }
 
+	uuid, err := uuid.NewRandom()
+	if err != nil {
+		return Challenge{}, err
+	}
+
   cypChallengeType := ""
   switch (challengeType) {
   case ChallengeAuthenticate:
@@ -84,6 +89,7 @@ func createChallenge(ctx context.Context, tx neo4j.Transaction, newChallenge Cha
     return Challenge{}, errors.New("Unsupported challenge type")
   }
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (i:Identity {id:$sub})
     MERGE (c:Challenge%s {
@@ -101,33 +107,21 @@ func createChallenge(ctx context.Context, tx neo4j.Transaction, newChallenge Cha
     RETURN c
   `, cypChallengeType, cypData)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+	_, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Challenge{}, err
   }
 
-  if result.Next() {
-    record          := result.Record()
-    challengeNode   := record.GetByIndex(0)
-
-    if challengeNode != nil {
-      challenge = marshalNodeToChallenge(challengeNode.(neo4j.Node))
-    }
-  } else {
-    return Challenge{}, errors.New("Unable to create Challenge")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+	challenges, err := FetchChallenges(ctx, tx, []Challenge{{ Id: uuid.String() }} )
+  if err != nil {
     return Challenge{}, err
   }
 
-  return challenge, nil
+  return challenges[0], nil
 }
 
-func FetchChallenges(ctx context.Context, tx neo4j.Transaction, iChallenges []Challenge) (challenges []Challenge, err error) {
-  var result neo4j.Result
+func FetchChallenges(ctx context.Context, tx *sql.Tx, iChallenges []Challenge) (challenges []Challenge, err error) {
+  var rows *sql.Rows
   var cypher string
   var params = make(map[string]interface{})
 
@@ -141,38 +135,26 @@ func FetchChallenges(ctx context.Context, tx neo4j.Transaction, iChallenges []Ch
     params["ids"] = strings.Join(ids, ",")
   }
 
+	// TODO SQL
   cypher = fmt.Sprintf(`
     MATCH (c:Challenge) WHERE c.exp > datetime().epochSeconds %s
     RETURN c
   `, cypfilterChallenges)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+  rows, err = tx.QueryContext(ctx, cypher, params);
+  if err != nil {
     return nil, err
   }
 
-  for result.Next() {
-    record          := result.Record()
-    challengeNode    := record.GetByIndex(0)
-
-    if challengeNode != nil {
-      i := marshalNodeToChallenge(challengeNode.(neo4j.Node))
-
-      challenges = append(challenges, i)
-    }
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
-    return nil, err
+  for rows.Next() {
+		i := marshalRowToChallenge(rows)
+		challenges = append(challenges, i)
   }
 
   return challenges, nil
 }
 
-func VerifyChallenge(ctx context.Context, tx neo4j.Transaction, challengeToUpdate Challenge) (updatedChallenge Challenge, err error) {
-  var result neo4j.Result
+func VerifyChallenge(ctx context.Context, tx *sql.Tx, challengeToUpdate Challenge) (updatedChallenge Challenge, err error) {
   var cypher string
   var params = make(map[string]interface{})
 
@@ -187,27 +169,15 @@ func VerifyChallenge(ctx context.Context, tx neo4j.Transaction, challengeToUpdat
     RETURN c
   `)
 
-  if result, err = tx.Run(cypher, params); err != nil {
+  _, err = tx.ExecContext(ctx, cypher, params)
+  if err != nil {
     return Challenge{}, err
   }
 
-  if result.Next() {
-    record          := result.Record()
-    challengeNode   := record.GetByIndex(0)
-
-    if challengeNode != nil {
-      updatedChallenge = marshalNodeToChallenge(challengeNode.(neo4j.Node))
-    }
-  } else {
-    return Challenge{}, errors.New("Unable to set Challenge verified. Hint: Challenge might be expired or non existant.")
-  }
-
-  logCypher(cypher, params)
-
-  // Check if we encountered any error during record streaming
-  if err = result.Err(); err != nil {
+	challenges, err := FetchChallenges(ctx, tx, []Challenge{ challengeToUpdate } )
+  if err != nil {
     return Challenge{}, err
   }
 
-  return updatedChallenge, nil
+  return challenges[0], nil
 }

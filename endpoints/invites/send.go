@@ -3,6 +3,7 @@ package invites
 import (
   "net/url"
   "net/http"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -24,6 +25,8 @@ type InviteTemplateData struct {
 
 func PostInvitesSend(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
 
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
@@ -62,27 +65,11 @@ func PostInvitesSend(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
-      }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
-
-      requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-      if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
       }
 
       for _, request := range iRequests {
@@ -90,7 +77,7 @@ func PostInvitesSend(env *app.Environment) gin.HandlerFunc {
 
         log = log.WithFields(logrus.Fields{"id": r.Id})
 
-        dbInvites, err := idp.FetchInvites(tx, requestedBy, []idp.Invite{ {Identity:idp.Identity{Id:r.Id}} })
+        dbInvites, err := idp.FetchInvites(ctx, tx, []idp.Invite{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -129,7 +116,7 @@ func PostInvitesSend(env *app.Environment) gin.HandlerFunc {
             return
           }
 
-          updatedInvite, err := idp.UpdateInviteSentAt(tx, requestedBy, invite)
+          updatedInvite, err := idp.UpdateInviteSentAt(ctx, tx, invite)
           if err != nil {
             e := tx.Rollback()
             if e != nil {

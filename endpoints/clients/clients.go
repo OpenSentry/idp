@@ -415,20 +415,6 @@ func DeleteClients(env *app.Environment) gin.HandlerFunc {
         return
       }
 
-      requestor := c.MustGet("sub").(string)
-      var requestedBy *idp.Identity
-        if requestor != "" {
-        identities, err := idp.FetchIdentities(ctx, tx, []idp.Identity{ {Id:requestor} })
-        if err != nil {
-          bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
-          log.Debug(err.Error())
-          return
-        }
-        if len(identities) > 0 {
-          requestedBy = &identities[0]
-        }
-      }
-
       var deleteHydraClients []string
 
       for _, request := range iRequests {

@@ -176,13 +176,14 @@ func main() {
   }
 
 	// Create DB pool
-	driver, err := sql.Open("postgres", config.GetString("db.dsn")
+	driver, err := sql.Open("postgres", config.GetString("db.dsn"))
 	if err != nil {
-		panic("Failed to open a DB connection: ", err)
+		fmt.Println(err)
+		panic("Failed to open a DB connection")
 	}
-	if debug == 1 {
+	/*if debug == 1 {
 		// TODO postgres logging settings
-	}
+	}*/
 	defer driver.Close()
 
   // migrate then exit application

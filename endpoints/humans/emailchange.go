@@ -4,6 +4,7 @@ import (
   "time"
   "net/http"
   "net/url"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -24,6 +25,8 @@ type EmailChangeTemplateData struct {
 
 func PostEmailChange(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
 
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
@@ -59,14 +62,12 @@ func PostEmailChange(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
 
       // requestor := c.MustGet("sub").(string)
       // var requestedBy *idp.Identity
@@ -98,7 +99,7 @@ func PostEmailChange(env *app.Environment) gin.HandlerFunc {
         //   return
         // }
 
-        dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
+        dbHumans, err := idp.FetchHumans(ctx, tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -136,7 +137,7 @@ func PostEmailChange(env *app.Environment) gin.HandlerFunc {
             CodeType: int64(client.OTP),
             Data: r.Email,
           }
-          challenge, otpCode, err := idp.CreateChallengeUsingOtp(tx, idp.ChallengeEmailChange, newChallenge)
+          challenge, otpCode, err := idp.CreateChallengeUsingOtp(ctx, tx, idp.ChallengeEmailChange, newChallenge)
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -216,6 +217,8 @@ func PostEmailChange(env *app.Environment) gin.HandlerFunc {
 func PutEmailChange(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
 
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PutEmailChange",
@@ -230,14 +233,12 @@ func PutEmailChange(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
 
       // requestor := c.MustGet("sub").(string)
       // var requestedBy *idp.Identity
@@ -258,7 +259,7 @@ func PutEmailChange(env *app.Environment) gin.HandlerFunc {
 
         log = log.WithFields(logrus.Fields{"email_challenge": r.EmailChallenge})
 
-        dbChallenges, err := idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.EmailChallenge} })
+        dbChallenges, err := idp.FetchChallenges(ctx, tx, []idp.Challenge{ {Id: r.EmailChallenge} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -284,7 +285,7 @@ func PutEmailChange(env *app.Environment) gin.HandlerFunc {
 
         if challenge.VerifiedAt > 0 {
 
-          updatedHuman, err := idp.UpdateEmail(tx, idp.Human{ Identity: idp.Identity{ Id: challenge.Subject }, Email: r.Email })
+          updatedHuman, err := idp.UpdateEmail(ctx, tx, idp.Human{ Identity: idp.Identity{ Id: challenge.Subject }, Email: r.Email })
           if err != nil {
             e := tx.Rollback()
             if e != nil {

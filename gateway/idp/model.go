@@ -109,10 +109,8 @@ func (d ChallengeType) String() string {
     return [...]string{"ChallengeNotSupported", "ChallengeAuthenticate", "ChallengeRecover", "ChallengeDelete", "ChallengeEmailConfirm", "ChallengeEmailChange"}[d]
 }
 
-func marshalNodeToChallenge(node neo4j.Node) (Challenge) {
-  p := node.Props()
-
-  var verifiedAt int64
+func marshalRowToChallenge(rows *sql.Rows) (Challenge) {
+  /*var verifiedAt int64
   if (p["verified_at"] != nil) { verifiedAt = p["verified_at"].(int64) }
 
   var ct ChallengeType = ChallengeNotSupported
@@ -163,7 +161,9 @@ func marshalNodeToChallenge(node neo4j.Node) (Challenge) {
     VerifiedAt:   verifiedAt,
 
     Data: data,
-  }
+  }*/
+
+	return Challenge{} // TODO figure this out with sql
 }
 
 type Invite struct {
@@ -246,10 +246,8 @@ type Client struct {
   PostLogoutRedirectUris   []string
   TokenEndpointAuthMethod  string
 }
-func marshalNodeToClient(node neo4j.Node) (Client) {
-  p := node.Props()
-
-  var secret string
+func marshalRowToClient(rows *sql.Rows) (Client) {
+  /*var secret string
   cs := p["secret"]
   if cs == nil {
     secret = ""
@@ -305,7 +303,9 @@ func marshalNodeToClient(node neo4j.Node) (Client) {
     RedirectUris:            redirectUris,
     PostLogoutRedirectUris:  postLogoutRedirectUris,
     TokenEndpointAuthMethod: p["token_endpoint_auth_method"].(string),
-  }
+  }*/
+
+	return Client{} // TODO figure out how to do this with sql
 }
 
 type Human struct {

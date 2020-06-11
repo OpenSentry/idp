@@ -2,6 +2,7 @@ package humans
 
 import (
   "net/http"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -16,6 +17,8 @@ import (
 
 func PutTotp(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
 
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
@@ -39,19 +42,17 @@ func PutTotp(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
 
       requestor := c.MustGet("sub").(string)
         var requestedBy *idp.Identity
         if requestor != "" {
-        identities, err := idp.FetchIdentities(tx, []idp.Identity{ {Id:requestor} })
+        identities, err := idp.FetchIdentities(ctx, tx, []idp.Identity{ {Id:requestor} })
         if err != nil {
           bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
           log.Debug(err.Error())
@@ -78,7 +79,7 @@ func PutTotp(env *app.Environment) gin.HandlerFunc {
           return
         }
 
-        dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
+        dbHumans, err := idp.FetchHumans(ctx, tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -113,7 +114,7 @@ func PutTotp(env *app.Environment) gin.HandlerFunc {
           return
         }
 
-        updatedHuman, err := idp.UpdateTotp(tx, idp.Human{
+        updatedHuman, err := idp.UpdateTotp(ctx, tx, idp.Human{
           Identity: idp.Identity{
             Id: human.Id,
           },

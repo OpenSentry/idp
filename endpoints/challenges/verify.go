@@ -2,6 +2,7 @@ package challenges
 
 import (
   "net/http"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -16,6 +17,9 @@ import (
 
 func PutVerify(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
+
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
       "func": "PutVerify",
@@ -67,7 +71,7 @@ func PutVerify(env *app.Environment) gin.HandlerFunc {
         // Sanity check. Challenge must exists
         var aChallenge []idp.Challenge
         aChallenge = append(aChallenge, idp.Challenge{Id: r.OtpChallenge})
-        dbChallenges, err := idp.FetchChallenges(tx, aChallenge)
+        dbChallenges, err := idp.FetchChallenges(ctx, tx, aChallenge)
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -97,7 +101,7 @@ func PutVerify(env *app.Environment) gin.HandlerFunc {
 
         if client.OTPType(challenge.CodeType) == client.TOTP {
 
-          humans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:challenge.Subject}} })
+          humans, err := idp.FetchHumans(ctx, tx, []idp.Human{ {Identity:idp.Identity{Id:challenge.Subject}} })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -153,7 +157,7 @@ func PutVerify(env *app.Environment) gin.HandlerFunc {
 
         if valid == true {
 
-          verifiedChallenge, err := idp.VerifyChallenge(tx, challenge)
+          verifiedChallenge, err := idp.VerifyChallenge(ctx, tx, challenge)
           if err != nil {
             e := tx.Rollback()
             if e != nil {

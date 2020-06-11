@@ -2,6 +2,7 @@ package humans
 
 import (
   "net/http"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -15,6 +16,8 @@ import (
 
 func PutDeleteVerification(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
 
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
@@ -56,7 +59,7 @@ func PutDeleteVerification(env *app.Environment) gin.HandlerFunc {
 
         log = log.WithFields(logrus.Fields{"delete_challenge": r.DeleteChallenge})
 
-        dbChallenges, err := idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.DeleteChallenge} })
+        dbChallenges, err := idp.FetchChallenges(ctx, tx, []idp.Challenge{ {Id: r.DeleteChallenge} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -90,7 +93,7 @@ func PutDeleteVerification(env *app.Environment) gin.HandlerFunc {
           log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all consents in hydra for identity - this is probably aap?")
           log.WithFields(logrus.Fields{"fixme":1}).Debug("Revoke all sessions in hydra for identity - this is probably aap?")
 
-          deletedHuman, err := idp.DeleteHuman(tx, idp.Human{Identity: idp.Identity{ Id: challenge.Subject }})
+          deletedHuman, err := idp.DeleteHuman(ctx, tx, idp.Human{Identity: idp.Identity{ Id: challenge.Subject }})
           if err != nil {
             e := tx.Rollback()
             if e != nil {

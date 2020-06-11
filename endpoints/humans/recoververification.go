@@ -2,6 +2,7 @@ package humans
 
 import (
   "net/http"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -15,6 +16,8 @@ import (
 
 func PutRecoverVerification(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
 
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
@@ -30,14 +33,12 @@ func PutRecoverVerification(env *app.Environment) gin.HandlerFunc {
 
     var handleRequests = func(iRequests []*bulky.Request) {
 
-      session, tx, err := idp.BeginWriteTx(env.Driver)
+      tx, err := env.Driver.BeginTx(ctx, nil)
       if err != nil {
         bulky.FailAllRequestsWithInternalErrorResponse(iRequests)
         log.Debug(err.Error())
         return
       }
-      defer tx.Close() // rolls back if not already committed/rolled back
-      defer session.Close()
 
       // requestor := c.MustGet("sub").(string)
       // var requestedBy *idp.Identity
@@ -58,7 +59,7 @@ func PutRecoverVerification(env *app.Environment) gin.HandlerFunc {
 
         log = log.WithFields(logrus.Fields{"recover_challenge": r.RecoverChallenge})
 
-        dbChallenges, err := idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.RecoverChallenge} })
+        dbChallenges, err := idp.FetchChallenges(ctx, tx, []idp.Challenge{ {Id: r.RecoverChallenge} })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -105,7 +106,7 @@ func PutRecoverVerification(env *app.Environment) gin.HandlerFunc {
             return
           }
 
-          updatedHuman, err := idp.UpdatePassword(tx, idp.Human{ Identity: idp.Identity{ Id: challenge.Subject }, Password: hashedPassword })
+          updatedHuman, err := idp.UpdatePassword(ctx, tx, idp.Human{ Identity: idp.Identity{ Id: challenge.Subject }, Password: hashedPassword })
           if err != nil {
             e := tx.Rollback()
             if e != nil {

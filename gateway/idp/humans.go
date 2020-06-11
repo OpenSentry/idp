@@ -238,7 +238,7 @@ func fetchHumansByQuery(ctx context.Context, tx *sql.Tx, cypher string, params m
 
 // NOTE: This can update everything that is _NOT_ sensitive to the authentication process like Identity.Password
 //       To change the password see recover for that or iff identified UpdatePassword
-func UpdateHuman(ctx context.Context, tx sql.Tx, newHuman Human) (human Human, err error) {
+func UpdateHuman(ctx context.Context, tx *sql.Tx, newHuman Human) (human Human, err error) {
   var rows *sql.Rows
   var cypher string
   var params = make(map[string]interface{})

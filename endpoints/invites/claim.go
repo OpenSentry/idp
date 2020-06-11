@@ -4,6 +4,7 @@ import (
   "net/http"
   "net/url"
   "time"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -26,6 +27,8 @@ type ConfirmTemplateData struct {
 
 func PostInvitesClaim(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
 
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
@@ -105,7 +108,7 @@ func PostInvitesClaim(env *app.Environment) gin.HandlerFunc {
         }
 
         inv := idp.Invite{ Identity: idp.Identity{ Id: r.Id } }
-        dbInvites, err := idp.FetchInvites(tx, nil, []idp.Invite{ inv })
+        dbInvites, err := idp.FetchInvites(ctx, tx, []idp.Invite{ inv })
         if err != nil {
           e := tx.Rollback()
           if e != nil {
@@ -139,7 +142,7 @@ func PostInvitesClaim(env *app.Environment) gin.HandlerFunc {
           RedirectTo: redirectToUrlWhenVerified.String(),
           CodeType: int64(client.OTP),
         }
-        challenge, otpCode, err := idp.CreateChallengeUsingOtp(tx, idp.ChallengeEmailConfirm, newChallenge)
+        challenge, otpCode, err := idp.CreateChallengeUsingOtp(ctx, tx, idp.ChallengeEmailConfirm, newChallenge)
         if err != nil {
           e := tx.Rollback()
           if e != nil {

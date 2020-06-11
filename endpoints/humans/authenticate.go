@@ -4,6 +4,7 @@ import (
   "net/url"
   "net/http"
   "time"
+  "context"
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
 
@@ -27,6 +28,8 @@ type ConfirmTemplateData struct {
 
 func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
   fn := func(c *gin.Context) {
+
+		ctx := context.TODO()
 
     log := c.MustGet(env.Constants.LogKey).(*logrus.Entry)
     log = log.WithFields(logrus.Fields{
@@ -119,7 +122,7 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
 
         // Lookup subject
         if subject != "" {
-          humans, err := idp.FetchHumans(tx, []idp.Human{ {Identity: idp.Identity{Id:subject}} })
+          humans, err := idp.FetchHumans(ctx, tx, []idp.Human{ {Identity: idp.Identity{Id:subject}} })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -174,7 +177,7 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
 
         // Lookup client
         if clientId != "" {
-          clients, err := idp.FetchClients(tx, nil, []idp.Client{ {Identity: idp.Identity{Id:clientId}} })
+          clients, err := idp.FetchClients(ctx, tx, []idp.Client{ {Identity: idp.Identity{Id:clientId}} })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -246,7 +249,7 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
 
           acr := "otp.email"
 
-          dbChallenges, err := idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.EmailChallenge} })
+          dbChallenges, err := idp.FetchChallenges(ctx, tx, []idp.Challenge{ {Id: r.EmailChallenge} })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -271,7 +274,7 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
           challenge := dbChallenges[0]
 
           if challenge.VerifiedAt > 0 {
-            _, err := idp.ConfirmEmail(tx, idp.Human{ Identity: idp.Identity{Id: challenge.Subject} })
+            _, err := idp.ConfirmEmail(ctx, tx, idp.Human{ Identity: idp.Identity{Id: challenge.Subject} })
             if err != nil {
               e := tx.Rollback()
               if e != nil {
@@ -331,7 +334,7 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
           log = log.WithFields(logrus.Fields{ "otp_challenge": r.OtpChallenge })
           acr := "otp"
 
-          dbChallenges, err := idp.FetchChallenges(tx, []idp.Challenge{ {Id: r.OtpChallenge} })
+          dbChallenges, err := idp.FetchChallenges(ctx, tx, []idp.Challenge{ {Id: r.OtpChallenge} })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -417,7 +420,7 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
 
           log = log.WithFields(logrus.Fields{"id": r.Id})
 
-          dbHumans, err := idp.FetchHumans(tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
+          dbHumans, err := idp.FetchHumans(ctx, tx, []idp.Human{ {Identity:idp.Identity{Id:r.Id}} })
           if err != nil {
             e := tx.Rollback()
             if e != nil {
@@ -479,7 +482,7 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
                     CodeType: int64(client.OTP),
                     Data: human.Email,
                   }
-                  challenge, otpCode, err := idp.CreateChallengeUsingOtp(tx, idp.ChallengeAuthenticate, newChallenge)
+                  challenge, otpCode, err := idp.CreateChallengeUsingOtp(ctx, tx, idp.ChallengeAuthenticate, newChallenge)
                   if err != nil {
                     e := tx.Rollback()
                     if e != nil {
@@ -537,7 +540,7 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
                     RedirectTo: redirectToUrlWhenVerified.String(),
                     CodeType: int64(client.TOTP),
                   }
-                  challenge, err := idp.CreateChallengeUsingTotp(tx, idp.ChallengeAuthenticate, newChallenge)
+                  challenge, err := idp.CreateChallengeUsingTotp(ctx, tx, idp.ChallengeAuthenticate, newChallenge)
                   if err != nil {
                     e := tx.Rollback()
                     if e != nil {
