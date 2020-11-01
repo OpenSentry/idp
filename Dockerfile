@@ -8,16 +8,6 @@ LABEL maintainer="The OpenSentry Team"
 
 RUN apk add --update --no-cache ca-certificates cmake make g++ git curl pkgconfig libcap openssl-libs-static openssl-dev
 
-# RUN apt install -y libssl1.0.0
-RUN git clone -b v1.7.4 https://github.com/neo4j-drivers/seabolt.git /seabolt
-
-# invoke cmake build and install artifacts - default location is /usr/local
-WORKDIR /seabolt/build
-
-# CMAKE_INSTALL_LIBDIR=lib is a hack where we override default lib64 to lib to workaround a defect
-# in our generated pkg-config file
-RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
-
 # Set the Current Working Directory inside the container
 WORKDIR $GOPATH/src/github.com/opensentry/idp
 
