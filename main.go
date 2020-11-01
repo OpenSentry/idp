@@ -25,16 +25,20 @@ import (
   "github.com/opensentry/idp/app"
   "github.com/opensentry/idp/config"
   "github.com/opensentry/idp/gateway/idp"
-  "github.com/opensentry/idp/migration"
+	// "github.com/opensentry/idp/migration"
   "github.com/opensentry/idp/endpoints/identities"
   "github.com/opensentry/idp/endpoints/humans"
   "github.com/opensentry/idp/endpoints/clients"
-  "github.com/opensentry/idp/endpoints/challenges"
+	"github.com/opensentry/idp/endpoints/challenges"
   "github.com/opensentry/idp/endpoints/invites"
   "github.com/opensentry/idp/endpoints/resourceservers"
   "github.com/opensentry/idp/endpoints/roles"
-
   E "github.com/opensentry/idp/client/errors"
+
+	"github.com/golang-migrate/migrate"
+	_ "github.com/golang-migrate/migrate/database/postgres"
+	_ "github.com/golang-migrate/migrate/source/file"
+
 )
 
 const appName = "idp"
@@ -159,8 +163,19 @@ func createBanList(file string) (map[string]bool, error) {
   return banList, nil
 }
 
-func migrate(driver *sql.DB) {
-  migration.Migrate(driver)
+func applyMigrate(driver *sql.DB) {
+	m, err := migrate.New(
+		"file://migrations/postgres",
+		config.GetString("db.dsn"))
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	if err := m.Down(); err != nil {
+		fmt.Println(err)
+	}
+
+	// migration.Migrate(driver)
 }
 
 func main() {
@@ -188,7 +203,7 @@ func main() {
 
   // migrate then exit application
   if *optMigrate {
-    migrate(driver)
+    applyMigrate(driver)
     os.Exit(0)
     return
   }

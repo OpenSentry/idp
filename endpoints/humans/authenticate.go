@@ -141,7 +141,7 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
             deny.IdentityExists = false
 
             // Hydra told us subject has active session, but our identity provider told us that the subject no longer exists.
-            // This happens if we delete identity from neo4j, but fail to revoke sessions from hydra.
+            // This happens if we delete identity from our db, but fail to revoke sessions from hydra.
 
             hydraLoginRejectResponse, err := hydra.RejectLogin(config.GetString("hydra.private.url") + config.GetString("hydra.private.endpoints.loginReject"), hydraClient, r.Challenge, hydra.LoginRejectRequest{
               Error: "Identity deleted",

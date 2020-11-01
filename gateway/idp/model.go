@@ -1,7 +1,6 @@
 package idp
 
 import (
-  "github.com/neo4j/neo4j-go-driver/neo4j"
 	"database/sql"
 )
 
@@ -14,9 +13,7 @@ type JwtRegisteredClaims struct {
   IssuedAt  int64
   JwtId     string
 }
-func marshalNodeToJwtRegisteredClaims(node neo4j.Node) (JwtRegisteredClaims) {
-  p := node.Props()
-
+func marshalRowToJwtRegisteredClaims(rows *sql.Rows) (JwtRegisteredClaims) {
   var iss string
   var sub string
   var aud string
@@ -25,13 +22,7 @@ func marshalNodeToJwtRegisteredClaims(node neo4j.Node) (JwtRegisteredClaims) {
   var iat int64
   var jti string
 
-  if p["iss"] != nil { iss = p["iss"].(string) }
-  if p["sub"] != nil { sub = p["sub"].(string) }
-  if p["aud"] != nil { aud = p["aud"].(string) }
-  if p["exp"] != nil { exp = p["exp"].(int64) }
-  if p["nbf"] != nil { nbf = p["nbf"].(int64) }
-  if p["iat"] != nil { iat = p["iat"].(int64) }
-  if p["jti"] != nil { jti = p["jti"].(string) }
+	rows.Scan(&iss, &sub, &aud, &exp, &nbf, &iat, &jti)
 
   return JwtRegisteredClaims{
     Issuer:    iss,

@@ -88,7 +88,6 @@ func FetchRoles(ctx context.Context, tx *sql.Tx, iFilterRoles []Role) (rRoles []
     RETURN role
   `, where1)
 
-  logCypher(cypher, params)
 	rows, err = tx.QueryContext(ctx, cypher, params)
   if err != nil {
     return nil, err
@@ -121,7 +120,6 @@ func DeleteRole(ctx context.Context, tx *sql.Tx, iRole Role) (rRole Role, err er
     DETACH DELETE role
   `)
 
-  logCypher(cypher, params)
   if _, err = tx.ExecContext(ctx, cypher, params); err != nil {
     return Role{}, err
   }

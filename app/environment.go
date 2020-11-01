@@ -4,7 +4,6 @@ import (
   "crypto/rsa"
   "github.com/sirupsen/logrus"
   "database/sql"
-	//"github.com/neo4j/neo4j-go-driver/neo4j"
   nats "github.com/nats-io/nats.go"
   "golang.org/x/oauth2/clientcredentials"
   oidc "github.com/coreos/go-oidc"

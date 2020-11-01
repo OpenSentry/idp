@@ -1,11 +1,6 @@
-FROM golang:1.12-alpine
+FROM golang:1.14-alpine
 
 RUN apk add --update --no-cache ca-certificates cmake make g++ openssl-dev git curl pkgconfig
-RUN git clone -b v1.7.4 https://github.com/neo4j-drivers/seabolt.git /seabolt
-
-WORKDIR /seabolt/build
-
-RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
 
 WORKDIR $GOPATH/src/github.com/opensentry/idp
 
@@ -15,11 +10,10 @@ COPY . .
 #go get: warning: modules disabled by GO111MODULE=auto in GOPATH/src;
 #	ignoring go.mod;
 #	see 'go help modules'
-RUN rm go.mod go.sum
+# RUN rm go.mod go.sum
 
 RUN go get -d -v ./...
 
-#RUN go get github.com/pilu/fresh
 RUN go get github.com/ivpusic/rerun
 
 EXPOSE 443
@@ -29,5 +23,4 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
-#CMD ["fresh"]
 CMD ["rerun", "-a--serve"]

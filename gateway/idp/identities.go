@@ -7,9 +7,6 @@ import (
 	"database/sql"
 )
 
-// You should never make these, please specialize with another label, see client.go or human.go
-// func CreateIdentities(driver neo4j.Driver, identities []Identity) ([]Identity, error)
-
 func FetchIdentities(ctx context.Context, tx *sql.Tx, iIdentities []Identity) (identities []Identity, err error) {
   var rows *sql.Rows
   var cypher string
