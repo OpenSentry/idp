@@ -6,15 +6,9 @@ ARG ALPINE_VERSION=3.10.3
 FROM golang:${GO_VERSION}-alpine AS builder
 
 ARG APP=idp
-ARG SEABOLT_VERSION="v1.7.4"
 
 RUN apk add --update --no-cache ca-certificates cmake make g++ git curl pkgconfig libcap openssl-libs-static openssl-dev
-RUN git clone -b "$SEABOLT_VERSION" https://github.com/neo4j-drivers/seabolt.git /seabolt
 RUN update-ca-certificates 2>/dev/null || true
-
-WORKDIR /seabolt/build
-
-RUN cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_LIBDIR=lib .. && cmake --build . --target install
 
 WORKDIR $GOPATH/src/github.com/opensentry/${APP}
 
@@ -26,8 +20,7 @@ RUN rm -f application-build*
 RUN go get -d -v ./...
 
 RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-RUN dep init && dep ensure -add github.com/neo4j/neo4j-go-driver/neo4j
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -tags seabolt_static -o /app
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app
 RUN cp -r ./model /model # /views is static data, which isnt built within the binary
 RUN cp -r ./emails /emails # default email templates, mount others to change
 RUN cp -r ./ban /ban # default ban lists (empty), mount others to change
