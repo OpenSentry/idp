@@ -8,7 +8,7 @@ import (
   "github.com/sirupsen/logrus"
   "github.com/gin-gonic/gin"
   "github.com/gofrs/uuid"
-  oidc "github.com/coreos/go-oidc"
+  oidc "github.com/coreos/go-oidc/v3/oidc"
   "golang.org/x/oauth2/clientcredentials"
 
   "github.com/opensentry/idp/config"

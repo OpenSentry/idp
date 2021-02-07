@@ -208,7 +208,6 @@ func PostAuthenticate(env *app.Environment) gin.HandlerFunc {
             }
             bulky.FailAllRequestsWithServerOperationAbortedResponse(iRequests) // Fail all with abort
             request.Output = bulky.NewInternalErrorResponse(request.Index) // Specify error on failed one
-            log.Debug(err.Error())
             return
           }
           application = clients[0]

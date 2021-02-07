@@ -6,7 +6,7 @@ import (
   "github.com/neo4j/neo4j-go-driver/neo4j"
   nats "github.com/nats-io/nats.go"
   "golang.org/x/oauth2/clientcredentials"
-  oidc "github.com/coreos/go-oidc"
+  oidc "github.com/coreos/go-oidc/v3/oidc"
 
   "github.com/opensentry/idp/gateway/idp"
 )

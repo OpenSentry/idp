@@ -10,7 +10,7 @@ import (
   "golang.org/x/net/context"
   "golang.org/x/oauth2/clientcredentials"
   "github.com/sirupsen/logrus"
-  oidc "github.com/coreos/go-oidc"
+  oidc "github.com/coreos/go-oidc/v3/oidc"
   "github.com/gin-gonic/gin"
   "github.com/neo4j/neo4j-go-driver/neo4j"
   "github.com/pborman/getopt"
