@@ -1,7 +1,7 @@
 # Dockerfile References: https://docs.docker.com/engine/reference/builder/
 
 # Start from golang v1.11 base image
-FROM golang:1.15-alpine
+FROM golang:1.16-alpine
 
 # Add Maintainer Info
 LABEL maintainer="The OpenSentry Team"
@@ -17,6 +17,9 @@ COPY . .
 # Download all the dependencies
 # https://stackoverflow.com/questions/28031603/what-do-three-dots-mean-in-go-command-line-invocations
 RUN go get -d -v ./...
+
+# For faster migrations
+RUN go build .
 
 # Development requires fresh
 RUN go get github.com/ivpusic/rerun
