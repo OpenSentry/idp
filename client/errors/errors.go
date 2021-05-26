@@ -1,15 +1,15 @@
 package errors
 
 import (
-  bulky "github.com/charmixer/bulky/errors"
+	bulky "github.com/charmixer/bulky/errors"
 )
 
-const INPUT_VALIDATION_FAILED    = 1
-const EMPTY_REQUEST_NOT_ALLOWED  = 2
-const MAX_REQUESTS_EXCEEDED      = 3
+const INPUT_VALIDATION_FAILED = 1
+const EMPTY_REQUEST_NOT_ALLOWED = 2
+const MAX_REQUESTS_EXCEEDED = 3
 const FAILED_DUE_TO_OTHER_ERRORS = 4
-const INTERNAL_SERVER_ERROR      = 5
-const FORBIDDEN                  = 6
+const INTERNAL_SERVER_ERROR = 5
+const FORBIDDEN = 6
 
 const IDENTITY_NOT_FOUND = 10
 
@@ -41,114 +41,96 @@ const FOLLOW_NOT_FOUND = 110
 const FOLLOW_NOT_CREATED = 111
 
 func InitRestErrors() {
-  bulky.AppendErrors(
-    map[int]map[string]string{
-      HUMAN_TOKEN_INVALID: {
-        "en":  "Forbidden",
-        "dev": "Forbidden. Hint: Access token subject and requested Identity.Id does not match.",
-      },
+	bulky.AppendErrors(
+		map[int]map[string]string{
+			HUMAN_TOKEN_INVALID: {
+				"en":  "Forbidden",
+				"dev": "Forbidden. Hint: Access token subject and requested Identity.Id does not match.",
+			},
 
-      HUMAN_ALREADY_EXISTS:
-        {
-          "en":  "Already exists",
-          "dev": "Human already exists",
-        },
-      HUMAN_NOT_CREATED:
-        {
-          "en":  "Not created",
-          "dev": "Failed to create human. This requires investigation as it should never happen with validation in place.",
-        },
-      HUMAN_NOT_UPDATED:
-        {
-          "en":  "Not updated",
-          "dev": "Failed to update human. This requires investigation as it should never happen with validation in place.",
-        },
-      HUMAN_NOT_FOUND:
-        {
-          "en":  "Not found",
-          "dev": "Human not found",
-        },
-      IDENTITY_NOT_FOUND:
-        {
-          "en":  "Not found",
-          "dev": "Identity not found",
-        },
-      USERNAME_BANNED:
-        {
-          "en":  "Username is banned",
-          "dev": "Username is banned according to the banlist",
-        },
-      USERNAME_EXISTS:
-        {
-          "en":  "Username exists",
-          "dev": "Username already exists",
-        },
-      CHALLENGE_NOT_CREATED:
-        {
-          "en":  "Not created",
-          "dev": "Failed to create challenge. This requires investigation as it should never happen with validation in place.",
-        },
-      CHALLENGE_NOT_FOUND:
-        {
-          "en": "Not found",
-          "dev": "Challenge not found",
-        },
+			HUMAN_ALREADY_EXISTS: {
+				"en":  "Already exists",
+				"dev": "Human already exists",
+			},
+			HUMAN_NOT_CREATED: {
+				"en":  "Not created",
+				"dev": "Failed to create human. This requires investigation as it should never happen with validation in place.",
+			},
+			HUMAN_NOT_UPDATED: {
+				"en":  "Not updated",
+				"dev": "Failed to update human. This requires investigation as it should never happen with validation in place.",
+			},
+			HUMAN_NOT_FOUND: {
+				"en":  "Not found",
+				"dev": "Human not found",
+			},
+			IDENTITY_NOT_FOUND: {
+				"en":  "Not found",
+				"dev": "Identity not found",
+			},
+			USERNAME_BANNED: {
+				"en":  "Username is banned",
+				"dev": "Username is banned according to the banlist",
+			},
+			USERNAME_EXISTS: {
+				"en":  "Username exists",
+				"dev": "Username already exists",
+			},
+			CHALLENGE_NOT_CREATED: {
+				"en":  "Not created",
+				"dev": "Failed to create challenge. This requires investigation as it should never happen with validation in place.",
+			},
+			CHALLENGE_NOT_FOUND: {
+				"en":  "Not found",
+				"dev": "Challenge not found",
+			},
 
-      CHALLENGE_CONFIRMATION_TYPE_INVALID:
-        {
-          "en": "Invalid confirmation type",
-          "dev": "Invalid confirmation type",
-        },
+			CHALLENGE_CONFIRMATION_TYPE_INVALID: {
+				"en":  "Invalid confirmation type",
+				"dev": "Invalid confirmation type",
+			},
 
-      HUMAN_TOTP_NOT_REQUIRED:
-        {
-          "en":  "TOTP not required",
-          "dev": "TOTP not required",
-        },
+			HUMAN_TOTP_NOT_REQUIRED: {
+				"en":  "TOTP not required",
+				"dev": "TOTP not required",
+			},
 
-      /*CLIENT_NOT_FOUND:
-        {
-          "en":  "Not found",
-          "dev": "Client not found",
-        },*/
-      CLIENT_NOT_CREATED:
-        {
-          "en":  "Not created",
-          "dev": "Failed to create client. This requires investigation as it should never happen with validation in place.",
-        },
+			/*CLIENT_NOT_FOUND:
+			  {
+			    "en":  "Not found",
+			    "dev": "Client not found",
+			  },*/
+			CLIENT_NOT_CREATED: {
+				"en":  "Not created",
+				"dev": "Failed to create client. This requires investigation as it should never happen with validation in place.",
+			},
 
-      RESOURCESERVER_NOT_FOUND:
-        {
-          "en":  "Not found",
-          "dev": "Resource Server not found",
-        },
+			RESOURCESERVER_NOT_FOUND: {
+				"en":  "Not found",
+				"dev": "Resource Server not found",
+			},
 
-      INVITE_NOT_FOUND:
-        {
-          "en":  "Not found",
-          "dev": "Invite not found",
-        },
-      INVITE_NOT_CREATED:
-        {
-          "en":  "Not created",
-          "dev": "Failed to create invite. This requires investigation as it should never happen with validation in place.",
-        },
-      INVITE_EXPIRES_IN_THE_PAST:
-        {
-          "en":  "Expires in the past",
-          "dev": "Expires in the past. Hint: exp field expires in the past.",
-        },
+			INVITE_NOT_FOUND: {
+				"en":  "Not found",
+				"dev": "Invite not found",
+			},
+			INVITE_NOT_CREATED: {
+				"en":  "Not created",
+				"dev": "Failed to create invite. This requires investigation as it should never happen with validation in place.",
+			},
+			INVITE_EXPIRES_IN_THE_PAST: {
+				"en":  "Expires in the past",
+				"dev": "Expires in the past. Hint: exp field expires in the past.",
+			},
 
-      FOLLOW_NOT_FOUND:
-        {
-          "en":  "Not found",
-          "dev": "Follow not found",
-        },
-      FOLLOW_NOT_CREATED:
-        {
-          "en":  "Not created",
-          "dev": "Failed to create follow. This requires investigation as it should never happen with validation in place.",
-        },
-    },
-  )
+			FOLLOW_NOT_FOUND: {
+				"en":  "Not found",
+				"dev": "Follow not found",
+			},
+			FOLLOW_NOT_CREATED: {
+				"en":  "Not created",
+				"dev": "Failed to create follow. This requires investigation as it should never happen with validation in place.",
+			},
+		},
+	)
 }
