@@ -31,6 +31,8 @@ import (
 	"github.com/opensentry/idp/gateway/idp"
 	"github.com/opensentry/idp/migration"
 
+	_ "github.com/opensentry/idp/cmd"
+
 	E "github.com/opensentry/idp/client/errors"
 )
 

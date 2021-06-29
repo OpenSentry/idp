@@ -6,9 +6,12 @@ require (
 	github.com/charmixer/bulky v0.0.0-20210207184256-e3c22de48569
 	github.com/charmixer/hydra v0.0.0-20191125131426-c304077116ef
 	github.com/coreos/go-oidc/v3 v3.0.0
+	github.com/cristalhq/aconfig v0.16.1
+	github.com/cristalhq/aconfig/aconfigyaml v0.16.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.6.3
 	github.com/gofrs/uuid v4.0.0+incompatible
+	github.com/jessevdk/go-flags v1.5.0
 	github.com/nats-io/nats-server/v2 v2.1.9 // indirect
 	github.com/nats-io/nats.go v1.10.0
 	github.com/neo4j/neo4j-go-driver v1.8.3
