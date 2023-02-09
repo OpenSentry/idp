@@ -7,7 +7,7 @@ require (
 	github.com/charmixer/hydra v0.0.0-20191125131426-c304077116ef
 	github.com/coreos/go-oidc/v3 v3.0.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/gin-gonic/gin v1.6.3
+	github.com/gin-gonic/gin v1.7.7
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/nats-io/nats-server/v2 v2.1.9 // indirect
 	github.com/nats-io/nats.go v1.10.0
