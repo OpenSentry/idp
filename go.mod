@@ -7,7 +7,7 @@ require (
 	github.com/charmixer/hydra v0.0.0-20191125131426-c304077116ef
 	github.com/coreos/go-oidc/v3 v3.0.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/gin-gonic/gin v1.6.3
+	github.com/gin-gonic/gin v1.9.0
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/nats-io/nats-server/v2 v2.1.9 // indirect
 	github.com/nats-io/nats.go v1.10.0
@@ -17,7 +17,8 @@ require (
 	github.com/pquerna/otp v1.3.0
 	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/viper v1.7.1
-	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
-	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
+	golang.org/x/crypto v0.5.0
+	golang.org/x/net v0.7.0
 	golang.org/x/oauth2 v0.0.0-20210201163806-010130855d6c
+	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
